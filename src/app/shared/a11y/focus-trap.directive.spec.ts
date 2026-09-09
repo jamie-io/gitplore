@@ -83,4 +83,33 @@ describe('FocusTrapDirective', () => {
 
     expect(document.activeElement?.id).toBe('outside');
   });
+
+  describe('with an embedded frame', () => {
+    @Component({
+      imports: [FocusTrapDirective],
+      template: `
+        <div appFocusTrap>
+          <button id="f-first" type="button">first</button>
+          <iframe id="f-frame" title="demo"></iframe>
+        </div>
+      `,
+    })
+    class FrameHost {}
+
+    it('treats an iframe as the last tab stop, so tabbing wraps instead of escaping', async () => {
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({ imports: [FrameHost] }).compileComponents();
+      const frameFixture = TestBed.createComponent(FrameHost);
+      document.body.appendChild(frameFixture.nativeElement);
+      await frameFixture.whenStable();
+
+      byId('f-frame').focus();
+      const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+      byId('f-frame').dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(document.activeElement?.id).toBe('f-first');
+      frameFixture.nativeElement.remove();
+    });
+  });
 });

@@ -49,7 +49,7 @@ import { WorldStore } from '../store/world.store';
           }
         </ul>
         <footer>
-          <a data-role="list" routerLink="/projects">Alle Projekte als Liste</a>
+          <a data-role="list" routerLink="/projects" (click)="close()">Alle Projekte als Liste</a>
           <button type="button" data-role="close" (click)="close()">
             Schließen <kbd>Esc</kbd>
           </button>

@@ -24,9 +24,8 @@ describe('DemoFrame', () => {
 
     const frame = host().querySelector('iframe');
     expect(frame?.getAttribute('src')).toBe('https://jamie-io.github.io/novaverta/');
-    expect(frame?.getAttribute('sandbox')).toBe(
-      'allow-scripts allow-same-origin allow-forms allow-popups',
-    );
+    // No allow-same-origin: the demos share the portfolio's origin, so it would be no sandbox.
+    expect(frame?.getAttribute('sandbox')).toBe('allow-scripts allow-forms allow-popups');
     expect(frame?.getAttribute('loading')).toBe('lazy');
     expect(frame?.getAttribute('referrerpolicy')).toBe('no-referrer');
     expect(frame?.getAttribute('title')).toContain('Phönix');

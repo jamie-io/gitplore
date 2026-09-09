@@ -7,6 +7,23 @@ import { Marked, type Tokens } from 'marked';
 const MAX_HEADING_LEVEL = 6;
 
 /**
+ * A README link that leaves the page would otherwise discard the running world. External links
+ * open in a new tab; every anchor gets a safe `rel`, whatever the source markdown carried.
+ */
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (!(node instanceof HTMLAnchorElement)) {
+    return;
+  }
+  const href = node.getAttribute('href') ?? '';
+  if (/^(https?:)?\/\//i.test(href)) {
+    node.setAttribute('target', '_blank');
+  }
+  if (node.getAttribute('target') === '_blank') {
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
+
+/**
  * A README's `#` becomes a heading of `topLevel`, so the document keeps a single `h1` — the page's
  * own — and the README reads as a section below it.
  */

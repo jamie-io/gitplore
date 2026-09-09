@@ -5,10 +5,20 @@ import { AssetManifest, AssetService, GLTF_LOADER, TEXTURE_LOADER } from './asse
 /** Loaders are stubbed: the tests are about caching and refcounts, not about parsing files. */
 class StubTextureLoader {
   loads: string[] = [];
-  load(url: string, onLoad?: (texture: Texture) => void): Texture {
+  failing = new Set<string>();
+  load(
+    url: string,
+    onLoad?: (texture: Texture) => void,
+    _onProgress?: undefined,
+    onError?: (error: unknown) => void,
+  ): Texture {
     this.loads.push(url);
     const texture = new Texture();
-    onLoad?.(texture);
+    if (this.failing.has(url)) {
+      onError?.(new Error('404'));
+    } else {
+      onLoad?.(texture);
+    }
     return texture;
   }
 }
@@ -170,6 +180,27 @@ describe('AssetService', () => {
 
       expect(failed).toEqual(['assets/models/monument.glb']);
       expect(textures.loads).toEqual(['assets/screens/novaverta.webp']);
+    });
+
+    it('does not keep a texture that failed to load, so a later load tries again', async () => {
+      textures.failing.add('assets/screens/novaverta.webp');
+      await assets.preload(MANIFEST, 'core');
+      textures.failing.delete('assets/screens/novaverta.webp');
+
+      assets.load('assets/screens/novaverta.webp');
+
+      expect(textures.loads.filter((u) => u.endsWith('novaverta.webp')).length).toBe(2);
+    });
+
+    it('survives two consumers waiting on the same failing model', async () => {
+      gltf.failing.add('assets/models/broken.glb');
+      const first = assets.model('assets/models/broken.glb');
+      const second = assets.model('assets/models/broken.glb');
+
+      await expect(first).rejects.toThrow();
+      await expect(second).rejects.toThrow();
+      gltf.failing.delete('assets/models/broken.glb');
+      await expect(assets.model('assets/models/broken.glb')).resolves.toBeInstanceOf(Group);
     });
 
     it('lists the urls of a group, so a landmark can fetch its own group lazily', () => {

@@ -33,8 +33,11 @@ jobs:
       # Fails the build if an `embeddable: true` no longer matches the demo's live headers (§5).
       - run: npm run content:check
       - run: npm run lint
+      - run: npm run typecheck
       - run: npm test
+      - run: npm run test:scripts
       - run: npx ng build --base-href "$BASE_HREF"
+      - run: npm run budget:check
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist/gitplore/browser

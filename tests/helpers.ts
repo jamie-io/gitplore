@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 
 /** How often the HUD samples the engine (`STATS_INTERVAL_MS` in hud.ts), plus slack. */
 const STATS_SETTLE_MS = 700;
@@ -43,5 +43,7 @@ export async function setTabHidden(page: Page, hidden: boolean): Promise<void> {
 export async function startWorld(page: Page, url = '/'): Promise<void> {
   await page.goto(url);
   await page.locator('button[data-role="start"]').click();
+  // Keys are only read once the world has the input; a keydown before that is simply dropped.
+  await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
   await page.locator('app-hub-page canvas').focus();
 }
