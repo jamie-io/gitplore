@@ -191,6 +191,21 @@ describe('PortalLandmark with a glTF model', () => {
     expect(assets.releasedModels).toEqual(['assets/models/arch.glb']);
   });
 
+  it('keeps the procedural arch and tries again later when the model fails to load', async () => {
+    const assets = new StubAssets();
+    const portal = new PortalLandmark(options({ project: withModel() }));
+    const ctx = ctxWith(assets);
+    portal.init(ctx);
+    ctx.player.teleport(new Vector3(0, 1.7, -18));
+    portal.update(0.016, ctx);
+
+    await assets.reject();
+    portal.update(0.016, ctx);
+
+    expect(portal.group.getObjectByName('proxy')).toBeDefined();
+    expect(assets.requested.length).toBe(2);
+  });
+
   it('never asks for a model when the project has none', () => {
     const assets = new StubAssets();
     const portal = new PortalLandmark(options({ project: project({ model: undefined }) }));

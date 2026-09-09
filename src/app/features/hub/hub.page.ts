@@ -3,6 +3,7 @@ import {
   DestroyRef,
   Injector,
   afterNextRender,
+  computed,
   effect,
   inject,
   viewChild,
@@ -42,8 +43,9 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
       role="application"
       aria-label="3D-Welt: mit WASD bewegen, mit den Pfeiltasten umsehen, E benutzt, M öffnet das Menü"
       (click)="input.requestLock()"
+      [inert]="overlayOpen()"
     ></canvas>
-    <app-hud />
+    <app-hud [inert]="overlayOpen()" />
     @if (store.menuOpen()) {
       <app-project-menu (travel)="travelTo($event)" />
     }
@@ -92,6 +94,9 @@ export class HubPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
+  /** While a dialog owns the input, what lies beneath it must not be reachable by Tab (§6). */
+  protected readonly overlayOpen = computed(() => this.store.inputMode() === 'ui');
+
   private hub: HubScene | null = null;
   private demo: Landmark | null = null;
   private destroyed = false;
@@ -136,6 +141,10 @@ export class HubPage {
         this.store.paused() || (slug !== null && this.capability.tier() === 'low'),
       );
 
+      // Entering a destination ends a running demo; the panel is a different place.
+      if (slug !== null) {
+        this.endDemo();
+      }
       // Returning from a destination puts the player in front of its landmark, facing away (§3).
       if (slug === null && previousSlug !== null) {
         this.placeAt(this.hub?.landmarkFor(previousSlug), 'away');
@@ -162,6 +171,7 @@ export class HubPage {
   }
 
   protected travelTo(slug: string): void {
+    this.endDemo();
     this.placeAt(this.hub?.landmarkFor(slug), 'towards');
   }
 
@@ -193,6 +203,7 @@ export class HubPage {
         onEnter: (project) => void this.router.navigate(['/p', project.slug]),
         onDemo: (landmark) => this.startDemo(landmark),
         onAreaChange: (area) => this.store.setArea(area),
+        textures: this.assets,
       });
       this.hub = hub;
       this.engine.setScene(hub);
@@ -227,7 +238,12 @@ export class HubPage {
 
     const total = this.assets.urlsOf(manifest, 'core').length;
     this.store.beginLoading(total, 'Modelle');
-    await this.assets.preload(manifest, 'core', (loaded) => this.store.reportProgress(loaded));
+    const failed = await this.assets.preload(manifest, 'core', (loaded) =>
+      this.store.reportProgress(loaded),
+    );
+    if (failed.length > 0) {
+      console.warn('gitplore: assets missing, proxies stay in place', failed);
+    }
   }
 
   /** Puts the player on a landmark's spawn point, looking away from it or at it. */
@@ -255,7 +271,10 @@ export class HubPage {
   }
 
   private endDemo(): void {
-    this.demo?.exit?.();
+    if (!this.demo) {
+      return;
+    }
+    this.demo.exit?.();
     this.demo = null;
     this.store.setDemoActive(false);
   }

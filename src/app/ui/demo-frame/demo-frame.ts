@@ -21,6 +21,11 @@ export const DEMO_LOAD_TIMEOUT_MS = new InjectionToken<number>('DEMO_LOAD_TIMEOU
  * An existing web app shown inside the panel (IMPLEMENTATION_PLAN.md §5). The iframe appears only
  * when the demo is known to be frameable; the screenshot with an external link is the fallback
  * for everything else, including a frame that never finishes loading.
+ *
+ * `allow-same-origin` stays in the sandbox because the demos are static sites on the same host
+ * that may use storage, so the sandbox limits capabilities (no top navigation, no downloads),
+ * not origin access. Framing bans cannot be detected here — Chrome fires `load` on a blocked
+ * frame — so `npm run content:check` is the real guard and the timeout only covers a hang.
  */
 @Component({
   selector: 'app-demo-frame',
@@ -67,6 +72,7 @@ export const DEMO_LOAD_TIMEOUT_MS = new InjectionToken<number>('DEMO_LOAD_TIMEOU
     }
     .card img {
       inline-size: 100%;
+      block-size: auto;
       border-radius: 0.5rem;
     }
     figcaption {

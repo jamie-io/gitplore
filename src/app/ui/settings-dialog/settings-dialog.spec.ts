@@ -87,15 +87,22 @@ describe('SettingsDialog', () => {
     expect(settings.sensitivity()).toBeCloseTo(1.8, 6);
   });
 
-  it('lets the visitor force reduced motion on', async () => {
-    const checkbox = field<HTMLInputElement>('reduced-motion');
-    checkbox.checked = true;
-    checkbox.dispatchEvent(new Event('input', { bubbles: true }));
-    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-    await fixture.whenStable();
-
+  it('lets the visitor force reduced motion on, off, or leave it to the system', async () => {
+    await type(field<HTMLSelectElement>('motion'), 'reduced');
     expect(settings.reducedMotionOverride()).toBe(true);
     expect(TestBed.inject(CapabilityService).reducedMotion()).toBe(true);
+
+    await type(field<HTMLSelectElement>('motion'), 'full');
+    expect(settings.reducedMotionOverride()).toBe(false);
+
+    await type(field<HTMLSelectElement>('motion'), 'auto');
+    expect(settings.reducedMotionOverride()).toBeNull();
+  });
+
+  it('writes nothing just by being opened, so system preferences stay in charge', () => {
+    expect(settings.reducedMotionOverride()).toBeNull();
+    expect(settings.qualityOverride()).toBeNull();
+    expect(localStorage.getItem('gitplore.settings')).toBeNull();
   });
 
   it('closes on the close button and on escape', async () => {

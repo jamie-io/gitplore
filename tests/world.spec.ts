@@ -15,7 +15,11 @@ test.describe('hub world', () => {
 
     const gate = page.getByRole('dialog', { name: 'Gitplore' });
     await expect(gate).toContainText('WASD');
+    // Modal for real: the world and HUD underneath are inert and the gate holds focus.
+    await expect(page.locator('app-hub-page canvas')).toHaveAttribute('inert', '');
+    await expect(gate.locator('button[data-role="start"]')).toBeFocused();
     await gate.locator('button[data-role="start"]').click();
+    await expect(page.locator('app-hub-page canvas')).not.toHaveAttribute('inert', '');
     await expect(gate).toHaveCount(0);
     await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
   });

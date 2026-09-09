@@ -62,6 +62,7 @@ export abstract class Landmark implements WorldObject {
   readonly spawnYaw: number;
 
   protected readonly textures: TextureProvider;
+  protected readonly ground: HeightField;
   protected readonly reducedMotion: () => boolean;
   protected readonly onEnter: (project: Project) => void;
   protected readonly onDemo: ((landmark: Landmark) => void) | undefined;
@@ -83,6 +84,7 @@ export abstract class Landmark implements WorldObject {
     this.id = `landmark:${options.project.slug}`;
     this.rotationY = rotationY;
     this.textures = options.textures ?? new PlainTextureProvider();
+    this.ground = options.ground;
     this.reducedMotion = options.reducedMotion;
     this.onEnter = options.onEnter;
     this.onDemo = options.onDemo;

@@ -153,6 +153,9 @@ export class EngineService {
 
   /** Re-applies the current quality settings to the renderer, e.g. after a tier change. */
   refreshQuality(): void {
+    if (this.renderer) {
+      this.renderer.shadowMap.enabled = this.capability.settings().shadows;
+    }
     this.resize(this.size.width, this.size.height);
   }
 
