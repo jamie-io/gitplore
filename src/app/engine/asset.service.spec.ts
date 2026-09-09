@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { Group, Mesh, Texture } from 'three';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Texture } from 'three';
 import { AssetManifest, AssetService, GLTF_LOADER, TEXTURE_LOADER } from './asset.service';
 
 /** Loaders are stubbed: the tests are about caching and refcounts, not about parsing files. */
@@ -15,10 +15,14 @@ class StubTextureLoader {
 
 class StubGltfLoader {
   loads: string[] = [];
+  failing = new Set<string>();
   loadAsync(url: string): Promise<{ scene: Group }> {
     this.loads.push(url);
+    if (this.failing.has(url)) {
+      return Promise.reject(new Error('404'));
+    }
     const scene = new Group();
-    scene.add(new Mesh());
+    scene.add(new Mesh(new BoxGeometry(), new MeshStandardMaterial({ map: new Texture() })));
     return Promise.resolve({ scene });
   }
 }
@@ -110,6 +114,23 @@ describe('AssetService', () => {
       expect(a.children.length).toBe(1);
     });
 
+    it('marks the shared geometry, material and textures as managed', async () => {
+      const copy = await assets.model('assets/models/monument.glb');
+
+      const mesh = copy.children[0] as Mesh;
+      expect(mesh.geometry.userData['managed']).toBe(true);
+      expect((mesh.material as MeshStandardMaterial).userData['managed']).toBe(true);
+      expect((mesh.material as MeshStandardMaterial).map?.userData['managed']).toBe(true);
+    });
+
+    it('rejects a copy when the file cannot be loaded, and retries on the next request', async () => {
+      gltf.failing.add('assets/models/broken.glb');
+
+      await expect(assets.model('assets/models/broken.glb')).rejects.toThrow('404');
+      gltf.failing.delete('assets/models/broken.glb');
+      await expect(assets.model('assets/models/broken.glb')).resolves.toBeInstanceOf(Group);
+    });
+
     it('forgets the parsed source after the last copy is released', async () => {
       await assets.model('assets/models/monument.glb');
       assets.releaseModel('assets/models/monument.glb');
@@ -140,6 +161,15 @@ describe('AssetService', () => {
 
       expect(gltf.loads.length).toBe(1);
       expect(textures.loads.length).toBe(1);
+    });
+
+    it('finishes the preload even when one asset fails, reporting the failure', async () => {
+      gltf.failing.add('assets/models/monument.glb');
+
+      const failed = await assets.preload(MANIFEST, 'core');
+
+      expect(failed).toEqual(['assets/models/monument.glb']);
+      expect(textures.loads).toEqual(['assets/screens/novaverta.webp']);
     });
 
     it('lists the urls of a group, so a landmark can fetch its own group lazily', () => {

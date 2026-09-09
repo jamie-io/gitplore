@@ -139,7 +139,15 @@ export class PortalLandmark extends Landmark {
     }
 
     this.modelState = 'loading';
-    void ctx.assets.model(url).then((model) => this.placeModel(ctx, model, url));
+    ctx.assets.model(url).then(
+      (model) => this.placeModel(ctx, model, url),
+      () => {
+        // Keep the procedural arch; the next approach tries again.
+        if (this.modelState === 'loading') {
+          this.modelState = 'none';
+        }
+      },
+    );
   }
 
   private placeModel(ctx: WorldContext, model: Group, url: string): void {

@@ -69,4 +69,18 @@ describe('disposeObject3D', () => {
 
     expect(disposed).toBe(0);
   });
+
+  it('leaves managed geometry and materials alone, so cloned models stay shareable', () => {
+    const geometry = new BoxGeometry();
+    const material = new MeshStandardMaterial();
+    geometry.userData['managed'] = true;
+    material.userData['managed'] = true;
+    let disposed = 0;
+    geometry.dispose = () => void disposed++;
+    material.dispose = () => void disposed++;
+
+    disposeObject3D(new Mesh(geometry, material));
+
+    expect(disposed).toBe(0);
+  });
 });

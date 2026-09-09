@@ -1,5 +1,5 @@
 import { InjectionToken, Service, inject } from '@angular/core';
-import { Group, LoadingManager, Texture, TextureLoader } from 'three';
+import { Group, LoadingManager, Material, Mesh, Texture, TextureLoader } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { disposeObject3D, markManaged } from './dispose';
@@ -18,7 +18,12 @@ export interface AssetEntry {
 
 /** The slice of `TextureLoader` the service uses, so tests can stand in for it. */
 export interface TextureLoaderLike {
-  load(url: string, onLoad?: (texture: Texture) => void): Texture;
+  load(
+    url: string,
+    onLoad?: (texture: Texture) => void,
+    onProgress?: undefined,
+    onError?: (error: unknown) => void,
+  ): Texture;
 }
 
 export interface GltfLoaderLike {
@@ -98,12 +103,18 @@ export class AssetService implements AssetLike {
   async model(url: string): Promise<Group> {
     let cached = this.models.get(url);
     if (!cached) {
-      cached = { source: this.gltfLoader.loadAsync(url).then((gltf) => gltf.scene), refs: 0 };
+      cached = {
+        source: this.gltfLoader.loadAsync(url).then((gltf) => markModelManaged(gltf.scene)),
+        refs: 0,
+      };
       this.models.set(url, cached);
     }
 
     cached.refs++;
     try {
+      // `clone()` shares geometry, materials and textures with the source, which is the point:
+      // they are marked managed, so a consumer's `disposeObject3D` leaves them to this service.
+      // (Static props only — skinned or animated models would need SkeletonUtils.clone.)
       return (await cached.source).clone();
     } catch (error) {
       cached.refs--;
@@ -131,27 +142,75 @@ export class AssetService implements AssetLike {
 
   /**
    * Fetches a whole group up front and keeps one reference on each asset, so the world finds
-   * everything cached. Progress counts assets, which is what the loading screen shows.
+   * everything cached. Progress counts assets, which is what the loading screen shows. A failed
+   * asset is reported, not thrown: every model has a proxy, so the world can do without it.
    */
   async preload(
     manifest: AssetManifest,
     group: string,
     onProgress?: (loaded: number, total: number) => void,
-  ): Promise<void> {
+  ): Promise<string[]> {
     const urls = this.urlsOf(manifest, group);
+    const failed: string[] = [];
     let loaded = 0;
     onProgress?.(0, urls.length);
 
     await Promise.all(
       urls.map(async (url) => {
-        if (MODEL_EXTENSIONS.test(url)) {
-          await this.model(url);
-          // `model` handed out a clone we do not need; the reference itself is what we keep.
-        } else {
-          this.load(url);
+        try {
+          if (MODEL_EXTENSIONS.test(url)) {
+            // `model` hands out a clone we do not need; the reference itself is what we keep.
+            await this.model(url);
+          } else {
+            await this.loadAsync(url);
+          }
+        } catch {
+          failed.push(url);
         }
         onProgress?.(++loaded, urls.length);
       }),
     );
+
+    return failed;
   }
+
+  /** `load`, but settled only once the image has arrived (or failed), for honest progress. */
+  private loadAsync(url: string): Promise<Texture> {
+    const cached = this.textures.get(url);
+    if (cached) {
+      cached.refs++;
+      return Promise.resolve(cached.texture);
+    }
+
+    return new Promise((resolve, reject) => {
+      // The stub loader in tests calls back synchronously, so resolve with the callback's own
+      // argument rather than a variable that may not exist yet.
+      const texture = this.textureLoader.load(url, (loaded) => resolve(loaded), undefined, reject);
+      markManaged(texture);
+      this.textures.set(url, { texture, refs: 1 });
+    });
+  }
+}
+
+/** Flags everything a model shares between its clones, so no consumer frees it. */
+function markModelManaged(scene: Group): Group {
+  scene.traverse((object) => {
+    const mesh = object as Partial<Mesh>;
+    if (mesh.geometry) {
+      markManaged(mesh.geometry);
+    }
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials) {
+      if (!material) {
+        continue;
+      }
+      markManaged(material as Material);
+      for (const value of Object.values(material)) {
+        if (value instanceof Texture) {
+          markManaged(value);
+        }
+      }
+    }
+  });
+  return scene;
 }

@@ -129,7 +129,7 @@ export class DeslopifyLandmark extends PortalLandmark {
 
     // Stand in front of the wall, looking at it: the wall faces the landmark's front.
     const viewpoint = this.wallCentre.clone().addScaledVector(this.front(), VIEWPOINT_DISTANCE);
-    viewpoint.y = ctx.player.position.y - PLAYER_EYE_HEIGHT + PLAYER_EYE_HEIGHT;
+    viewpoint.y = this.ground.heightAt(viewpoint.x, viewpoint.z) + PLAYER_EYE_HEIGHT;
     ctx.player.teleport(viewpoint, this.rotationY);
     ctx.player.pitch = 0;
   }

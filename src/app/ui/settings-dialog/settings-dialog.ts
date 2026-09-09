@@ -7,10 +7,16 @@ import { WorldStore } from '../store/world.store';
 
 const TIER_LABELS: Record<QualityTier, string> = { low: 'niedrig', medium: 'mittel', high: 'hoch' };
 
+type MotionChoice = 'auto' | 'reduced' | 'full';
+
 interface SettingsModel {
   quality: 'auto' | QualityTier;
   sensitivity: number;
-  reducedMotion: boolean;
+  motion: MotionChoice;
+}
+
+function motionChoice(override: boolean | null): MotionChoice {
+  return override === null ? 'auto' : override ? 'reduced' : 'full';
 }
 
 /**
@@ -54,15 +60,15 @@ interface SettingsModel {
         </div>
 
         <div class="row">
-          <input
-            id="settings-reduced-motion"
-            type="checkbox"
-            [formField]="settings.reducedMotion"
-          />
-          <label for="settings-reduced-motion"
-            >Bewegung reduzieren (kein Kameraflug, ruhiger Himmel)</label
-          >
+          <label for="settings-motion">Bewegung</label>
+          <select id="settings-motion" [formField]="settings.motion">
+            <option value="auto">Wie im System eingestellt</option>
+            <option value="reduced">Reduziert (kein Kameraflug, ruhiger Himmel)</option>
+            <option value="full">Voll</option>
+          </select>
         </div>
+
+        <p class="note">Grafikqualität wirkt teils erst nach dem Neuladen der Seite.</p>
 
         <footer>
           <button type="button" data-role="close" (click)="close()">
@@ -100,10 +106,10 @@ interface SettingsModel {
       display: grid;
       gap: 0.35rem;
     }
-    .row:has([type='checkbox']) {
-      grid-template-columns: auto 1fr;
-      align-items: center;
-      gap: 0.6rem;
+    .note {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #3c4854;
     }
     select,
     input[type='range'] {
@@ -140,7 +146,7 @@ export class SettingsDialog {
   protected readonly model = signal<SettingsModel>({
     quality: this.store.qualityOverride() ?? 'auto',
     sensitivity: this.store.sensitivity(),
-    reducedMotion: this.store.reducedMotionOverride() ?? this.capability.reducedMotion(),
+    motion: motionChoice(this.store.reducedMotionOverride()),
   });
 
   protected readonly settings = form(this.model, (path) => {
@@ -150,11 +156,23 @@ export class SettingsDialog {
   });
 
   constructor() {
+    // Write through only what the visitor changed: merely opening the dialog must not turn
+    // "follow the system" into a stored choice.
+    let previous = this.model();
     effect(() => {
-      const { quality, sensitivity, reducedMotion } = this.model();
-      this.store.setQualityOverride(quality === 'auto' ? null : quality);
-      this.store.setSensitivity(Number(sensitivity));
-      this.store.setReducedMotionOverride(reducedMotion);
+      const current = this.model();
+      if (current.quality !== previous.quality) {
+        this.store.setQualityOverride(current.quality === 'auto' ? null : current.quality);
+      }
+      if (current.sensitivity !== previous.sensitivity) {
+        this.store.setSensitivity(Number(current.sensitivity));
+      }
+      if (current.motion !== previous.motion) {
+        this.store.setReducedMotionOverride(
+          current.motion === 'auto' ? null : current.motion === 'reduced',
+        );
+      }
+      previous = current;
     });
   }
 

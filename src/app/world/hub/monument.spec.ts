@@ -78,4 +78,16 @@ describe('Monument', () => {
     expect(ctx.scene.children).toEqual([]);
     expect(assets.releasedModels).toEqual([MONUMENT_MODEL]);
   });
+
+  it('keeps the proxy when the model cannot be loaded', async () => {
+    const assets = new StubAssets();
+    const ctx = context(assets);
+    const monument = new Monument();
+    monument.init(ctx);
+
+    await assets.reject();
+
+    expect(ctx.scene.getObjectByName('monument-proxy')).toBeDefined();
+    expect(assets.releasedModels).toEqual([]);
+  });
 });

@@ -11,11 +11,11 @@ export class StubAssets implements AssetLike {
   loaded: string[] = [];
   released: string[] = [];
   handedOut: Texture[] = [];
-  private resolvers: ((group: Group) => void)[] = [];
+  private pending: { resolve: (group: Group) => void; reject: (error: Error) => void }[] = [];
 
   model(url: string): Promise<Group> {
     this.requested.push(url);
-    return new Promise((resolve) => this.resolvers.push(resolve));
+    return new Promise((resolve, reject) => this.pending.push({ resolve, reject }));
   }
 
   releaseModel(url: string): void {
@@ -35,7 +35,14 @@ export class StubAssets implements AssetLike {
 
   /** Delivers `group` to the oldest pending model request and lets the microtasks run. */
   async resolve(group = new Group()): Promise<void> {
-    this.resolvers.shift()?.(group);
+    this.pending.shift()?.resolve(group);
+    await Promise.resolve();
+    await Promise.resolve();
+  }
+
+  /** Fails the oldest pending model request, as a 404 would. */
+  async reject(): Promise<void> {
+    this.pending.shift()?.reject(new Error('404'));
     await Promise.resolve();
     await Promise.resolve();
   }

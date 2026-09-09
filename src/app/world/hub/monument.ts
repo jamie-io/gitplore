@@ -41,7 +41,11 @@ export class Monument implements WorldObject {
     this.proxy.position.copy(this.position).setY(this.position.y + 4);
     ctx.scene.add(this.proxy);
 
-    void ctx.assets.model(MONUMENT_MODEL).then((model) => this.place(ctx, model));
+    // A missing model is not an error worth showing: the proxy block simply stays.
+    ctx.assets.model(MONUMENT_MODEL).then(
+      (model) => this.place(ctx, model),
+      () => undefined,
+    );
   }
 
   update(): void {

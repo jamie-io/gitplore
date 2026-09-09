@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { LoadingScreen } from './loading-screen';
 import { WorldStore } from '../store/world.store';
 
@@ -10,7 +11,11 @@ describe('LoadingScreen', () => {
 
   beforeEach(async () => {
     TestBed.resetTestingModule();
-    await TestBed.configureTestingModule({ imports: [LoadingScreen] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [LoadingScreen],
+      providers: [provideRouter([])],
+    }).compileComponents();
+    document.body.appendChild(document.createElement('div'));
     store = TestBed.inject(WorldStore);
     fixture = TestBed.createComponent(LoadingScreen);
   });
@@ -63,6 +68,32 @@ describe('LoadingScreen', () => {
 
     expect(host().textContent).toMatch(/WASD/);
     expect(host().textContent).toMatch(/Pfeiltasten/);
+  });
+
+  it('moves keyboard focus to the start button as soon as it appears', async () => {
+    document.body.appendChild(fixture.nativeElement);
+    store.beginLoading(1, 'Welt');
+    await fixture.whenStable();
+    store.markReady();
+    await fixture.whenStable();
+
+    expect(document.activeElement?.getAttribute('data-role')).toBe('start');
+  });
+
+  it('names the progress bar so it is announced', async () => {
+    store.beginLoading(3, 'Modelle');
+    await fixture.whenStable();
+
+    const bar = host().querySelector('progress');
+    expect(bar?.getAttribute('aria-labelledby')).toBeTruthy();
+    expect(host().querySelector('[role="status"]')?.textContent).toContain('Modelle');
+  });
+
+  it('links to the list without leaving the app', async () => {
+    store.markReady();
+    await fixture.whenStable();
+
+    expect(host().querySelector('a')?.getAttribute('href')).toBe('/projects');
   });
 
   it('reports a failure instead of a start button', async () => {
