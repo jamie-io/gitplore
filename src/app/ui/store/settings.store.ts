@@ -82,10 +82,25 @@ function clampSensitivity(value: number): number {
   return Number.isFinite(value) ? Math.min(Math.max(value, MIN_SENSITIVITY), MAX_SENSITIVITY) : 1;
 }
 
+const TIERS: readonly QualityTier[] = ['low', 'medium', 'high'];
+
+/** Stored data is untrusted: it reaches the engine, so every field is validated on the way in. */
 function read(): StoredSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULTS, ...(JSON.parse(raw) as Partial<StoredSettings>) } : DEFAULTS;
+    if (!raw) {
+      return DEFAULTS;
+    }
+    const parsed = JSON.parse(raw) as Partial<Record<keyof StoredSettings, unknown>>;
+    return {
+      qualityOverride: TIERS.includes(parsed.qualityOverride as QualityTier)
+        ? (parsed.qualityOverride as QualityTier)
+        : null,
+      sensitivity:
+        typeof parsed.sensitivity === 'number' ? clampSensitivity(parsed.sensitivity) : 1,
+      reducedMotionOverride:
+        typeof parsed.reducedMotionOverride === 'boolean' ? parsed.reducedMotionOverride : null,
+    };
   } catch {
     return DEFAULTS;
   }

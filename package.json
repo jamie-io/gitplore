@@ -14,11 +14,12 @@
     "content:sync": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-readmes.mjs",
     "content:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-embeddable.mjs",
     "content:screens": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/capture-screens.mjs",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run test:scripts && npm run build",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run test:scripts && npm run build && npm run budget:check",
     "prepare": "husky",
     "test:scripts": "node --test 'scripts/**/*.test.mjs'",
     "assets:author": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/author-models.mjs",
-    "assets:optimize": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/optimize-assets.mjs"
+    "assets:optimize": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/optimize-assets.mjs",
+    "budget:check": "node scripts/check-budget.mjs"
   },
   "private": true,
   "packageManager": "npm@11.19.0",

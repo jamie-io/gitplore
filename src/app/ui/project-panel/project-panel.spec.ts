@@ -3,8 +3,12 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
 import { ContentService } from '@content/content.service';
+import { Component } from '@angular/core';
 import { WorldStore } from '../store/world.store';
 import { ProjectPanel } from './project-panel';
+
+@Component({ template: '<p>Panel-Demo</p>' })
+class StubPanelDemo {}
 
 describe('ProjectPanel', () => {
   let fixture: ComponentFixture<ProjectPanel>;
@@ -145,6 +149,28 @@ describe('ProjectPanel demos', () => {
     await fixture.whenStable();
 
     expect(host().querySelector('[role="alert"]')?.textContent).toContain('README');
+  });
+
+  it('hosts a panel-mode demo component inside the panel', async () => {
+    const content = TestBed.inject(ContentService);
+    const original = content.bySlug('deslopify')!;
+    content.bySlug = (slug) =>
+      slug === 'deslopify'
+        ? {
+            ...original,
+            demo: {
+              kind: 'custom',
+              mode: 'panel',
+              panelComponent: () => Promise.resolve(StubPanelDemo),
+            },
+          }
+        : undefined;
+    await open('deslopify');
+    await Promise.resolve();
+    await fixture.whenStable();
+
+    expect(host().querySelector('app-demo-panel-host')).not.toBeNull();
+    expect(host().textContent).toContain('Panel-Demo');
   });
 
   it('embeds an iframe demo through the demo frame', async () => {

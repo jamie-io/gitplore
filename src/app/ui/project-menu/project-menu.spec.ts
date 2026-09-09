@@ -14,7 +14,7 @@ describe('ProjectMenu', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ProjectMenu],
-      providers: [provideRouter([])],
+      providers: [provideRouter([{ path: '**', children: [] }])],
     }).compileComponents();
     await TestBed.inject(ContentService).ready;
     store = TestBed.inject(WorldStore);
@@ -61,8 +61,14 @@ describe('ProjectMenu', () => {
     expect(link?.getAttribute('href')).toBe('/p/novaverta');
   });
 
-  it('links to the simple project list', () => {
-    expect(host().querySelector('a[data-role="list"]')?.getAttribute('href')).toBe('/projects');
+  it('links to the simple project list and closes on the way there', async () => {
+    const link = host().querySelector<HTMLAnchorElement>('a[data-role="list"]');
+    expect(link?.getAttribute('href')).toBe('/projects');
+
+    link?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    await fixture.whenStable();
+
+    expect(store.menuOpen()).toBe(false);
   });
 
   it('closes on the close button', async () => {

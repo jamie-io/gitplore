@@ -111,6 +111,21 @@ export class WorldStore {
     this.menuOpen.set(open);
   }
 
+  /**
+   * Clears everything that only makes sense while a hub page is mounted. The store is a root
+   * singleton, so without this a demo or menu left open would still be "open" when the visitor
+   * comes back from /projects — with nobody left to close it.
+   */
+  resetTransient(): void {
+    this.menuOpen.set(false);
+    this.settingsOpen.set(false);
+    this.demoActive.set(false);
+    this.demoHint.set(null);
+    this.demoRequest.set(null);
+    this.nearby.set(null);
+    this.area.set('');
+  }
+
   setSettingsOpen(open: boolean): void {
     this.settingsOpen.set(open);
   }

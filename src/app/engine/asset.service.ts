@@ -118,7 +118,10 @@ export class AssetService implements AssetLike {
       return (await cached.source).clone();
     } catch (error) {
       cached.refs--;
-      this.models.delete(url);
+      // Only the entry that failed is dropped; a concurrent waiter may already have replaced it.
+      if (this.models.get(url) === cached) {
+        this.models.delete(url);
+      }
       throw error;
     }
   }
@@ -183,11 +186,24 @@ export class AssetService implements AssetLike {
     }
 
     return new Promise((resolve, reject) => {
-      // The stub loader in tests calls back synchronously, so resolve with the callback's own
-      // argument rather than a variable that may not exist yet.
-      const texture = this.textureLoader.load(url, (loaded) => resolve(loaded), undefined, reject);
-      markManaged(texture);
-      this.textures.set(url, { texture, refs: 1 });
+      // The loader may call back synchronously (the test stub does), so the callbacks use their
+      // own arguments and the cache entry is only written for a load that has not already failed.
+      let failed = false;
+      const texture = this.textureLoader.load(
+        url,
+        (loaded) => resolve(loaded),
+        undefined,
+        (error) => {
+          // A texture that never arrived must not be handed out as if it had.
+          failed = true;
+          this.textures.delete(url);
+          reject(error);
+        },
+      );
+      if (!failed) {
+        markManaged(texture);
+        this.textures.set(url, { texture, refs: 1 });
+      }
     });
   }
 }

@@ -88,4 +88,18 @@ describe('SettingsStore', () => {
 
     expect(TestBed.inject(CapabilityService).reducedMotion()).toBe(true);
   });
+
+  it('clamps and whitelists tampered stored values before applying them', () => {
+    localStorage.setItem(
+      'gitplore.settings',
+      JSON.stringify({ qualityOverride: 'ultra', sensitivity: 99, reducedMotionOverride: 'yes' }),
+    );
+
+    const settings = freshStore();
+
+    expect(settings.qualityOverride()).toBeNull();
+    expect(settings.sensitivity()).toBe(MAX_SENSITIVITY);
+    expect(settings.reducedMotionOverride()).toBeNull();
+    expect(TestBed.inject(InputService).sensitivity).toBe(MAX_SENSITIVITY);
+  });
 });

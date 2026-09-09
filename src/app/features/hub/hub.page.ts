@@ -36,6 +36,7 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
   selector: 'app-hub-page',
   imports: [RouterOutlet, Hud, ProjectMenu, SettingsDialog, LoadingScreen],
   template: `
+    <h1 class="sr-only">Gitplore – 3D-Welt</h1>
     <canvas
       #canvas
       class="hub-canvas"
@@ -70,6 +71,14 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
       display: block;
       inline-size: 100%;
       block-size: 100%;
+    }
+    .sr-only {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
     .hub-canvas:focus-visible {
       outline: 3px solid #fff;
@@ -125,8 +134,15 @@ export class HubPage {
     // render, because the closing dialog's focus trap restores focus to its opener on destroy.
     const injector = inject(Injector);
     effect(() => {
-      if (this.store.inputMode() !== 'ui' && this.store.started()) {
-        afterNextRender(() => this.canvas().nativeElement.focus(), { injector });
+      if (this.store.inputMode() !== 'ui' && this.store.started() && !this.destroyed) {
+        afterNextRender(
+          () => {
+            if (!this.destroyed) {
+              this.canvas().nativeElement.focus();
+            }
+          },
+          { injector },
+        );
       }
     });
 
@@ -166,6 +182,8 @@ export class HubPage {
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       offActions();
+      this.endDemo();
+      this.store.resetTransient();
       this.engine.detach();
     });
   }
@@ -253,6 +271,7 @@ export class HubPage {
     }
 
     const yaw = facing === 'away' ? landmark.spawnYaw : landmark.rotationY;
+    this.engine.player.pitch = 0;
     this.engine.player.teleport(
       landmark.spawn.clone().setY(landmark.spawn.y + PLAYER_EYE_HEIGHT),
       yaw,
@@ -291,7 +310,8 @@ export class HubPage {
       // `openSlug` rather than `store.activeSlug`: the store copy trails the router by one
       // change-detection pass, and a key can land inside that gap.
       case 'menu':
-        if (this.openSlug() === null) {
+        // Not before the start gate: two modal dialogs at once, and no projects loaded yet.
+        if (this.openSlug() === null && this.store.started()) {
           this.store.toggleMenu();
         }
         break;

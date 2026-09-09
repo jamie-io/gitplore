@@ -56,6 +56,20 @@ describe('MarkdownComponent', () => {
     expect(host.querySelector('a')?.getAttribute('href') ?? '').not.toContain('javascript:');
   });
 
+  it('opens external links in a new tab without leaking the opener', async () => {
+    const host = await render('[repo](https://github.com/jamie-io/novaverta)');
+
+    const link = host.querySelector('a');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('keeps in-page anchors in the same tab', async () => {
+    const host = await render('[top](#top)');
+
+    expect(host.querySelector('a')?.getAttribute('target')).toBeNull();
+  });
+
   it('renders nothing for empty markdown', async () => {
     const host = await render('');
 

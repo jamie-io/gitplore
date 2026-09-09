@@ -22,10 +22,10 @@ export const DEMO_LOAD_TIMEOUT_MS = new InjectionToken<number>('DEMO_LOAD_TIMEOU
  * when the demo is known to be frameable; the screenshot with an external link is the fallback
  * for everything else, including a frame that never finishes loading.
  *
- * `allow-same-origin` stays in the sandbox because the demos are static sites on the same host
- * that may use storage, so the sandbox limits capabilities (no top navigation, no downloads),
- * not origin access. Framing bans cannot be detected here — Chrome fires `load` on a blocked
- * frame — so `npm run content:check` is the real guard and the timeout only covers a hang.
+ * The sandbox deliberately omits `allow-same-origin`: the demos live on the same origin as the
+ * portfolio, so with it the frame would have been no sandbox at all. Framing bans cannot be
+ * detected here — Chrome fires `load` on a blocked frame — so `npm run content:check` is the
+ * real guard and the timeout only covers a hang.
  */
 @Component({
   selector: 'app-demo-frame',
@@ -36,7 +36,7 @@ export const DEMO_LOAD_TIMEOUT_MS = new InjectionToken<number>('DEMO_LOAD_TIMEOU
         class="frame"
         [src]="safeUrl()"
         [title]="'Demo: ' + title()"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        sandbox="allow-scripts allow-forms allow-popups"
         loading="lazy"
         referrerpolicy="no-referrer"
         (load)="loaded.set(true)"

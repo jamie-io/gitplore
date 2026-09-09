@@ -21,11 +21,21 @@ test.describe('memory', () => {
       await expect(page.getByRole('dialog')).toHaveCount(0);
     };
 
-    // One warm-up cycle first: Three counts a geometry only once it has been drawn, and the
-    // returning player faces parts of the world the spawn view never showed.
-    await cycle();
-    const geometries = await settledStat(page, 'geometries');
-    const textures = await settledStat(page, 'textures');
+    // Warm up until a cycle stops changing the numbers: Three counts a geometry only once it has
+    // been drawn, and the returning player faces parts of the world the spawn view never showed.
+    let geometries = await settledStat(page, 'geometries');
+    let textures = await settledStat(page, 'textures');
+    for (let warmUp = 0; warmUp < 4; warmUp++) {
+      await cycle();
+      const g = await settledStat(page, 'geometries');
+      const t = await settledStat(page, 'textures');
+      const stable = g === geometries && t === textures;
+      geometries = g;
+      textures = t;
+      if (stable) {
+        break;
+      }
+    }
 
     for (let i = 0; i < 5; i++) {
       await cycle();

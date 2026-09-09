@@ -5,6 +5,7 @@ import { MarkdownComponent } from '@content/markdown/markdown.component';
 import { ReadmeService } from '@content/readme.service';
 import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
 import { DemoFrame } from '../demo-frame/demo-frame';
+import { DemoPanelHost } from '../demo-panel-host/demo-panel-host';
 import { WorldStore } from '../store/world.store';
 
 /**
@@ -13,7 +14,7 @@ import { WorldStore } from '../store/world.store';
  */
 @Component({
   selector: 'app-project-panel',
-  imports: [MarkdownComponent, FocusTrapDirective, DemoFrame],
+  imports: [MarkdownComponent, FocusTrapDirective, DemoFrame, DemoPanelHost],
   template: `
     <div class="backdrop">
       <div
@@ -46,6 +47,12 @@ import { WorldStore } from '../store/world.store';
                 [embeddable]="project.demo.embeddable"
                 [screenshot]="project.demo.screenshot"
               />
+            </section>
+          } @else if (project.demo.kind === 'custom' && project.demo.mode === 'panel') {
+            <section class="demo" aria-label="Demo">
+              @if (project.demo.panelComponent; as load) {
+                <app-demo-panel-host [load]="load" />
+              }
             </section>
           } @else if (project.demo.kind === 'custom' && project.demo.mode === 'in-world') {
             <section class="demo" aria-label="Demo">

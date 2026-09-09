@@ -158,6 +158,30 @@ describe('WorldStore', () => {
     });
   });
 
+  it('forgets every transient overlay state when the hub page goes away', async () => {
+    await TestBed.inject(ContentService).ready;
+    store.markReady();
+    store.markStarted();
+    store.setMenuOpen(true);
+    store.setSettingsOpen(true);
+    store.setDemoActive(true, 'hint');
+    store.requestDemo('deslopify');
+    store.setNearby(PORTAL);
+    store.setArea('Deslopify');
+
+    store.resetTransient();
+
+    expect(store.menuOpen()).toBe(false);
+    expect(store.settingsOpen()).toBe(false);
+    expect(store.demoActive()).toBe(false);
+    expect(store.demoHint()).toBeNull();
+    expect(store.demoRequest()).toBeNull();
+    expect(store.nearby()).toBeNull();
+    expect(store.area()).toBe('');
+    // Not transient: the visitor has already been through the gate this session.
+    expect(store.started()).toBe(true);
+  });
+
   it('opens and closes the menu explicitly', () => {
     store.setMenuOpen(true);
     expect(store.menuOpen()).toBe(true);
