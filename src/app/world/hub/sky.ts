@@ -29,7 +29,7 @@ export class Sky implements WorldObject {
   private dome?: Mesh;
   private scene?: WorldContext['scene'];
 
-  constructor(private readonly options: { readonly reducedMotion: boolean }) {}
+  constructor(private readonly options: { readonly reducedMotion: () => boolean }) {}
 
   init(ctx: WorldContext): void {
     this.scene = ctx.scene;
@@ -49,7 +49,7 @@ export class Sky implements WorldObject {
   }
 
   update(dt: number): void {
-    if (this.options.reducedMotion || !this.dome) {
+    if (this.options.reducedMotion() || !this.dome) {
       return;
     }
 

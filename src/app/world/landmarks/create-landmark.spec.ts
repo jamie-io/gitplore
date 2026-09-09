@@ -6,7 +6,7 @@ import { createLandmark } from './create-landmark';
 
 const base = {
   ground: { heightAt: () => 0 },
-  reducedMotion: false,
+  reducedMotion: () => false,
   onEnter: () => undefined,
   textures: { load: () => new (class {})() as never, release: () => undefined },
 };

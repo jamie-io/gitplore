@@ -35,6 +35,9 @@ const STATS_INTERVAL_MS = 500;
           <button type="button" data-role="menu" (click)="store.setMenuOpen(true)">
             Menü <kbd>M</kbd>
           </button>
+          <button type="button" data-role="settings" (click)="store.setSettingsOpen(true)">
+            Einstellungen
+          </button>
           <a data-role="list" routerLink="/projects">Projekte als Liste</a>
         </nav>
       }

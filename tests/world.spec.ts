@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { framesRendered, setTabHidden } from './helpers';
+import { framesRendered, setTabHidden, startWorld } from './helpers';
 
 test.describe('hub world', () => {
   test('boots to the ready phase', async ({ page }) => {
@@ -8,9 +8,20 @@ test.describe('hub world', () => {
     await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
   });
 
-  test('renders the world and redraws it as the player walks', async ({ page }) => {
+  test('shows a start gate once the world is ready, with the controls explained', async ({
+    page,
+  }) => {
     await page.goto('/');
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
+
+    const gate = page.getByRole('dialog', { name: 'Gitplore' });
+    await expect(gate).toContainText('WASD');
+    await gate.locator('button[data-role="start"]').click();
+    await expect(gate).toHaveCount(0);
+    await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
+  });
+
+  test('renders the world and redraws it as the player walks', async ({ page }) => {
+    await startWorld(page);
     const canvas = page.locator('app-hub-page canvas');
 
     const before = await canvas.screenshot();
@@ -26,8 +37,7 @@ test.describe('hub world', () => {
   // under software rendering the compositor may repaint a paused canvas, which made the pixel
   // comparison racy without the loop ever running.
   test('stops the render loop while the tab is hidden', async ({ page }) => {
-    await page.goto('/?stats=1');
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
+    await startWorld(page, '/?stats=1');
     await expect.poll(() => framesRendered(page)).toBeGreaterThan(0);
 
     await setTabHidden(page, true);
@@ -40,8 +50,7 @@ test.describe('hub world', () => {
   });
 
   test('resumes rendering when the tab comes back', async ({ page }) => {
-    await page.goto('/?stats=1');
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
+    await startWorld(page, '/?stats=1');
     await setTabHidden(page, true);
     const hidden = await framesRendered(page);
 
@@ -59,5 +68,18 @@ test.describe('hub world', () => {
     await expect(canvas).toHaveAttribute('role', 'application');
     await expect(canvas).toHaveAttribute('tabindex', '0');
     await expect(canvas).toHaveAttribute('aria-label', /WASD/);
+  });
+});
+
+test.describe('focus management', () => {
+  test('closing the settings hands focus back to the world', async ({ page }) => {
+    await startWorld(page);
+
+    await page.locator('button[data-role="settings"]').click();
+    await expect(page.getByRole('dialog', { name: 'Einstellungen' })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.locator('app-hub-page canvas')).toBeFocused();
   });
 });

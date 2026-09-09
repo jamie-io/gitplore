@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { settledStat, startWorld } from './helpers';
 
 /**
  * The hub is never destroyed and destinations are DOM overlays, so GPU resources must not grow
@@ -6,14 +7,11 @@ import { expect, test } from '@playwright/test';
  */
 test.describe('memory', () => {
   test('renderer memory is flat across five enter/exit cycles', async ({ page }) => {
-    await page.goto('/?stats=1');
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
+    await startWorld(page, '/?stats=1');
     const stats = page.locator('app-hud .stats');
     await expect(stats).toHaveAttribute('data-geometries', /^[1-9]\d*$/);
-    const geometries = await stats.getAttribute('data-geometries');
-    const textures = await stats.getAttribute('data-textures');
 
-    for (let cycle = 0; cycle < 5; cycle++) {
+    const cycle = async () => {
       await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
       await page.keyboard.press('KeyM');
       await page.locator('a[data-role="open"][data-slug="deslopify"]').click();
@@ -21,10 +19,19 @@ test.describe('memory', () => {
       await expect(page.getByRole('dialog', { name: 'Deslopify' })).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(page.getByRole('dialog')).toHaveCount(0);
+    };
+
+    // One warm-up cycle first: Three counts a geometry only once it has been drawn, and the
+    // returning player faces parts of the world the spawn view never showed.
+    await cycle();
+    const geometries = await settledStat(page, 'geometries');
+    const textures = await settledStat(page, 'textures');
+
+    for (let i = 0; i < 5; i++) {
+      await cycle();
     }
 
-    await page.waitForTimeout(700);
-    await expect(stats).toHaveAttribute('data-geometries', geometries!);
-    await expect(stats).toHaveAttribute('data-textures', textures!);
+    expect(await settledStat(page, 'geometries')).toBe(geometries);
+    expect(await settledStat(page, 'textures')).toBe(textures);
   });
 });

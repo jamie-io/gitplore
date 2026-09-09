@@ -89,14 +89,23 @@ export class CapabilityService {
   private readonly capabilities = inject(DEVICE_CAPABILITIES);
   private readonly detected = detectTier(this.capabilities);
 
+  /** What detection alone would choose; shown next to "automatic" in the settings. */
+  readonly detectedTier = computed(() =>
+    this.steppedDown() ? stepDown(this.detected) : this.detected,
+  );
+
   /** Set once when the rolling frame average says the detected tier was too optimistic. */
   private readonly steppedDown = signal(false);
   private readonly userTier = signal<QualityTier | null>(null);
+  private readonly userReducedMotion = signal<boolean | null>(null);
 
   private sampledMs = 0;
   private sampledFrames = 0;
 
-  readonly reducedMotion = this.capabilities.reducedMotion;
+  /** System `prefers-reduced-motion`, unless the visitor decided otherwise in the settings. */
+  readonly reducedMotion = computed(
+    () => this.userReducedMotion() ?? this.capabilities.reducedMotion,
+  );
 
   readonly tier = computed<QualityTier>(
     () => this.userTier() ?? (this.steppedDown() ? stepDown(this.detected) : this.detected),
@@ -128,5 +137,9 @@ export class CapabilityService {
   /** Explicit choice from the settings dialog; `null` hands control back to detection. */
   override(tier: QualityTier | null): void {
     this.userTier.set(tier);
+  }
+
+  overrideReducedMotion(reduced: boolean | null): void {
+    this.userReducedMotion.set(reduced);
   }
 }

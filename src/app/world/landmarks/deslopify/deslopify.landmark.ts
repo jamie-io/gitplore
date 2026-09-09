@@ -136,7 +136,7 @@ export class DeslopifyLandmark extends PortalLandmark {
 
   override interact(): void {
     this.originals = !this.originals;
-    if (this.reducedMotion) {
+    if (this.reducedMotion()) {
       this.applyTitles();
     } else {
       this.flip = { elapsed: 0 };

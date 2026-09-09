@@ -32,7 +32,7 @@ test.describe('project destination', () => {
     await page.locator('button[data-role="close"]').click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: /Phönix/ })).toHaveCount(0);
     await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
   });
 
@@ -42,7 +42,7 @@ test.describe('project destination', () => {
 
     await page.keyboard.press('Escape');
 
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: /Phönix/ })).toHaveCount(0);
   });
 
   test('an unknown slug explains itself instead of breaking', async ({ page }) => {

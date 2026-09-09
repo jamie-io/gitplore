@@ -35,7 +35,7 @@ export class PlainTextureProvider implements TextureProvider {
 export interface LandmarkOptions {
   readonly project: Project;
   readonly ground: HeightField;
-  readonly reducedMotion: boolean;
+  readonly reducedMotion: () => boolean;
   /** The landmark was used; the page turns this into the `/p/:slug` route (§3). */
   readonly onEnter: (project: Project) => void;
   /** The landmark wants to run its in-world demo; the page hands it the controls (§5). */
@@ -62,7 +62,7 @@ export abstract class Landmark implements WorldObject {
   readonly spawnYaw: number;
 
   protected readonly textures: TextureProvider;
-  protected readonly reducedMotion: boolean;
+  protected readonly reducedMotion: () => boolean;
   protected readonly onEnter: (project: Project) => void;
   protected readonly onDemo: ((landmark: Landmark) => void) | undefined;
 

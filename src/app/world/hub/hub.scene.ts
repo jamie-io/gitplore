@@ -5,6 +5,7 @@ import { WorldContext, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import { Landmark, TextureProvider } from '../landmarks/base/landmark';
 import { createLandmark } from '../landmarks/create-landmark';
+import { Monument } from './monument';
 import { Sky } from './sky';
 import { Terrain } from './terrain';
 
@@ -15,7 +16,8 @@ export const HUB_AREA = 'Lichtung';
 const AREA_RADIUS = 10;
 
 export interface HubSceneOptions {
-  readonly reducedMotion: boolean;
+  /** Read live, so a settings change applies without rebuilding the world. */
+  readonly reducedMotion: () => boolean;
   readonly projects: readonly Project[];
   readonly onEnter: (project: Project) => void;
   readonly onDemo?: (landmark: Landmark) => void;
@@ -36,6 +38,7 @@ export class HubScene implements WorldScene {
   readonly interactables: readonly Interactable[];
 
   private readonly terrain = new Terrain();
+  readonly monument = new Monument();
   private readonly sky: Sky;
   private readonly onAreaChange: ((area: string) => void) | undefined;
   private area: string | null = null;
@@ -54,7 +57,10 @@ export class HubScene implements WorldScene {
       }),
     );
     // Shapes are known before init (`Landmark.describe`), so the engine can read one flat list.
-    this.colliders = this.landmarks.flatMap((landmark) => landmark.colliders);
+    this.colliders = [
+      ...this.monument.colliders,
+      ...this.landmarks.flatMap((landmark) => landmark.colliders),
+    ];
     this.interactables = this.landmarks.flatMap((landmark) => landmark.interactables);
   }
 
@@ -69,6 +75,7 @@ export class HubScene implements WorldScene {
   init(ctx: WorldContext): void {
     this.terrain.init(ctx);
     this.sky.init(ctx);
+    this.monument.init(ctx);
     this.landmarks.forEach((landmark) => landmark.init(ctx));
   }
 
@@ -81,6 +88,7 @@ export class HubScene implements WorldScene {
 
   dispose(): void {
     this.landmarks.forEach((landmark) => landmark.dispose());
+    this.monument.dispose();
     this.sky.dispose();
     this.terrain.dispose();
     this.area = null;

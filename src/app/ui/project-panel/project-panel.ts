@@ -203,6 +203,8 @@ export class ProjectPanel {
 
   /** Hands the demo request to the hub page, which owns the player and the landmark (§5). */
   protected tryInWorld(slug: string): void {
+    // An explicit click on the demo counts as starting the world; no extra gate after it.
+    this.store.markStarted();
     this.store.requestDemo(slug);
     this.close();
   }

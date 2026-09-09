@@ -45,12 +45,15 @@ export class WorldStore {
 
   readonly ready = computed(() => this.phase() === 'ready');
 
+  /** The visitor has clicked through the loading screen; only then does the world take input. */
+  readonly started = signal(false);
+
   /** The app's own reason to stop the render loop; the engine adds tab-hidden and off-screen. */
   readonly paused = computed(() => this.menuOpen() || this.settingsOpen());
 
   /** Any overlay takes the input away from the world; a running demo takes it next. */
   readonly inputMode = computed<InputMode>(() => {
-    if (this.activeSlug() !== null || this.menuOpen() || this.settingsOpen()) {
+    if (!this.started() || this.activeSlug() !== null || this.menuOpen() || this.settingsOpen()) {
       return 'ui';
     }
     return this.demoActive() ? 'demo' : 'world';
@@ -68,6 +71,10 @@ export class WorldStore {
 
   markReady(): void {
     this.phase.set('ready');
+  }
+
+  markStarted(): void {
+    this.started.set(true);
   }
 
   fail(message: string): void {

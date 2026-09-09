@@ -97,6 +97,13 @@ describe('WorldStore', () => {
   });
 
   describe('input mode', () => {
+    beforeEach(() => store.markStarted());
+
+    it('is the ui until the visitor has clicked through the start gate', () => {
+      TestBed.resetTestingModule();
+      expect(TestBed.inject(WorldStore).inputMode()).toBe('ui');
+    });
+
     it('is the world while nothing is open', () => {
       expect(store.inputMode()).toBe('world');
     });

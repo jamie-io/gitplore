@@ -1,5 +1,6 @@
 import { PerspectiveCamera, Scene, Texture, Vector3 } from 'three';
 import { qualitySettings } from '@engine/capability.service';
+import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
 import { PROJECTS } from '@content/projects';
@@ -12,12 +13,13 @@ function context(): WorldContext {
     camera: new PerspectiveCamera(),
     player: new PlayerController(),
     quality: qualitySettings('medium'),
+    assets: new StubAssets(),
   };
 }
 
 function hub(overrides: Partial<HubSceneOptions> = {}): HubScene {
   return new HubScene({
-    reducedMotion: false,
+    reducedMotion: () => false,
     projects: PROJECTS,
     onEnter: () => undefined,
     textures: { load: () => new Texture(), release: () => undefined },
@@ -43,7 +45,8 @@ describe('HubScene', () => {
   it('collects the colliders and interactables of every landmark', () => {
     const scene = hub();
 
-    const colliders = scene.landmarks.reduce((n, l) => n + l.colliders.length, 0);
+    const colliders =
+      scene.monument.colliders.length + scene.landmarks.reduce((n, l) => n + l.colliders.length, 0);
     const interactables = scene.landmarks.reduce((n, l) => n + l.interactables.length, 0);
     expect(scene.colliders.length).toBe(colliders);
     expect(scene.interactables.length).toBe(interactables);

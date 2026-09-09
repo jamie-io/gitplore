@@ -1,5 +1,6 @@
 import { Mesh, PerspectiveCamera, Scene } from 'three';
 import { qualitySettings } from '@engine/capability.service';
+import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
 import { PROJECTS } from '@content/projects';
@@ -10,7 +11,7 @@ function options(overrides: Partial<LandmarkOptions> = {}): LandmarkOptions {
   return {
     project: PROJECTS.find((p) => p.slug === 'deslopify')!,
     ground: { heightAt: () => 0 },
-    reducedMotion: true,
+    reducedMotion: () => true,
     onEnter: () => undefined,
     onDemo: () => undefined,
     ...overrides,
@@ -23,6 +24,7 @@ function context(): WorldContext {
     camera: new PerspectiveCamera(),
     player: new PlayerController(),
     quality: qualitySettings('medium'),
+    assets: new StubAssets(),
   };
 }
 
