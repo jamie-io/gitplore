@@ -6,6 +6,8 @@ import { FirstPersonRig } from './player/camera-rig';
 import { HeightField } from './player/collision';
 import { PlayerController } from './player/player-controller';
 import { InputService } from './input.service';
+import { Interactable } from './interaction/interactable';
+import { InteractionSystem } from './interaction/interaction.system';
 import { Tickable, WorldContext, WorldScene } from './world-object';
 import { disposeObject3D } from './dispose';
 
@@ -37,7 +39,11 @@ export class EngineService {
   readonly player = new PlayerController();
 
   private readonly rig = new FirstPersonRig(this.camera);
+  private readonly interaction = new InteractionSystem();
   private readonly tickables = new Set<Tickable>();
+
+  /** Fires only when the interactable in front of the player changes (§2), never per frame. */
+  onNearbyChange: ((nearby: Interactable | null) => void) | null = null;
 
   private renderer: RendererLike | null = null;
   private world: WorldScene | null = null;
@@ -58,6 +64,7 @@ export class EngineService {
   attach(canvas: HTMLCanvasElement): void {
     this.renderer = this.rendererFactory(canvas, this.capability.settings());
     this.detachInput = this.input.attach(canvas);
+    this.interaction.onChange = (nearby) => this.onNearbyChange?.(nearby);
 
     this.watchVisibility();
     this.watchCanvasSize(canvas);
@@ -81,6 +88,7 @@ export class EngineService {
 
     this.detachInput?.();
     this.detachInput = null;
+    this.interaction.reset();
     this.teardown.forEach((off) => off());
     this.teardown = [];
     this.tickables.clear();
@@ -95,8 +103,14 @@ export class EngineService {
 
   setScene(world: WorldScene): void {
     this.world?.dispose();
+    this.interaction.reset();
     this.world = world;
     world.init(this.context());
+  }
+
+  /** What the player is currently close to and facing. */
+  get nearby(): Interactable | null {
+    return this.interaction.nearby;
   }
 
   addTickable(tickable: Tickable): void {
@@ -183,6 +197,7 @@ export class EngineService {
     const intent = this.input.consumeIntent(dt);
     this.player.update(dt, intent, this.world?.ground ?? FLAT_GROUND, this.world?.colliders ?? []);
     this.rig.sync(this.player);
+    this.interaction.update(this.player, this.world?.interactables ?? []);
 
     this.world?.update(dt, this.context());
     this.tickables.forEach((tickable) => tickable.update(dt));

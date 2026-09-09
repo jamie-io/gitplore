@@ -3,6 +3,8 @@ import { Scene } from 'three';
 import { CapabilityService, DEVICE_CAPABILITIES, DeviceCapabilities } from './capability.service';
 import { ENGINE_MAX_FRAME_SECONDS, EngineService } from './engine.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
+import { Vector3 } from 'three';
+import { Interactable } from './interaction/interactable';
 import { HeightField } from './player/collision';
 import { WorldScene } from './world-object';
 
@@ -47,11 +49,12 @@ class StubRenderer implements RendererLike {
 
 const FLAT: HeightField = { heightAt: () => 0 };
 
-function stubScene(id: string) {
+function stubScene(id: string, interactables: Interactable[] = []) {
   const scene: WorldScene & { initialised: number; disposed: number; updates: number[] } = {
     id,
     ground: FLAT,
     colliders: [],
+    interactables,
     initialised: 0,
     disposed: 0,
     updates: [],
@@ -305,6 +308,40 @@ describe('EngineService', () => {
     engine.detach();
 
     expect(scene.disposed).toBe(1);
+  });
+
+  describe('interaction', () => {
+    const portal: Interactable = {
+      id: 'portal',
+      position: new Vector3(0, 0, -2),
+      radius: 3,
+      prompt: 'Enter',
+      onInteract: () => undefined,
+    };
+
+    it('reports the interactable the player is facing, once', () => {
+      const seen: (Interactable | null)[] = [];
+      engine.onNearbyChange = (nearby) => seen.push(nearby);
+      engine.setScene(stubScene('hub', [portal]));
+
+      tick(0);
+      tick(16);
+      tick(32);
+
+      expect(seen).toEqual([portal]);
+    });
+
+    it('forgets the pick when the scene is swapped', () => {
+      const seen: (Interactable | null)[] = [];
+      engine.onNearbyChange = (nearby) => seen.push(nearby);
+      engine.setScene(stubScene('hub', [portal]));
+      tick(0);
+      tick(16);
+
+      engine.setScene(stubScene('other'));
+
+      expect(seen).toEqual([portal, null]);
+    });
   });
 
   it('hands the scene a context carrying the shared three scene and camera', () => {

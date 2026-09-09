@@ -1,5 +1,6 @@
 import { PerspectiveCamera, Scene } from 'three';
 import { QualitySettings } from './capability.service';
+import { Interactable } from './interaction/interactable';
 import { Collider, HeightField } from './player/collision';
 import { PlayerController } from './player/player-controller';
 
@@ -26,8 +27,12 @@ export interface Tickable {
   update(dt: number): void;
 }
 
-/** A scene the player can walk around in: it owns the ground and the things to bump into. */
+/**
+ * A scene the player can walk around in: it owns the ground, the things to bump into and the
+ * things to use.
+ */
 export interface WorldScene extends WorldObject {
   readonly ground: HeightField;
   readonly colliders: readonly Collider[];
+  readonly interactables: readonly Interactable[];
 }

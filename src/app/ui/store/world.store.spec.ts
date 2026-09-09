@@ -1,6 +1,16 @@
 import { TestBed } from '@angular/core/testing';
+import { Interactable } from '@engine/interaction/interactable';
 import { ContentService } from '@content/content.service';
 import { WorldStore } from './world.store';
+
+const PORTAL: Interactable = {
+  id: 'portal',
+  // The store never reads the position, and ui tests must not pull in Three (§1).
+  position: { x: 0, y: 0, z: 0 } as Interactable['position'],
+  radius: 3,
+  prompt: 'Deslopify betreten',
+  onInteract: () => undefined,
+};
 
 describe('WorldStore', () => {
   let store: WorldStore;
@@ -76,6 +86,59 @@ describe('WorldStore', () => {
 
       expect(store.activeProject()).toBeNull();
     });
+  });
+
+  it('remembers what the player can interact with', () => {
+    store.setNearby(PORTAL);
+    expect(store.nearby()).toBe(PORTAL);
+
+    store.setNearby(null);
+    expect(store.nearby()).toBeNull();
+  });
+
+  describe('input mode', () => {
+    it('is the world while nothing is open', () => {
+      expect(store.inputMode()).toBe('world');
+    });
+
+    it('is the ui while a project is open', () => {
+      store.openProject('novaverta');
+
+      expect(store.inputMode()).toBe('ui');
+    });
+
+    it('is the ui while the menu is open', () => {
+      store.toggleMenu();
+
+      expect(store.inputMode()).toBe('ui');
+    });
+
+    it('is the ui while the settings are open', () => {
+      store.setSettingsOpen(true);
+
+      expect(store.inputMode()).toBe('ui');
+    });
+
+    it('is the demo while an in-world demo has taken over', () => {
+      store.setDemoActive(true);
+
+      expect(store.inputMode()).toBe('demo');
+    });
+
+    it('lets an overlay win over a running demo', () => {
+      store.setDemoActive(true);
+      store.toggleMenu();
+
+      expect(store.inputMode()).toBe('ui');
+    });
+  });
+
+  it('opens and closes the menu explicitly', () => {
+    store.setMenuOpen(true);
+    expect(store.menuOpen()).toBe(true);
+
+    store.setMenuOpen(false);
+    expect(store.menuOpen()).toBe(false);
   });
 
   it('names the area the player is standing in', () => {

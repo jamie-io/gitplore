@@ -1,0 +1,83 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { ContentService } from '@content/content.service';
+import { WorldStore } from '../store/world.store';
+import { ProjectMenu } from './project-menu';
+
+describe('ProjectMenu', () => {
+  let fixture: ComponentFixture<ProjectMenu>;
+  let store: WorldStore;
+
+  const host = () => fixture.nativeElement as HTMLElement;
+
+  beforeEach(async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [ProjectMenu],
+      providers: [provideRouter([])],
+    }).compileComponents();
+    await TestBed.inject(ContentService).ready;
+    store = TestBed.inject(WorldStore);
+    store.setMenuOpen(true);
+    fixture = TestBed.createComponent(ProjectMenu);
+    await fixture.whenStable();
+  });
+
+  it('is a modal dialog with a name', () => {
+    const dialog = host().querySelector('[role="dialog"]');
+
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(dialog?.getAttribute('aria-labelledby')).toBeTruthy();
+  });
+
+  it('lists every project', () => {
+    expect(host().querySelectorAll('li').length).toBe(3);
+    expect(host().textContent).toContain('Deslopify');
+  });
+
+  it('offers to travel to a project and says which one', () => {
+    const travelled: string[] = [];
+    fixture.componentInstance.travel.subscribe((slug) => travelled.push(slug));
+
+    host()
+      .querySelector<HTMLButtonElement>('button[data-role="travel"][data-slug="deslopify"]')
+      ?.click();
+
+    expect(travelled).toEqual(['deslopify']);
+  });
+
+  it('closes itself after travelling', async () => {
+    host().querySelector<HTMLButtonElement>('button[data-role="travel"]')?.click();
+    await fixture.whenStable();
+
+    expect(store.menuOpen()).toBe(false);
+  });
+
+  it('links each project to its destination', () => {
+    const link = host().querySelector<HTMLAnchorElement>(
+      'a[data-role="open"][data-slug="novaverta"]',
+    );
+
+    expect(link?.getAttribute('href')).toBe('/p/novaverta');
+  });
+
+  it('links to the simple project list', () => {
+    expect(host().querySelector('a[data-role="list"]')?.getAttribute('href')).toBe('/projects');
+  });
+
+  it('closes on the close button', async () => {
+    host().querySelector<HTMLButtonElement>('button[data-role="close"]')?.click();
+    await fixture.whenStable();
+
+    expect(store.menuOpen()).toBe(false);
+  });
+
+  it('closes on escape', async () => {
+    host()
+      .querySelector('[role="dialog"]')
+      ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await fixture.whenStable();
+
+    expect(store.menuOpen()).toBe(false);
+  });
+});

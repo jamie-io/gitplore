@@ -1,1 +1,6 @@
-/* You can add global styles to this file, and also import other style files */
+/* Global styles. Component styles live next to their components. */
+html,
+body {
+  margin: 0;
+  min-block-size: 100%;
+}

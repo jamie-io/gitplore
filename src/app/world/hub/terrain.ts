@@ -61,15 +61,18 @@ export class Terrain implements WorldObject, HeightField {
       position.setY(i, terrainHeightAt(position.getX(i), position.getZ(i)));
     }
     position.needsUpdate = true;
-    geometry.computeVertexNormals();
+    // Bake one normal per face instead of `flatShading`: the shader's screen-space derivatives
+    // degenerate on the triangle that straddles the camera and painted it black under SwiftShader.
+    const faceted = geometry.toNonIndexed();
+    geometry.dispose();
+    faceted.computeVertexNormals();
 
     this.mesh = new Mesh(
-      geometry,
+      faceted,
       new MeshStandardMaterial({
         color: 0x6c8f5a,
         roughness: 0.95,
         metalness: 0,
-        flatShading: true,
       }),
     );
     this.mesh.receiveShadow = ctx.quality.shadows;

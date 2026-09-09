@@ -157,6 +157,51 @@ describe('InputService', () => {
 
       expect([...input.consumeActions()]).toEqual(['exit']);
     });
+
+    it('reports the menu key in ui mode too, so the menu can be closed with it', () => {
+      input.setMode('ui');
+      press('KeyM');
+
+      expect([...input.consumeActions()]).toEqual(['menu']);
+    });
+
+    it('does not report interact while the UI has focus', () => {
+      input.setMode('ui');
+      press('KeyE');
+
+      expect([...input.consumeActions()]).toEqual([]);
+    });
+
+    it('tells listeners about actions as they happen, even between frames', () => {
+      const seen: string[] = [];
+      input.addActionListener((action) => seen.push(action));
+
+      press('KeyE');
+      press('KeyM');
+
+      expect(seen).toEqual(['interact', 'menu']);
+    });
+
+    it('stops telling a listener once it unsubscribes', () => {
+      const seen: string[] = [];
+      const off = input.addActionListener((action) => seen.push(action));
+      off();
+
+      press('KeyE');
+
+      expect(seen).toEqual([]);
+    });
+
+    it('leaves keys typed into a form field alone', () => {
+      const field = document.createElement('input');
+      document.body.appendChild(field);
+      field.focus();
+
+      field.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyM', bubbles: true }));
+
+      expect([...input.consumeActions()]).toEqual([]);
+      field.remove();
+    });
   });
 
   it('stops listening after detach', () => {

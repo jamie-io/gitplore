@@ -1,4 +1,6 @@
 import { Service, computed, inject, signal } from '@angular/core';
+import type { InputMode } from '@engine/input.service';
+import type { Interactable } from '@engine/interaction/interactable';
 import { ContentService } from '@content/content.service';
 
 export type WorldPhase = 'booting' | 'loading' | 'ready' | 'error';
@@ -11,7 +13,7 @@ export interface LoadProgress {
 
 /**
  * Everything about the world that is not the open destination — the router owns that
- * (IMPLEMENTATION_PLAN.md §3, §6). `activeProject` and `nearby` join in M2 and M3.
+ * (IMPLEMENTATION_PLAN.md §3, §6).
  */
 @Service()
 export class WorldStore {
@@ -26,6 +28,12 @@ export class WorldStore {
   readonly settingsOpen = signal(false);
   readonly documentHidden = signal(false);
 
+  /** What the player is close to and facing; written by the engine only on change (§2). */
+  readonly nearby = signal<Interactable | null>(null);
+
+  /** An in-world demo has taken over the controls (§5). */
+  readonly demoActive = signal(false);
+
   /** Which destination is open. The router owns this; the store only mirrors it (§3). */
   readonly activeSlug = signal<string | null>(null);
   readonly activeProject = computed(
@@ -36,6 +44,14 @@ export class WorldStore {
 
   /** The render loop stops entirely while this is true. */
   readonly paused = computed(() => this.menuOpen() || this.settingsOpen() || this.documentHidden());
+
+  /** Any overlay takes the input away from the world; a running demo takes it next. */
+  readonly inputMode = computed<InputMode>(() => {
+    if (this.activeSlug() !== null || this.menuOpen() || this.settingsOpen()) {
+      return 'ui';
+    }
+    return this.demoActive() ? 'demo' : 'world';
+  });
 
   beginLoading(total: number, label: string): void {
     this.phase.set('loading');
@@ -64,8 +80,20 @@ export class WorldStore {
     this.area.set(area);
   }
 
+  setNearby(nearby: Interactable | null): void {
+    this.nearby.set(nearby);
+  }
+
+  setDemoActive(active: boolean): void {
+    this.demoActive.set(active);
+  }
+
   toggleMenu(): void {
     this.menuOpen.update((open) => !open);
+  }
+
+  setMenuOpen(open: boolean): void {
+    this.menuOpen.set(open);
   }
 
   setSettingsOpen(open: boolean): void {

@@ -1,4 +1,7 @@
-import { TERRAIN_FLAT_RADIUS, TERRAIN_MAX_HEIGHT, terrainHeightAt } from './terrain';
+import { Mesh, MeshStandardMaterial, PerspectiveCamera, Scene } from 'three';
+import { qualitySettings } from '@engine/capability.service';
+import { PlayerController } from '@engine/player/player-controller';
+import { TERRAIN_FLAT_RADIUS, TERRAIN_MAX_HEIGHT, Terrain, terrainHeightAt } from './terrain';
 
 describe('terrainHeightAt', () => {
   it('returns the same height for the same point', () => {
@@ -31,5 +34,26 @@ describe('terrainHeightAt', () => {
       const step = Math.abs(terrainHeightAt(x + 0.1, 20) - terrainHeightAt(x, 20));
       expect(step).toBeLessThan(0.25);
     }
+  });
+});
+
+describe('Terrain shading', () => {
+  it('bakes per-face normals rather than relying on flat shading derivatives', () => {
+    const ctx = {
+      scene: new Scene(),
+      camera: new PerspectiveCamera(),
+      player: new PlayerController(),
+      quality: qualitySettings('low'),
+    };
+    const terrain = new Terrain();
+
+    terrain.init(ctx);
+
+    const mesh = ctx.scene.children[0] as Mesh;
+    expect(mesh.geometry.index).toBeNull();
+    expect((mesh.material as MeshStandardMaterial).flatShading).toBe(false);
+    expect(mesh.geometry.getAttribute('normal').count).toBe(
+      mesh.geometry.getAttribute('position').count,
+    );
   });
 });
