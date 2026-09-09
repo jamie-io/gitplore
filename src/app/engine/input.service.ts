@@ -24,6 +24,18 @@ const ACTION_KEYS: Record<string, InputAction> = {
   Escape: 'exit',
 };
 
+/** Actions that must work whatever has focus, otherwise an overlay could trap the visitor. */
+const GLOBAL_ACTIONS: readonly InputAction[] = ['menu', 'exit'];
+
+export type ActionListener = (action: InputAction) => void;
+
+function isEditable(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName))
+  );
+}
+
 /**
  * Keyboard and pointer state for the world (IMPLEMENTATION_PLAN.md §2). Nothing here writes to a
  * signal per frame: the render loop pulls an intent, and only the lock state and mode are signals.
@@ -35,6 +47,7 @@ export class InputService {
 
   private readonly pressed = new Set<string>();
   private readonly actions = new Set<InputAction>();
+  private readonly listeners = new Set<ActionListener>();
 
   private canvas: HTMLCanvasElement | null = null;
   private pointerX = 0;
@@ -120,12 +133,25 @@ export class InputService {
     return queued;
   }
 
+  /**
+   * Hears actions the moment the key goes down. The render loop may be paused while a menu is
+   * open, so closing it cannot depend on the loop draining the queue.
+   */
+  addActionListener(listener: ActionListener): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+
   private onKeyDown(event: KeyboardEvent): void {
+    if (isEditable(event.target)) {
+      return;
+    }
+
     const action = ACTION_KEYS[event.code];
 
-    // Escape has to work in every mode, otherwise an overlay could trap the visitor.
-    if (action && (this.mode() === 'world' || action === 'exit')) {
+    if (action && (this.mode() === 'world' || GLOBAL_ACTIONS.includes(action))) {
       this.actions.add(action);
+      this.listeners.forEach((listener) => listener(action));
       return;
     }
 

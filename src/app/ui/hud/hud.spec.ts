@@ -120,3 +120,61 @@ describe('Hud stats overlay', () => {
     expect(host.querySelector('.stats')?.textContent).toMatch(/59 fps.*3 geo.*2 tex/);
   });
 });
+
+describe('Hud interaction prompt and navigation', () => {
+  let fixture: ComponentFixture<Hud>;
+  let store: WorldStore;
+
+  const host = () => fixture.nativeElement as HTMLElement;
+
+  beforeEach(async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [Hud],
+      providers: [
+        { provide: ENGINE, useValue: stubEngine },
+        { provide: ActivatedRoute, useValue: routeWithQuery({}) },
+      ],
+    }).compileComponents();
+    store = TestBed.inject(WorldStore);
+    fixture = TestBed.createComponent(Hud);
+    store.markReady();
+    await fixture.whenStable();
+  });
+
+  it('keeps the live region present but empty while nothing is in reach', () => {
+    expect(host().querySelector('.prompt')?.textContent?.trim()).toBe('');
+  });
+
+  it('prompts with the key and the label once something is in reach', async () => {
+    store.setNearby({
+      id: 'portal',
+      position: { x: 0, y: 0, z: 0 } as never,
+      radius: 3,
+      prompt: 'Deslopify betreten',
+      onInteract: () => undefined,
+    });
+    await fixture.whenStable();
+
+    const prompt = host().querySelector('.prompt');
+    expect(prompt?.textContent).toContain('E');
+    expect(prompt?.textContent).toContain('Deslopify betreten');
+    expect(prompt?.getAttribute('aria-live')).toBe('polite');
+  });
+
+  it('offers the menu as a real button', async () => {
+    const button = host().querySelector<HTMLButtonElement>('button[data-role="menu"]');
+    expect(button?.textContent).toContain('Menü');
+
+    button?.click();
+    await fixture.whenStable();
+
+    expect(store.menuOpen()).toBe(true);
+  });
+
+  it('links to the screen-reader friendly project list', () => {
+    const link = host().querySelector<HTMLAnchorElement>('a[data-role="list"]');
+
+    expect(link?.getAttribute('href')).toBe('/projects');
+  });
+});

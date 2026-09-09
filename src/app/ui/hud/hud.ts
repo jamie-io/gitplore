@@ -1,5 +1,5 @@
 import { Component, DestroyRef, computed, inject, isDevMode, signal } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ENGINE, EngineStats } from '@engine/engine.service';
 import { WorldStore } from '../store/world.store';
 
@@ -8,6 +8,7 @@ const STATS_INTERVAL_MS = 500;
 
 @Component({
   selector: 'app-hud',
+  imports: [RouterLink],
   template: `
     @switch (store.phase()) {
       @case ('error') {
@@ -23,6 +24,17 @@ const STATS_INTERVAL_MS = 500;
           <div class="crosshair" aria-hidden="true"></div>
         }
         <p class="area" aria-live="polite">{{ store.area() }}</p>
+        <p class="prompt" aria-live="polite">
+          @if (store.nearby(); as nearby) {
+            <kbd>E</kbd> {{ nearby.prompt }}
+          }
+        </p>
+        <nav class="tools" aria-label="Welt">
+          <button type="button" data-role="menu" (click)="store.setMenuOpen(true)">
+            Menü <kbd>M</kbd>
+          </button>
+          <a data-role="list" routerLink="/projects">Projekte als Liste</a>
+        </nav>
       }
     }
 
@@ -58,6 +70,53 @@ const STATS_INTERVAL_MS = 500;
       inset-block-start: 1rem;
       inset-inline-start: 1rem;
       margin: 0;
+    }
+    .prompt {
+      position: absolute;
+      inset-block-end: 18%;
+      inset-inline: 0;
+      margin: 0;
+      text-align: center;
+      font-size: 1.05rem;
+    }
+    .prompt:empty {
+      display: none;
+    }
+    kbd {
+      display: inline-block;
+      min-inline-size: 1.4em;
+      padding: 0.05em 0.4em;
+      border: 1px solid rgb(255 255 255 / 70%);
+      border-radius: 0.3em;
+      background: rgb(0 0 0 / 45%);
+      font: inherit;
+      text-align: center;
+      text-shadow: none;
+    }
+    .tools {
+      position: absolute;
+      inset-block-start: 1rem;
+      inset-inline-end: 1rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      pointer-events: auto;
+    }
+    .tools button,
+    .tools a {
+      padding: 0.4rem 0.8rem;
+      border: 1px solid rgb(255 255 255 / 70%);
+      border-radius: 999px;
+      background: rgb(0 0 0 / 45%);
+      color: inherit;
+      font: inherit;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .tools button:focus-visible,
+    .tools a:focus-visible {
+      outline: 3px solid #fff;
+      outline-offset: 2px;
     }
     .stats {
       position: absolute;
