@@ -1,4 +1,5 @@
-import { Service, computed, signal } from '@angular/core';
+import { Service, computed, inject, signal } from '@angular/core';
+import { ContentService } from '@content/content.service';
 
 export type WorldPhase = 'booting' | 'loading' | 'ready' | 'error';
 
@@ -14,6 +15,8 @@ export interface LoadProgress {
  */
 @Service()
 export class WorldStore {
+  private readonly content = inject(ContentService);
+
   readonly phase = signal<WorldPhase>('booting');
   readonly loadProgress = signal<LoadProgress>({ loaded: 0, total: 0, label: '' });
   readonly area = signal('');
@@ -22,6 +25,12 @@ export class WorldStore {
   readonly menuOpen = signal(false);
   readonly settingsOpen = signal(false);
   readonly documentHidden = signal(false);
+
+  /** Which destination is open. The router owns this; the store only mirrors it (§3). */
+  readonly activeSlug = signal<string | null>(null);
+  readonly activeProject = computed(
+    () => this.content.bySlug(this.activeSlug() ?? undefined) ?? null,
+  );
 
   readonly ready = computed(() => this.phase() === 'ready');
 
@@ -45,6 +54,10 @@ export class WorldStore {
   fail(message: string): void {
     this.phase.set('error');
     this.errorMessage.set(message);
+  }
+
+  openProject(slug: string | null): void {
+    this.activeSlug.set(slug);
   }
 
   setArea(area: string): void {

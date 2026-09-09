@@ -15,7 +15,7 @@ test.describe('shell', () => {
     await page.goto('/');
 
     await expect(page).toHaveURL(/\/projects$/);
-    await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Projekte' })).toBeVisible();
   });
 
   test('a phone deep link lands on the project detail page', async ({ page }) => {

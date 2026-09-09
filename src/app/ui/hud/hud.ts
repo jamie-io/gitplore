@@ -1,5 +1,6 @@
 import { Component, DestroyRef, computed, inject, isDevMode, signal } from '@angular/core';
-import { ENGINE } from '@engine/engine.service';
+import { ActivatedRoute } from '@angular/router';
+import { ENGINE, EngineStats } from '@engine/engine.service';
 import { WorldStore } from '../store/world.store';
 
 /** Twice a second is enough to read, and keeps signal writes rare (IMPLEMENTATION_PLAN.md §2). */
@@ -26,7 +27,7 @@ const STATS_INTERVAL_MS = 500;
     }
 
     @if (showStats()) {
-      <p class="stats" aria-hidden="true">
+      <p class="stats" aria-hidden="true" [attr.data-frames]="stats().frames">
         {{ fpsLabel() }} fps · {{ stats().geometries }} geo · {{ stats().textures }} tex
       </p>
     }
@@ -73,8 +74,12 @@ export class Hud {
 
   private readonly engine = inject(ENGINE);
 
-  protected readonly stats = signal({ fps: 0, geometries: 0, textures: 0 });
-  protected readonly showStats = signal(isDevMode());
+  protected readonly stats = signal<EngineStats>({ fps: 0, geometries: 0, textures: 0, frames: 0 });
+
+  /** Always on in development; `?stats=1` switches it on in a production build too. */
+  protected readonly showStats = signal(
+    isDevMode() || inject(ActivatedRoute).snapshot.queryParamMap.get('stats') === '1',
+  );
 
   protected readonly fpsLabel = computed(() => Math.round(this.stats().fps));
 

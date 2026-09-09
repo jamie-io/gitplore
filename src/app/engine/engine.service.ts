@@ -14,6 +14,13 @@ export const ENGINE_MAX_FRAME_SECONDS = 0.05;
 
 const FLAT_GROUND: HeightField = { heightAt: () => 0 };
 
+export interface EngineStats {
+  readonly fps: number;
+  readonly geometries: number;
+  readonly textures: number;
+  readonly frames: number;
+}
+
 /**
  * Owns the renderer, the camera, the active scene and the render loop
  * (IMPLEMENTATION_PLAN.md §2). It knows nothing about projects or Angular components.
@@ -39,7 +46,14 @@ export class EngineService {
 
   private lastTime: number | null = null;
   private lastFrameMs = 0;
-  private paused = false;
+  private renderedFrames = 0;
+
+  /** Independent reasons to stop drawing; the loop runs only when none of them apply. */
+  private readonly pauseReasons = { app: false, hidden: false, offscreen: false };
+
+  /** Minimum milliseconds between rendered frames; 0 means every frame. */
+  private minFrameMs = 0;
+  private lastRenderTime = 0;
 
   attach(canvas: HTMLCanvasElement): void {
     this.renderer = this.rendererFactory(canvas, this.capability.settings());
@@ -70,8 +84,13 @@ export class EngineService {
     this.teardown.forEach((off) => off());
     this.teardown = [];
     this.tickables.clear();
+    this.pauseReasons.app = false;
+    this.pauseReasons.hidden = false;
+    this.pauseReasons.offscreen = false;
     this.lastTime = null;
     this.lastFrameMs = 0;
+    this.renderedFrames = 0;
+    this.minFrameMs = 0;
   }
 
   setScene(world: WorldScene): void {
@@ -88,10 +107,27 @@ export class EngineService {
     this.tickables.delete(tickable);
   }
 
+  /**
+   * Drops the ambient hub to a lower frame rate while an overlay covers it (§3). `null` restores
+   * the display rate.
+   */
+  setThrottle(fps: number | null): void {
+    this.minFrameMs = fps === null ? 0 : 1000 / fps;
+  }
+
+  /** The application's own reason to pause — a menu, an overlay on the weakest tier. */
   setPaused(paused: boolean): void {
-    this.paused = paused;
+    this.pause('app', paused);
+  }
+
+  private pause(reason: keyof typeof this.pauseReasons, paused: boolean): void {
+    this.pauseReasons[reason] = paused;
     // Forget the timestamp, so resuming does not book the pause as elapsed time.
     this.lastTime = null;
+  }
+
+  private get paused(): boolean {
+    return this.pauseReasons.app || this.pauseReasons.hidden || this.pauseReasons.offscreen;
   }
 
   resize(width: number, height: number): void {
@@ -107,13 +143,17 @@ export class EngineService {
     this.renderer?.setSize(width, height, false);
   }
 
-  /** Frame rate and live GPU resource counts for the dev overlay in the HUD. */
-  stats(): { fps: number; geometries: number; textures: number } {
+  /**
+   * Frame rate, live GPU resource counts and the number of frames drawn since attach, for the
+   * stats overlay in the HUD. `frames` is what lets a test prove the loop really stopped.
+   */
+  stats(): EngineStats {
     const memory = this.renderer?.info.memory ?? { geometries: 0, textures: 0 };
     return {
       fps: this.lastFrameMs > 0 ? 1000 / this.lastFrameMs : 0,
       geometries: memory.geometries,
       textures: memory.textures,
+      frames: this.renderedFrames,
     };
   }
 
@@ -123,7 +163,13 @@ export class EngineService {
     }
 
     const previous = this.lastTime;
+    if (previous !== null && time - this.lastRenderTime < this.minFrameMs) {
+      return;
+    }
+
     this.lastTime = time;
+    this.lastRenderTime = time;
+    this.renderedFrames++;
     if (previous === null) {
       this.renderer.render(this.scene, this.camera);
       return;
@@ -154,7 +200,7 @@ export class EngineService {
   }
 
   private watchVisibility(): void {
-    const onChange = () => this.setPaused(document.hidden);
+    const onChange = () => this.pause('hidden', document.hidden);
     document.addEventListener('visibilitychange', onChange);
     this.teardown.push(() => document.removeEventListener('visibilitychange', onChange));
   }
@@ -177,7 +223,9 @@ export class EngineService {
       return;
     }
 
-    const observer = new IntersectionObserver(([entry]) => this.setPaused(!entry.isIntersecting));
+    const observer = new IntersectionObserver(([entry]) =>
+      this.pause('offscreen', !entry.isIntersecting),
+    );
     observer.observe(canvas);
     this.teardown.push(() => observer.disconnect());
   }

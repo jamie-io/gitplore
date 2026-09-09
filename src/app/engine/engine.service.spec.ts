@@ -207,6 +207,90 @@ describe('EngineService', () => {
     expect(engine.stats().fps).toBe(0);
   });
 
+  it('counts every rendered frame', () => {
+    tick(0);
+    tick(16);
+    tick(32);
+
+    expect(engine.stats().frames).toBe(3);
+  });
+
+  it('stops counting frames while paused', () => {
+    tick(0);
+    engine.setPaused(true);
+    const before = engine.stats().frames;
+
+    tick(16);
+    tick(32);
+
+    expect(engine.stats().frames).toBe(before);
+  });
+
+  it('stays paused while the tab is hidden, even if the app clears its own pause', () => {
+    tick(0);
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    engine.setPaused(false);
+    const before = renderer.renders;
+    tick(16);
+    tick(32);
+
+    expect(renderer.renders).toBe(before);
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+
+  it('resumes once both the tab and the app agree', () => {
+    tick(0);
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    engine.setPaused(true);
+
+    engine.setPaused(false);
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    const before = renderer.renders;
+    tick(16);
+
+    expect(renderer.renders).toBe(before + 1);
+  });
+
+  it('throttles the ambient hub to the requested frame rate', () => {
+    tick(0);
+    tick(16);
+    const before = renderer.renders;
+
+    engine.setThrottle(15); // ~66 ms between frames
+    tick(32);
+    tick(48);
+
+    expect(renderer.renders).toBe(before);
+  });
+
+  it('renders again once the throttle interval has passed', () => {
+    tick(0);
+    tick(16);
+    const before = renderer.renders;
+
+    engine.setThrottle(15);
+    tick(120);
+
+    expect(renderer.renders).toBe(before + 1);
+  });
+
+  it('goes back to full rate when the throttle is lifted', () => {
+    tick(0);
+    engine.setThrottle(15);
+    tick(16);
+    engine.setThrottle(null);
+    const before = renderer.renders;
+
+    tick(32);
+
+    expect(renderer.renders).toBe(before + 1);
+  });
+
   it('stops the loop and releases the renderer on detach', () => {
     engine.detach();
 

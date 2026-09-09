@@ -7,7 +7,9 @@ import {
   viewChild,
   ElementRef,
 } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { filter, map, startWith } from 'rxjs';
 import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { InputService } from '@engine/input.service';
@@ -63,14 +65,39 @@ export class HubPage {
   private readonly engine = inject(ENGINE);
   private readonly capability = inject(CapabilityService);
   private readonly settings = inject(SettingsStore);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
+
+  /**
+   * The router is the source of truth for which destination is open (§3); everything else follows
+   * from this one signal.
+   */
+  private readonly openSlug = toSignal(
+    this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      startWith(null),
+      map(() => this.route.snapshot.firstChild?.paramMap.get('slug') ?? null),
+    ),
+    { initialValue: null },
+  );
 
   constructor() {
-    // The store owns why we pause; the engine only needs to know that we do.
-    effect(() => this.engine.setPaused(this.store.paused()));
     effect(() => {
       this.input.sensitivity = this.settings.sensitivity();
     });
     effect(() => this.capability.override(this.settings.qualityOverride()));
+
+    effect(() => {
+      const slug = this.openSlug();
+      this.store.openProject(slug);
+      this.input.setMode(slug ? 'ui' : 'world');
+      // Keep the hub alive but cheap behind the panel; on the weakest tier stop drawing entirely.
+      this.engine.setThrottle(slug && this.capability.tier() !== 'low' ? 15 : null);
+      // The store owns why the app pauses; the engine adds its own reasons (tab hidden, off-screen).
+      this.engine.setPaused(
+        this.store.paused() || (slug !== null && this.capability.tier() === 'low'),
+      );
+    });
 
     afterNextRender(() => this.boot());
     inject(DestroyRef).onDestroy(() => this.engine.detach());
