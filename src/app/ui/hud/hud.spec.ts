@@ -114,6 +114,13 @@ describe('Hud stats overlay', () => {
     expect(host.querySelector('.stats')?.getAttribute('data-frames')).toBe('1234');
   });
 
+  it('exposes the GPU counts for the memory e2e', async () => {
+    const host = await setup({ stats: '1' });
+
+    expect(host.querySelector('.stats')?.getAttribute('data-geometries')).toBe('3');
+    expect(host.querySelector('.stats')?.getAttribute('data-textures')).toBe('2');
+  });
+
   it('shows frame rate and GPU counts when stats are requested', async () => {
     const host = await setup({ stats: '1' });
 
@@ -176,5 +183,26 @@ describe('Hud interaction prompt and navigation', () => {
     const link = host().querySelector<HTMLAnchorElement>('a[data-role="list"]');
 
     expect(link?.getAttribute('href')).toBe('/projects');
+  });
+});
+
+describe('Hud during an in-world demo', () => {
+  it('shows the demo hint instead of the interaction prompt', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [Hud],
+      providers: [
+        { provide: ENGINE, useValue: stubEngine },
+        { provide: ActivatedRoute, useValue: routeWithQuery({}) },
+      ],
+    }).compileComponents();
+    const store = TestBed.inject(WorldStore);
+    const fixture = TestBed.createComponent(Hud);
+    store.markReady();
+    store.setDemoActive(true, 'E: Originaltitel · Esc: verlassen');
+    await fixture.whenStable();
+
+    const hint = (fixture.nativeElement as HTMLElement).querySelector('.prompt');
+    expect(hint?.textContent).toContain('Originaltitel');
   });
 });

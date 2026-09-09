@@ -5,6 +5,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  SRGBColorSpace,
 } from 'three';
 import { WorldContext } from '@engine/world-object';
 import { createLabel } from './label';
@@ -83,12 +84,14 @@ export class ScreenLandmark extends Landmark {
 
     this.screenshotUrl = demo.screenshot;
     const map = this.textures.load(demo.screenshot);
+    // Screenshots are sRGB; without saying so the renderer would gamma-correct them twice.
+    map.colorSpace = SRGBColorSpace;
     // Emissive so the screen reads as lit from inside, whatever the sun does.
     return new MeshStandardMaterial({
       map,
       emissiveMap: map,
       emissive: 0xffffff,
-      emissiveIntensity: 0.9,
+      emissiveIntensity: 0.35,
     });
   }
 

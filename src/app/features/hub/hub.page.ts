@@ -62,7 +62,10 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
       outline-offset: -3px;
     }
   `,
-  host: { '[attr.data-phase]': 'store.phase()' },
+  host: {
+    '[attr.data-phase]': 'store.phase()',
+    '[attr.data-input-mode]': 'store.inputMode()',
+  },
 })
 export class HubPage {
   protected readonly input = inject(InputService);
@@ -77,6 +80,8 @@ export class HubPage {
   private readonly router = inject(Router);
 
   private hub: HubScene | null = null;
+  private demo: Landmark | null = null;
+  private destroyed = false;
 
   /**
    * The router is the source of truth for which destination is open (§3); everything else follows
@@ -116,9 +121,19 @@ export class HubPage {
       previousSlug = slug;
     });
 
+    // The panel asks for an in-world demo through the store; fulfil it once the world exists.
+    effect(() => {
+      const slug = this.store.demoRequest();
+      if (slug && this.store.ready() && this.store.activeSlug() === null) {
+        this.store.requestDemo(null);
+        this.startDemo(this.hub?.landmarkFor(slug));
+      }
+    });
+
     const offActions = this.input.addActionListener((action) => this.onAction(action));
     afterNextRender(() => void this.boot());
     inject(DestroyRef).onDestroy(() => {
+      this.destroyed = true;
       offActions();
       this.engine.detach();
     });
@@ -126,7 +141,6 @@ export class HubPage {
 
   protected travelTo(slug: string): void {
     this.placeAt(this.hub?.landmarkFor(slug), 'towards');
-    this.canvas().nativeElement.focus();
   }
 
   private async boot(): Promise<void> {
@@ -135,6 +149,11 @@ export class HubPage {
     try {
       this.store.beginLoading(1, 'Welt');
       await this.content.ready;
+      // The visitor may have left for /projects while the content loaded: never attach to a
+      // canvas that is no longer on the page, or the loop and listeners would outlive it.
+      if (this.destroyed) {
+        return;
+      }
       this.engine.attach(canvas);
       this.engine.resize(canvas.clientWidth, canvas.clientHeight);
       this.engine.onNearbyChange = (nearby) => this.store.setNearby(nearby);
@@ -143,6 +162,7 @@ export class HubPage {
         reducedMotion: this.capability.reducedMotion,
         projects: this.content.projects(),
         onEnter: (project) => void this.router.navigate(['/p', project.slug]),
+        onDemo: (landmark) => this.startDemo(landmark),
         onAreaChange: (area) => this.store.setArea(area),
       });
       this.hub = hub;
@@ -177,21 +197,46 @@ export class HubPage {
     );
   }
 
+  /** Hands the controls to a landmark's demo (§5); `exit` gives them back. */
+  private startDemo(landmark: Landmark | undefined): void {
+    if (!landmark?.enter || this.demo) {
+      return;
+    }
+
+    this.demo = landmark;
+    landmark.enter();
+    this.store.setDemoActive(true, landmark.demoHint);
+  }
+
+  private endDemo(): void {
+    this.demo?.exit?.();
+    this.demo = null;
+    this.store.setDemoActive(false);
+  }
+
   private onAction(action: InputAction): void {
     switch (action) {
       case 'interact':
-        this.engine.nearby?.onInteract();
+        if (this.demo) {
+          this.demo.interact?.();
+        } else {
+          this.engine.nearby?.onInteract();
+        }
         break;
+      // `openSlug` rather than `store.activeSlug`: the store copy trails the router by one
+      // change-detection pass, and a key can land inside that gap.
       case 'menu':
-        if (this.store.activeSlug() === null) {
+        if (this.openSlug() === null) {
           this.store.toggleMenu();
         }
         break;
       case 'exit':
         if (this.store.menuOpen()) {
           this.store.setMenuOpen(false);
-        } else if (this.store.activeSlug() !== null) {
+        } else if (this.openSlug() !== null) {
           void this.router.navigate(['/']);
+        } else if (this.demo) {
+          this.endDemo();
         }
         break;
     }

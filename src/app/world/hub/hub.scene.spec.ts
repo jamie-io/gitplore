@@ -43,8 +43,11 @@ describe('HubScene', () => {
   it('collects the colliders and interactables of every landmark', () => {
     const scene = hub();
 
-    expect(scene.colliders.length).toBeGreaterThanOrEqual(PROJECTS.length);
-    expect(scene.interactables.length).toBe(PROJECTS.length);
+    const colliders = scene.landmarks.reduce((n, l) => n + l.colliders.length, 0);
+    const interactables = scene.landmarks.reduce((n, l) => n + l.interactables.length, 0);
+    expect(scene.colliders.length).toBe(colliders);
+    expect(scene.interactables.length).toBe(interactables);
+    expect(interactables).toBeGreaterThanOrEqual(PROJECTS.length);
   });
 
   it('finds a landmark by project slug', () => {

@@ -1,4 +1,4 @@
-import { BoxGeometry, DataTexture, Group, Mesh, MeshStandardMaterial } from 'three';
+import { BoxGeometry, DataTexture, Group, Mesh, MeshStandardMaterial, Texture } from 'three';
 import { disposeObject3D } from './dispose';
 
 /** Three dispatches a real `dispose` event, so nothing here needs a mock. */
@@ -56,5 +56,17 @@ describe('disposeObject3D', () => {
 
   it('survives an empty group', () => {
     expect(() => disposeObject3D(new Group())).not.toThrow();
+  });
+
+  it('leaves textures owned by an asset provider alone, so sharing them stays safe', () => {
+    const shared = new Texture();
+    shared.userData['managed'] = true;
+    let disposed = 0;
+    shared.dispose = () => void disposed++;
+    const mesh = new Mesh(new BoxGeometry(), new MeshStandardMaterial({ map: shared }));
+
+    disposeObject3D(mesh);
+
+    expect(disposed).toBe(0);
   });
 });

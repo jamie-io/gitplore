@@ -1,9 +1,11 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, Injector, computed, inject, input } from '@angular/core';
 import { Router } from '@angular/router';
 import { ContentService } from '@content/content.service';
 import { MarkdownComponent } from '@content/markdown/markdown.component';
 import { ReadmeService } from '@content/readme.service';
 import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
+import { DemoFrame } from '../demo-frame/demo-frame';
+import { WorldStore } from '../store/world.store';
 
 /**
  * A project destination, rendered over the still-running hub by the `/p/:slug` child route
@@ -11,7 +13,7 @@ import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
  */
 @Component({
   selector: 'app-project-panel',
-  imports: [MarkdownComponent, FocusTrapDirective],
+  imports: [MarkdownComponent, FocusTrapDirective, DemoFrame],
   template: `
     <div class="backdrop">
       <div
@@ -37,9 +39,21 @@ import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
           </header>
 
           @if (project.demo.kind === 'iframe') {
-            <figure class="preview">
-              <img [src]="project.demo.screenshot" [alt]="'Screenshot: ' + project.title" />
-            </figure>
+            <section class="demo" aria-label="Demo">
+              <app-demo-frame
+                [url]="project.demo.url"
+                [title]="project.title"
+                [embeddable]="project.demo.embeddable"
+                [screenshot]="project.demo.screenshot"
+              />
+            </section>
+          } @else if (project.demo.kind === 'custom' && project.demo.mode === 'in-world') {
+            <section class="demo" aria-label="Demo">
+              <p>Die Demo dazu steht in der 3D-Welt, direkt neben dem Portal.</p>
+              <button type="button" data-role="try-in-world" (click)="tryInWorld(project.slug)">
+                In der Welt ausprobieren
+              </button>
+            </section>
           }
 
           <nav class="actions">
@@ -60,6 +74,8 @@ import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
 
           @if (readme.isLoading()) {
             <p role="status">README wird geladen …</p>
+          } @else if (readme.error()) {
+            <p role="alert">Die README konnte nicht geladen werden – der Quellcode enthält sie.</p>
           } @else if (readme.value(); as markdown) {
             <app-markdown [markdown]="markdown" [topLevel]="3" />
           }
@@ -124,12 +140,20 @@ import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
       background: rgb(0 0 0 / 7%);
       font-size: 0.8rem;
     }
-    .preview {
+    .demo {
       margin: 0 0 1rem;
     }
-    .preview img {
-      inline-size: 100%;
+    .demo p {
+      margin: 0 0 0.6rem;
+    }
+    .demo button {
+      padding: 0.5rem 1rem;
+      border: 0;
       border-radius: 0.5rem;
+      background: var(--primary);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
     }
     .actions {
       display: flex;
@@ -156,6 +180,7 @@ export class ProjectPanel {
 
   private readonly content = inject(ContentService);
   private readonly router = inject(Router);
+  private readonly store = inject(WorldStore);
 
   protected readonly contentReady = this.content.loaded;
   protected readonly project = computed(() => this.content.bySlug(this.slug()));
@@ -169,9 +194,16 @@ export class ProjectPanel {
       const project = this.project();
       return project?.readme.kind === 'bundled' ? project.slug : undefined;
     }),
+    inject(Injector),
   );
 
   protected close(): void {
     void this.router.navigate(['/']);
+  }
+
+  /** Hands the demo request to the hub page, which owns the player and the landmark (§5). */
+  protected tryInWorld(slug: string): void {
+    this.store.requestDemo(slug);
+    this.close();
   }
 }

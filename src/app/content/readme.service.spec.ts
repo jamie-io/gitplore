@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { EnvironmentInjector, createEnvironmentInjector, signal } from '@angular/core';
 import { ReadmeService } from './readme.service';
 
 describe('ReadmeService', () => {
@@ -21,7 +21,7 @@ describe('ReadmeService', () => {
 
   it('reads the bundled copy for the slug, relative to the base href', async () => {
     const slug = signal<string | undefined>('novaverta');
-    const resource = readme.readme(slug);
+    const resource = readme.readme(slug, TestBed.inject(EnvironmentInjector));
     TestBed.tick();
     await Promise.resolve();
 
@@ -35,7 +35,7 @@ describe('ReadmeService', () => {
   });
 
   it('requests nothing while there is no slug', async () => {
-    readme.readme(signal<string | undefined>(undefined));
+    readme.readme(signal<string | undefined>(undefined), TestBed.inject(EnvironmentInjector));
     TestBed.tick();
     await Promise.resolve();
 
@@ -44,7 +44,7 @@ describe('ReadmeService', () => {
 
   it('follows the slug when it changes', async () => {
     const slug = signal<string | undefined>('novaverta');
-    readme.readme(slug);
+    readme.readme(slug, TestBed.inject(EnvironmentInjector));
     TestBed.tick();
     await Promise.resolve();
     http.expectOne('content/readme/novaverta.md').flush('# one');
@@ -54,5 +54,21 @@ describe('ReadmeService', () => {
     await Promise.resolve();
 
     http.expectOne('content/readme/deslopify.md').flush('# two');
+  });
+
+  it('dies with the injector that owns it, so a closed panel leaves no resource behind', async () => {
+    const owner = createEnvironmentInjector([], TestBed.inject(EnvironmentInjector));
+    const slug = signal<string | undefined>('novaverta');
+    readme.readme(slug, owner);
+    TestBed.tick();
+    await Promise.resolve();
+    http.expectOne('content/readme/novaverta.md').flush('# Phönix');
+
+    owner.destroy();
+    slug.set('poetzscher');
+    TestBed.tick();
+    await Promise.resolve();
+
+    http.expectNone('content/readme/poetzscher.md');
   });
 });

@@ -14,8 +14,9 @@
     "content:sync": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-readmes.mjs",
     "content:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-embeddable.mjs",
     "content:screens": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/capture-screens.mjs",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build",
-    "prepare": "husky"
+    "verify": "npm run lint && npm run typecheck && npm test && npm run test:scripts && npm run build",
+    "prepare": "husky",
+    "test:scripts": "node --test 'scripts/**/*.test.mjs'"
   },
   "private": true,
   "packageManager": "npm@11.19.0",

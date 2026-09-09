@@ -1,8 +1,8 @@
-import { Group, Texture, TextureLoader, Vector3 } from 'three';
+import { Group, SRGBColorSpace, Texture, TextureLoader, Vector3 } from 'three';
 import { Interactable } from '@engine/interaction/interactable';
 import { Collider, HeightField } from '@engine/player/collision';
 import { WorldContext, WorldObject } from '@engine/world-object';
-import { disposeObject3D } from '@engine/dispose';
+import { disposeObject3D, markManaged } from '@engine/dispose';
 import type { Project } from '@content/project.model';
 
 /** Metres in front of a landmark where the player stands after returning from it. */
@@ -20,7 +20,8 @@ export class PlainTextureProvider implements TextureProvider {
   private readonly loaded = new Map<string, Texture>();
 
   load(url: string): Texture {
-    const texture = this.loader.load(url);
+    const texture = markManaged(this.loader.load(url));
+    texture.colorSpace = SRGBColorSpace;
     this.loaded.set(url, texture);
     return texture;
   }
@@ -37,6 +38,8 @@ export interface LandmarkOptions {
   readonly reducedMotion: boolean;
   /** The landmark was used; the page turns this into the `/p/:slug` route (§3). */
   readonly onEnter: (project: Project) => void;
+  /** The landmark wants to run its in-world demo; the page hands it the controls (§5). */
+  readonly onDemo?: (landmark: Landmark) => void;
   readonly textures?: TextureProvider;
 }
 
@@ -61,6 +64,17 @@ export abstract class Landmark implements WorldObject {
   protected readonly textures: TextureProvider;
   protected readonly reducedMotion: boolean;
   protected readonly onEnter: (project: Project) => void;
+  protected readonly onDemo: ((landmark: Landmark) => void) | undefined;
+
+  /** The world this landmark lives in, from `init` on. */
+  protected ctx: WorldContext | null = null;
+
+  /** In-world demo hooks (§5); only landmarks of `demo.mode: 'in-world'` projects define them. */
+  enter?(): void;
+  exit?(): void;
+  interact?(): void;
+  /** What the HUD tells the visitor while the demo runs. */
+  readonly demoHint: string | null = null;
 
   constructor(options: LandmarkOptions) {
     const { position, rotationY } = options.project.landmark;
@@ -71,6 +85,7 @@ export abstract class Landmark implements WorldObject {
     this.textures = options.textures ?? new PlainTextureProvider();
     this.reducedMotion = options.reducedMotion;
     this.onEnter = options.onEnter;
+    this.onDemo = options.onDemo;
 
     this.position = new Vector3(
       position[0],
@@ -110,6 +125,7 @@ export abstract class Landmark implements WorldObject {
   }
 
   init(ctx: WorldContext): void {
+    this.ctx = ctx;
     this.build(ctx);
     ctx.scene.add(this.group);
   }
@@ -122,6 +138,7 @@ export abstract class Landmark implements WorldObject {
   dispose(): void {
     disposeObject3D(this.group);
     this.group.clear();
+    this.ctx = null;
   }
 
   /** The landmark's footprint and affordances; called once, lazily, without a scene. */

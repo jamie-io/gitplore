@@ -1,4 +1,4 @@
-import { Injector, Service, inject } from '@angular/core';
+import { Injector, Service } from '@angular/core';
 import type { Signal } from '@angular/core';
 import { HttpResourceRef, httpResource } from '@angular/common/http';
 
@@ -10,15 +10,17 @@ import { HttpResourceRef, httpResource } from '@angular/common/http';
  */
 @Service()
 export class ReadmeService {
-  private readonly injector = inject(Injector);
-
-  readme(slug: Signal<string | undefined>): HttpResourceRef<string | undefined> {
+  /**
+   * `owner` is the injector whose lifetime the resource follows — pass the component's, so a
+   * closed panel takes its request and signals with it instead of leaving them on the root.
+   */
+  readme(slug: Signal<string | undefined>, owner: Injector): HttpResourceRef<string | undefined> {
     return httpResource.text(
       () => {
         const value = slug();
         return value ? `content/readme/${value}.md` : undefined;
       },
-      { injector: this.injector },
+      { injector: owner },
     );
   }
 }

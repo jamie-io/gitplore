@@ -26,13 +26,16 @@ export class WorldStore {
 
   readonly menuOpen = signal(false);
   readonly settingsOpen = signal(false);
-  readonly documentHidden = signal(false);
 
   /** What the player is close to and facing; written by the engine only on change (§2). */
   readonly nearby = signal<Interactable | null>(null);
 
-  /** An in-world demo has taken over the controls (§5). */
+  /** An in-world demo has taken over the controls (§5), and what it tells the visitor to do. */
   readonly demoActive = signal(false);
+  readonly demoHint = signal<string | null>(null);
+
+  /** Slug of the in-world demo the panel asked for; the page fulfils and clears it. */
+  readonly demoRequest = signal<string | null>(null);
 
   /** Which destination is open. The router owns this; the store only mirrors it (§3). */
   readonly activeSlug = signal<string | null>(null);
@@ -42,8 +45,8 @@ export class WorldStore {
 
   readonly ready = computed(() => this.phase() === 'ready');
 
-  /** The render loop stops entirely while this is true. */
-  readonly paused = computed(() => this.menuOpen() || this.settingsOpen() || this.documentHidden());
+  /** The app's own reason to stop the render loop; the engine adds tab-hidden and off-screen. */
+  readonly paused = computed(() => this.menuOpen() || this.settingsOpen());
 
   /** Any overlay takes the input away from the world; a running demo takes it next. */
   readonly inputMode = computed<InputMode>(() => {
@@ -84,8 +87,13 @@ export class WorldStore {
     this.nearby.set(nearby);
   }
 
-  setDemoActive(active: boolean): void {
+  setDemoActive(active: boolean, hint: string | null = null): void {
     this.demoActive.set(active);
+    this.demoHint.set(active ? hint : null);
+  }
+
+  requestDemo(slug: string | null): void {
+    this.demoRequest.set(slug);
   }
 
   toggleMenu(): void {
@@ -98,9 +106,5 @@ export class WorldStore {
 
   setSettingsOpen(open: boolean): void {
     this.settingsOpen.set(open);
-  }
-
-  setDocumentHidden(hidden: boolean): void {
-    this.documentHidden.set(hidden);
   }
 }

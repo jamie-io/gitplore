@@ -165,6 +165,13 @@ describe('InputService', () => {
       expect([...input.consumeActions()]).toEqual(['menu']);
     });
 
+    it('reports interact in demo mode, so a demo can react to it', () => {
+      input.setMode('demo');
+      press('KeyE');
+
+      expect([...input.consumeActions()]).toEqual(['interact']);
+    });
+
     it('does not report interact while the UI has focus', () => {
       input.setMode('ui');
       press('KeyE');

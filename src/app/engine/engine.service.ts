@@ -89,6 +89,7 @@ export class EngineService {
     this.detachInput?.();
     this.detachInput = null;
     this.interaction.reset();
+    this.onNearbyChange = null;
     this.teardown.forEach((off) => off());
     this.teardown = [];
     this.tickables.clear();
@@ -103,6 +104,9 @@ export class EngineService {
 
   setScene(world: WorldScene): void {
     this.world?.dispose();
+    // Every WorldObject detaches itself on dispose; clearing is the safety net for one that forgets.
+    this.scene.clear();
+    this.renderer?.renderLists.dispose();
     this.interaction.reset();
     this.world = world;
     world.init(this.context());

@@ -1,4 +1,4 @@
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, Injector, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ContentService } from '@content/content.service';
 import { MarkdownComponent } from '@content/markdown/markdown.component';
@@ -29,6 +29,8 @@ import { ReadmeService } from '@content/readme.service';
 
         @if (readme.isLoading()) {
           <p role="status">README wird geladen …</p>
+        } @else if (readme.error()) {
+          <p role="alert">Die README konnte nicht geladen werden – der Quellcode enthält sie.</p>
         } @else if (readme.value(); as markdown) {
           <app-markdown [markdown]="markdown" />
         }
@@ -81,5 +83,6 @@ export class ProjectDetailPage {
       const project = this.project();
       return project?.readme.kind === 'bundled' ? project.slug : undefined;
     }),
+    inject(Injector),
   );
 }

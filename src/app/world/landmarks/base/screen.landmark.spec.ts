@@ -1,4 +1,12 @@
-import { BoxGeometry, CylinderGeometry, Mesh, PerspectiveCamera, Scene, Texture } from 'three';
+import {
+  BoxGeometry,
+  CylinderGeometry,
+  Mesh,
+  PerspectiveCamera,
+  SRGBColorSpace,
+  Scene,
+  Texture,
+} from 'three';
 import { qualitySettings } from '@engine/capability.service';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
@@ -9,9 +17,12 @@ import { ScreenLandmark } from './screen.landmark';
 class StubTextures implements TextureProvider {
   loaded: string[] = [];
   released: string[] = [];
+  handedOut: Texture[] = [];
   load(url: string): Texture {
     this.loaded.push(url);
-    return new Texture();
+    const texture = new Texture();
+    this.handedOut.push(texture);
+    return texture;
   }
   release(url: string): void {
     this.released.push(url);
@@ -45,6 +56,15 @@ describe('ScreenLandmark', () => {
     screen.init(context());
 
     expect(textures.loaded).toEqual(['assets/screens/novaverta.webp']);
+  });
+
+  it('treats the screenshot as sRGB so it is not washed out on screen', () => {
+    const textures = new StubTextures();
+    const screen = new ScreenLandmark(options({ textures }));
+
+    screen.init(context());
+
+    expect(textures.handedOut[0].colorSpace).toBe(SRGBColorSpace);
   });
 
   it('gives the screenshot back when disposed', () => {
