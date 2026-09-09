@@ -1,0 +1,59 @@
+{
+  "name": "gitplore",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "lint": "ng lint",
+    "format": "prettier --write .",
+    "typecheck": "tsc -b --noEmit",
+    "e2e": "playwright test",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build",
+    "prepare": "husky"
+  },
+  "private": true,
+  "packageManager": "npm@11.19.0",
+  "dependencies": {
+    "@angular/common": "^22.1.0",
+    "@angular/compiler": "^22.1.0",
+    "@angular/core": "^22.1.0",
+    "@angular/forms": "^22.1.0",
+    "@angular/platform-browser": "^22.1.0",
+    "@angular/router": "^22.1.0",
+    "dompurify": "^3.4.15",
+    "marked": "^18.0.12",
+    "rxjs": "~7.8.0",
+    "three": "^0.186.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.1.7",
+    "@angular/cli": "^22.1.7",
+    "@angular/compiler-cli": "^22.1.0",
+    "@eslint/js": "^10.0.1",
+    "@gltf-transform/cli": "^4.5.0",
+    "@playwright/test": "^1.63.0",
+    "@types/three": "^0.185.4",
+    "angular-eslint": "22.5.0",
+    "eslint": "^10.9.1",
+    "husky": "^9.1.7",
+    "jsdom": "^28.0.0",
+    "lint-staged": "^17.5.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "8.69.0",
+    "vitest": "^4.0.8"
+  },
+  "lint-staged": {
+    "*.{ts,html}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,mjs,json,scss,md,yml}": [
+      "prettier --write"
+    ]
+  }
+}

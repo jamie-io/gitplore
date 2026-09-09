@@ -1,0 +1,7 @@
+dist
+.angular
+coverage
+package-lock.json
+public/content/readme
+PLAN.md
+IMPLEMENTATION_PLAN.md
