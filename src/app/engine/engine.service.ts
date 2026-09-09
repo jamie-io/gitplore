@@ -1,5 +1,5 @@
 import { InjectionToken, NgZone, Service, inject } from '@angular/core';
-import { PerspectiveCamera, Scene } from 'three';
+import { Material, Mesh, PerspectiveCamera, Scene, Texture } from 'three';
 import { AssetService } from './asset.service';
 import { CapabilityService } from './capability.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
@@ -19,9 +19,13 @@ const FLAT_GROUND: HeightField = { heightAt: () => 0 };
 
 export interface EngineStats {
   readonly fps: number;
+  /** GPU-resident counts from `renderer.info.memory`; a geometry counts once it has been drawn. */
   readonly geometries: number;
   readonly textures: number;
   readonly frames: number;
+  /** Unique geometries and textures reachable from the scene graph, whatever the GPU holds. */
+  readonly sceneGeometries: number;
+  readonly sceneTextures: number;
 }
 
 /**
@@ -179,11 +183,14 @@ export class EngineService {
    */
   stats(): EngineStats {
     const memory = this.renderer?.info.memory ?? { geometries: 0, textures: 0 };
+    const alive = countSceneResources(this.scene);
     return {
       fps: this.lastFrameMs > 0 ? 1000 / this.lastFrameMs : 0,
       geometries: memory.geometries,
       textures: memory.textures,
       frames: this.renderedFrames,
+      sceneGeometries: alive.geometries,
+      sceneTextures: alive.textures,
     };
   }
 
@@ -261,6 +268,27 @@ export class EngineService {
     observer.observe(canvas);
     this.teardown.push(() => observer.disconnect());
   }
+}
+
+/** What the scene graph currently references; the yardstick GPU memory is compared against. */
+function countSceneResources(scene: Scene): { geometries: number; textures: number } {
+  const geometries = new Set<object>();
+  const textures = new Set<Texture>();
+  scene.traverse((object) => {
+    const mesh = object as Partial<Mesh>;
+    if (mesh.geometry) {
+      geometries.add(mesh.geometry);
+    }
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (const material of materials as (Material | undefined)[]) {
+      for (const value of Object.values(material ?? {})) {
+        if (value instanceof Texture) {
+          textures.add(value);
+        }
+      }
+    }
+  });
+  return { geometries: geometries.size, textures: textures.size };
 }
 
 /**

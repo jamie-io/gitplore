@@ -50,6 +50,8 @@ const STATS_INTERVAL_MS = 500;
         [attr.data-frames]="stats().frames"
         [attr.data-geometries]="stats().geometries"
         [attr.data-textures]="stats().textures"
+        [attr.data-scene-geometries]="stats().sceneGeometries"
+        [attr.data-scene-textures]="stats().sceneTextures"
       >
         {{ fpsLabel() }} fps · {{ stats().geometries }} geo · {{ stats().textures }} tex
       </p>
@@ -144,7 +146,14 @@ export class Hud {
 
   private readonly engine = inject(ENGINE);
 
-  protected readonly stats = signal<EngineStats>({ fps: 0, geometries: 0, textures: 0, frames: 0 });
+  protected readonly stats = signal<EngineStats>({
+    fps: 0,
+    geometries: 0,
+    textures: 0,
+    frames: 0,
+    sceneGeometries: 0,
+    sceneTextures: 0,
+  });
 
   /** Always on in development; `?stats=1` switches it on in a production build too. */
   protected readonly showStats = signal(

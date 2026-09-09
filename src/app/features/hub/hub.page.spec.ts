@@ -29,7 +29,7 @@ class StubEngine {
   readonly nearby = null;
 
   stats() {
-    return { fps: 0, geometries: 0, textures: 0, frames: 0 };
+    return { fps: 0, geometries: 0, textures: 0, frames: 0, sceneGeometries: 0, sceneTextures: 0 };
   }
   private detachInput: (() => void) | null = null;
 

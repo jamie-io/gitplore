@@ -11,7 +11,14 @@ const routeWithQuery = (query: Record<string, string>) => ({
 
 /** The HUD only ever asks the engine for stats; §9 puts it behind a token exactly for this. */
 const stubEngine = {
-  stats: () => ({ fps: 58.6, geometries: 3, textures: 2, frames: 1234 }),
+  stats: () => ({
+    fps: 58.6,
+    geometries: 3,
+    textures: 2,
+    frames: 1234,
+    sceneGeometries: 5,
+    sceneTextures: 4,
+  }),
 } as unknown as EngineService;
 
 describe('Hud', () => {
@@ -121,6 +128,8 @@ describe('Hud stats overlay', () => {
 
     expect(host.querySelector('.stats')?.getAttribute('data-geometries')).toBe('3');
     expect(host.querySelector('.stats')?.getAttribute('data-textures')).toBe('2');
+    expect(host.querySelector('.stats')?.getAttribute('data-scene-geometries')).toBe('5');
+    expect(host.querySelector('.stats')?.getAttribute('data-scene-textures')).toBe('4');
   });
 
   it('shows frame rate and GPU counts when stats are requested', async () => {

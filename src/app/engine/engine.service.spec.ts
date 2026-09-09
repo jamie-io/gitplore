@@ -3,7 +3,7 @@ import { Scene } from 'three';
 import { CapabilityService, DEVICE_CAPABILITIES, DeviceCapabilities } from './capability.service';
 import { ENGINE_MAX_FRAME_SECONDS, EngineService } from './engine.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
-import { Vector3 } from 'three';
+import { BoxGeometry, Mesh, MeshStandardMaterial, Texture, Vector3 } from 'three';
 import { Interactable } from './interaction/interactable';
 import { HeightField } from './player/collision';
 import { WorldScene } from './world-object';
@@ -234,6 +234,18 @@ describe('EngineService', () => {
 
   it('reports no frame rate before the first measured frame', () => {
     expect(engine.stats().fps).toBe(0);
+  });
+
+  it('counts the geometries and textures alive in the scene graph', () => {
+    const geometry = new BoxGeometry();
+    const texture = new Texture();
+    const material = new MeshStandardMaterial({ map: texture, emissiveMap: texture });
+    engine.scene.add(new Mesh(geometry, material), new Mesh(geometry, new MeshStandardMaterial()));
+
+    const stats = engine.stats();
+
+    expect(stats.sceneGeometries).toBe(1);
+    expect(stats.sceneTextures).toBe(1);
   });
 
   it('counts every rendered frame', () => {

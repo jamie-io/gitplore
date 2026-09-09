@@ -17,7 +17,10 @@ export async function framesRendered(page: Page): Promise<number> {
  * A HUD stat once it has stopped changing: models arrive asynchronously, so the first reading
  * after boot is not yet the steady state.
  */
-export async function settledStat(page: Page, name: 'geometries' | 'textures'): Promise<string> {
+export async function settledStat(
+  page: Page,
+  name: 'geometries' | 'textures' | 'scene-geometries' | 'scene-textures',
+): Promise<string> {
   const stats = page.locator('app-hud .stats');
   let previous = await stats.getAttribute(`data-${name}`);
   for (let i = 0; i < 20; i++) {

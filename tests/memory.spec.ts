@@ -2,14 +2,19 @@ import { expect, test } from '@playwright/test';
 import { settledStat, startWorld } from './helpers';
 
 /**
- * The hub is never destroyed and destinations are DOM overlays, so GPU resources must not grow
- * across enter/exit cycles (IMPLEMENTATION_PLAN.md §2, §11; M5 verify column).
+ * The hub is never destroyed and destinations are DOM overlays, so resources must not grow across
+ * enter/exit cycles (IMPLEMENTATION_PLAN.md §2, §11; M5 verify column).
+ *
+ * Two yardsticks: what the scene graph owns must stay flat, and the GPU must never hold more
+ * geometries than the scene owns — anything uploaded but no longer referenced is a leak. The raw
+ * `renderer.info.memory` count alone is view-dependent (a geometry counts once it has been drawn),
+ * so it is not compared for equality.
  */
 test.describe('memory', () => {
-  test('renderer memory is flat across five enter/exit cycles', async ({ page }) => {
+  test('nothing leaks across five enter/exit cycles', async ({ page }) => {
     await startWorld(page, '/?stats=1');
     const stats = page.locator('app-hud .stats');
-    await expect(stats).toHaveAttribute('data-geometries', /^[1-9]\d*$/);
+    await expect(stats).toHaveAttribute('data-scene-geometries', /^[1-9]\d*$/);
 
     const cycle = async () => {
       await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
@@ -21,27 +26,18 @@ test.describe('memory', () => {
       await expect(page.getByRole('dialog')).toHaveCount(0);
     };
 
-    // Warm up until a cycle stops changing the numbers: Three counts a geometry only once it has
-    // been drawn, and the returning player faces parts of the world the spawn view never showed.
-    let geometries = await settledStat(page, 'geometries');
-    let textures = await settledStat(page, 'textures');
-    for (let warmUp = 0; warmUp < 4; warmUp++) {
-      await cycle();
-      const g = await settledStat(page, 'geometries');
-      const t = await settledStat(page, 'textures');
-      const stable = g === geometries && t === textures;
-      geometries = g;
-      textures = t;
-      if (stable) {
-        break;
-      }
-    }
+    // One cycle first, so lazily arriving models (portal glTF) are in place before the baseline.
+    await cycle();
+    const geometries = await settledStat(page, 'scene-geometries');
+    const textures = await settledStat(page, 'scene-textures');
 
     for (let i = 0; i < 5; i++) {
       await cycle();
     }
 
-    expect(await settledStat(page, 'geometries')).toBe(geometries);
-    expect(await settledStat(page, 'textures')).toBe(textures);
+    expect(await settledStat(page, 'scene-geometries')).toBe(geometries);
+    expect(await settledStat(page, 'scene-textures')).toBe(textures);
+    expect(Number(await settledStat(page, 'geometries'))).toBeLessThanOrEqual(Number(geometries));
+    expect(Number(await settledStat(page, 'textures'))).toBeLessThanOrEqual(Number(textures));
   });
 });
