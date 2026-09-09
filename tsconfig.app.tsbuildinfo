@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/app/app.config.ts","./src/app/app.routes.ts","./src/app/app.ts","./src/app/features/hub/hub.page.ts","./src/app/features/projects/project-detail.page.ts","./src/app/features/projects/projects-list.page.ts","./src/app/shared/device.service.ts","./src/app/shared/simple-view.guard.ts","./src/app/ui/project-panel/project-panel.ts"],"version":"6.0.3"}

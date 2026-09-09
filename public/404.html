@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Gitplore</title>
+    <script>
+      // GitHub Pages has no SPA rewrite: it answers every unknown path with this file. Stash the
+      // requested URL and bounce to the app root, where index.html restores it into the history.
+      // On github.io the first path segment is the repository (`--base-href /gitplore/`); on our
+      // own nginx the app is served from `/`, so nothing is kept.
+      (function () {
+        var keep = location.hostname.endsWith('github.io') ? 1 : 0;
+        var base =
+          '/' +
+          location.pathname
+            .split('/')
+            .slice(1, 1 + keep)
+            .join('/');
+        if (keep) base += '/';
+        sessionStorage.setItem(
+          'gitplore:redirect',
+          location.pathname.slice(base.length) + location.search + location.hash,
+        );
+        location.replace(location.origin + base);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

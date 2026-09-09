@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Gitplore</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <script>
+      // Restores the deep link stashed by 404.html before Angular boots (see public/404.html).
+      (function () {
+        var to = sessionStorage.getItem('gitplore:redirect');
+        if (to) {
+          sessionStorage.removeItem('gitplore:redirect');
+          history.replaceState(
+            null,
+            '',
+            document.baseURI.replace(/\/$/, '') + '/' + to.replace(/^\//, ''),
+          );
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>
