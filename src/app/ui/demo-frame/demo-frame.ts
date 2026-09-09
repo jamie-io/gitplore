@@ -8,6 +8,7 @@ import {
   input,
   signal,
 } from '@angular/core';
+import { NgOptimizedImage } from '@angular/common';
 import { DomSanitizer } from '@angular/platform-browser';
 
 /** How long the iframe may take to load before the screenshot card takes over (§5). */
@@ -23,6 +24,7 @@ export const DEMO_LOAD_TIMEOUT_MS = new InjectionToken<number>('DEMO_LOAD_TIMEOU
  */
 @Component({
   selector: 'app-demo-frame',
+  imports: [NgOptimizedImage],
   template: `
     @if (framed()) {
       <iframe
@@ -36,7 +38,7 @@ export const DEMO_LOAD_TIMEOUT_MS = new InjectionToken<number>('DEMO_LOAD_TIMEOU
       ></iframe>
     } @else {
       <figure class="card">
-        <img [src]="screenshot()" [alt]="'Screenshot: ' + title()" />
+        <img [ngSrc]="screenshot()" [alt]="'Screenshot: ' + title()" width="1024" height="640" />
         @if (timedOut()) {
           <figcaption role="status">
             Die Demo lässt sich hier nicht laden – bitte in neuem Tab öffnen.

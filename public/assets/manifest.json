@@ -1,0 +1,24 @@
+{
+  "assets": [
+    {
+      "url": "assets/models/arch.glb",
+      "bytes": 4400,
+      "group": "core"
+    },
+    {
+      "url": "assets/models/monument.glb",
+      "bytes": 5272,
+      "group": "core"
+    },
+    {
+      "url": "assets/screens/novaverta.webp",
+      "bytes": 54000,
+      "group": "novaverta"
+    },
+    {
+      "url": "assets/screens/poetzscher.webp",
+      "bytes": 57920,
+      "group": "poetzscher"
+    }
+  ]
+}

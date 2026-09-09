@@ -62,6 +62,7 @@ describe('Hud', () => {
 
   it('hides the crosshair while the world is paused', async () => {
     store.markReady();
+    store.markStarted();
     await fixture.whenStable();
     expect(query('.crosshair')).not.toBeNull();
 
@@ -73,6 +74,7 @@ describe('Hud', () => {
 
   it('keeps the decorative crosshair out of the accessibility tree', async () => {
     store.markReady();
+    store.markStarted();
     await fixture.whenStable();
 
     expect(query('.crosshair')?.getAttribute('aria-hidden')).toBe('true');

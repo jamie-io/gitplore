@@ -1,5 +1,6 @@
 import { PerspectiveCamera, Scene } from 'three';
 import { qualitySettings } from '@engine/capability.service';
+import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
 import { Sky } from './sky';
@@ -10,6 +11,7 @@ function context(tier: 'low' | 'medium' | 'high' = 'high'): WorldContext {
     camera: new PerspectiveCamera(),
     player: new PlayerController(),
     quality: qualitySettings(tier),
+    assets: new StubAssets(),
   };
 }
 
@@ -17,7 +19,7 @@ describe('Sky', () => {
   it('puts a dome and lighting into the scene', () => {
     const ctx = context();
 
-    new Sky({ reducedMotion: false }).init(ctx);
+    new Sky({ reducedMotion: () => false }).init(ctx);
 
     expect(ctx.scene.children.length).toBeGreaterThan(1);
   });
@@ -25,14 +27,14 @@ describe('Sky', () => {
   it('fogs the scene to the draw distance of the quality tier', () => {
     const ctx = context('low');
 
-    new Sky({ reducedMotion: false }).init(ctx);
+    new Sky({ reducedMotion: () => false }).init(ctx);
 
     expect(ctx.scene.fog).not.toBeNull();
   });
 
   it('drifts over time', () => {
     const ctx = context();
-    const sky = new Sky({ reducedMotion: false });
+    const sky = new Sky({ reducedMotion: () => false });
     sky.init(ctx);
     const before = sky.rotation;
 
@@ -43,7 +45,7 @@ describe('Sky', () => {
 
   it('holds still when the visitor prefers reduced motion', () => {
     const ctx = context();
-    const sky = new Sky({ reducedMotion: true });
+    const sky = new Sky({ reducedMotion: () => true });
     sky.init(ctx);
 
     sky.update(10);
@@ -53,7 +55,7 @@ describe('Sky', () => {
 
   it('takes everything back out of the scene when disposed', () => {
     const ctx = context();
-    const sky = new Sky({ reducedMotion: false });
+    const sky = new Sky({ reducedMotion: () => false });
     sky.init(ctx);
 
     sky.dispose();

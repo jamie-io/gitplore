@@ -12,7 +12,10 @@ import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = fileURLToPath(new URL('../dist/gitplore/browser/', import.meta.url));
+/** `DIST_ROOT` lets a second instance serve a copy (e.g. for Lighthouse) while e2e rebuilds dist. */
+const ROOT = process.env.DIST_ROOT
+  ? process.env.DIST_ROOT.replace(/\/?$/, '/')
+  : fileURLToPath(new URL('../dist/gitplore/browser/', import.meta.url));
 const PORT = Number(process.env.PORT ?? 4173);
 
 const TYPES = {

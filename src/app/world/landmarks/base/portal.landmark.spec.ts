@@ -1,11 +1,12 @@
-import { PerspectiveCamera, Scene } from 'three';
+import { Group, PerspectiveCamera, Scene, Vector3 } from 'three';
 import { qualitySettings } from '@engine/capability.service';
+import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
 import { PROJECTS } from '@content/projects';
 import { Project } from '@content/project.model';
 import { LandmarkOptions, SPAWN_DISTANCE } from './landmark';
-import { DOLLY_SECONDS, PortalLandmark } from './portal.landmark';
+import { DOLLY_SECONDS, MODEL_LOAD_RADIUS, PortalLandmark } from './portal.landmark';
 
 const FLAT = { heightAt: () => 0 };
 
@@ -18,7 +19,7 @@ function options(overrides: Partial<LandmarkOptions> = {}): LandmarkOptions {
   return {
     project: project(),
     ground: FLAT,
-    reducedMotion: false,
+    reducedMotion: () => false,
     onEnter: () => undefined,
     ...overrides,
   };
@@ -30,6 +31,7 @@ function context(): WorldContext {
     camera: new PerspectiveCamera(),
     player: new PlayerController(),
     quality: qualitySettings('medium'),
+    assets: new StubAssets(),
   };
 }
 
@@ -84,7 +86,7 @@ describe('PortalLandmark', () => {
 
     portal.init(ctx);
     expect(ctx.scene.children).toContain(portal.group);
-    expect(portal.group.children.length).toBeGreaterThan(2);
+    expect(portal.group.getObjectByName('proxy')?.children.length).toBeGreaterThan(2);
 
     portal.dispose();
     expect(ctx.scene.children).not.toContain(portal.group);
@@ -93,7 +95,7 @@ describe('PortalLandmark', () => {
   it('enters at once under reduced motion', () => {
     const entered: string[] = [];
     const portal = new PortalLandmark(
-      options({ reducedMotion: true, onEnter: (p) => entered.push(p.slug) }),
+      options({ reducedMotion: () => true, onEnter: (p) => entered.push(p.slug) }),
     );
     portal.init(context());
 
@@ -137,5 +139,67 @@ describe('PortalLandmark', () => {
     portal.update(DOLLY_SECONDS * 2, ctx);
 
     expect(entered).toEqual(['deslopify']);
+  });
+});
+
+describe('PortalLandmark with a glTF model', () => {
+  const withModel = () => project({ position: [0, 0, -20], model: 'assets/models/arch.glb' });
+  const ctxWith = (assets: StubAssets): WorldContext => ({ ...context(), assets });
+
+  it('keeps the procedural arch until the player comes close', () => {
+    const assets = new StubAssets();
+    const portal = new PortalLandmark(options({ project: withModel() }));
+    const ctx = ctxWith(assets);
+    portal.init(ctx);
+    ctx.player.teleport(new Vector3(0, 1.7, 60));
+
+    portal.update(0.016, ctx);
+
+    expect(assets.requested).toEqual([]);
+    expect(portal.group.getObjectByName('proxy')).toBeDefined();
+  });
+
+  it('fetches the model once the player is within loading range, then swaps the proxy', async () => {
+    const assets = new StubAssets();
+    const portal = new PortalLandmark(options({ project: withModel() }));
+    const ctx = ctxWith(assets);
+    portal.init(ctx);
+    ctx.player.teleport(new Vector3(0, 1.7, -20 + MODEL_LOAD_RADIUS - 1));
+
+    portal.update(0.016, ctx);
+    portal.update(0.016, ctx);
+    expect(assets.requested).toEqual(['assets/models/arch.glb']);
+
+    const model = new Group();
+    await assets.resolve(model);
+
+    expect(portal.group.getObjectByName('proxy')).toBeUndefined();
+    expect(portal.group.getObjectByName('model')?.children).toContain(model);
+  });
+
+  it('releases the model on dispose', async () => {
+    const assets = new StubAssets();
+    const portal = new PortalLandmark(options({ project: withModel() }));
+    const ctx = ctxWith(assets);
+    portal.init(ctx);
+    ctx.player.teleport(new Vector3(0, 1.7, -18));
+    portal.update(0.016, ctx);
+    await assets.resolve();
+
+    portal.dispose();
+
+    expect(assets.releasedModels).toEqual(['assets/models/arch.glb']);
+  });
+
+  it('never asks for a model when the project has none', () => {
+    const assets = new StubAssets();
+    const portal = new PortalLandmark(options({ project: project({ model: undefined }) }));
+    const ctx = ctxWith(assets);
+    portal.init(ctx);
+    ctx.player.teleport(new Vector3(0, 1.7, -18));
+
+    portal.update(0.016, ctx);
+
+    expect(assets.requested).toEqual([]);
   });
 });

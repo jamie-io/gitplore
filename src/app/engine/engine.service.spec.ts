@@ -201,6 +201,16 @@ describe('EngineService', () => {
     );
   });
 
+  it('re-applies the pixel ratio cap when the quality tier changes', () => {
+    engine.resize(800, 400);
+    TestBed.inject(CapabilityService).override('low');
+
+    engine.refreshQuality();
+
+    expect(renderer.pixelRatio).toBeLessThanOrEqual(1);
+    expect(renderer.width).toBe(800);
+  });
+
   it('reports frame times to the capability service', () => {
     const capability = TestBed.inject(CapabilityService);
     const sampled: number[] = [];

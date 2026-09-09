@@ -1,6 +1,7 @@
 import {
   Component,
   DestroyRef,
+  Injector,
   afterNextRender,
   effect,
   inject,
@@ -10,6 +11,9 @@ import {
 import { ActivatedRoute, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, startWith } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
+import { AssetManifest, AssetService } from '@engine/asset.service';
 import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { InputAction, InputService } from '@engine/input.service';
@@ -17,8 +21,9 @@ import { ContentService } from '@content/content.service';
 import { HubScene } from '@world/hub/hub.scene';
 import { Landmark } from '@world/landmarks/base/landmark';
 import { Hud } from '@ui/hud/hud';
+import { LoadingScreen } from '@ui/loading-screen/loading-screen';
 import { ProjectMenu } from '@ui/project-menu/project-menu';
-import { SettingsStore } from '@ui/store/settings.store';
+import { SettingsDialog } from '@ui/settings-dialog/settings-dialog';
 import { WorldStore } from '@ui/store/world.store';
 import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
 
@@ -28,7 +33,7 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
  */
 @Component({
   selector: 'app-hub-page',
-  imports: [RouterOutlet, Hud, ProjectMenu],
+  imports: [RouterOutlet, Hud, ProjectMenu, SettingsDialog, LoadingScreen],
   template: `
     <canvas
       #canvas
@@ -41,6 +46,13 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
     <app-hud />
     @if (store.menuOpen()) {
       <app-project-menu (travel)="travelTo($event)" />
+    }
+    @if (store.settingsOpen()) {
+      <app-settings-dialog />
+    }
+    <!-- The gate stays out of the way while a deep-linked project is open (§3). -->
+    @if (!store.started() && store.activeSlug() === null) {
+      <app-loading-screen (start)="startWorld()" />
     }
     <router-outlet />
   `,
@@ -74,8 +86,9 @@ export class HubPage {
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private readonly engine = inject(ENGINE);
   private readonly capability = inject(CapabilityService);
-  private readonly settings = inject(SettingsStore);
   private readonly content = inject(ContentService);
+  private readonly assets = inject(AssetService);
+  private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
 
@@ -97,11 +110,20 @@ export class HubPage {
   );
 
   constructor() {
-    effect(() => {
-      this.input.sensitivity = this.settings.sensitivity();
-    });
-    effect(() => this.capability.override(this.settings.qualityOverride()));
     effect(() => this.input.setMode(this.store.inputMode()));
+    // Settings and adaptive stepping change the tier at runtime; the renderer follows.
+    effect(() => {
+      this.capability.tier();
+      this.engine.refreshQuality();
+    });
+    // Focus returns to the world when an overlay closes (§6), so keyboard play carries on. After
+    // render, because the closing dialog's focus trap restores focus to its opener on destroy.
+    const injector = inject(Injector);
+    effect(() => {
+      if (this.store.inputMode() !== 'ui' && this.store.started()) {
+        afterNextRender(() => this.canvas().nativeElement.focus(), { injector });
+      }
+    });
 
     let previousSlug: string | null = null;
     effect(() => {
@@ -143,12 +165,19 @@ export class HubPage {
     this.placeAt(this.hub?.landmarkFor(slug), 'towards');
   }
 
+  /** The start gate was used: a user gesture, so pointer lock may be requested now. */
+  protected startWorld(): void {
+    this.canvas().nativeElement.focus();
+    this.input.requestLock();
+  }
+
   private async boot(): Promise<void> {
     const canvas = this.canvas().nativeElement;
 
     try {
-      this.store.beginLoading(1, 'Welt');
+      this.store.beginLoading(1, 'Inhalte');
       await this.content.ready;
+      await this.preloadCoreAssets();
       // The visitor may have left for /projects while the content loaded: never attach to a
       // canvas that is no longer on the page, or the loop and listeners would outlive it.
       if (this.destroyed) {
@@ -159,7 +188,7 @@ export class HubPage {
       this.engine.onNearbyChange = (nearby) => this.store.setNearby(nearby);
 
       const hub = new HubScene({
-        reducedMotion: this.capability.reducedMotion,
+        reducedMotion: () => this.capability.reducedMotion(),
         projects: this.content.projects(),
         onEnter: (project) => void this.router.navigate(['/p', project.slug]),
         onDemo: (landmark) => this.startDemo(landmark),
@@ -182,6 +211,23 @@ export class HubPage {
     } catch (error) {
       this.store.fail(error instanceof Error ? error.message : String(error));
     }
+  }
+
+  /**
+   * Fetches the `core` asset group behind the loading screen (§8). A missing or broken manifest
+   * only costs the preload: every model has a proxy and loads on demand anyway.
+   */
+  private async preloadCoreAssets(): Promise<void> {
+    let manifest: AssetManifest;
+    try {
+      manifest = await firstValueFrom(this.http.get<AssetManifest>('assets/manifest.json'));
+    } catch {
+      return;
+    }
+
+    const total = this.assets.urlsOf(manifest, 'core').length;
+    this.store.beginLoading(total, 'Modelle');
+    await this.assets.preload(manifest, 'core', (loaded) => this.store.reportProgress(loaded));
   }
 
   /** Puts the player on a landmark's spawn point, looking away from it or at it. */

@@ -1,5 +1,6 @@
 import { InjectionToken, NgZone, Service, inject } from '@angular/core';
 import { PerspectiveCamera, Scene } from 'three';
+import { AssetService } from './asset.service';
 import { CapabilityService } from './capability.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
 import { FirstPersonRig } from './player/camera-rig';
@@ -31,6 +32,7 @@ export interface EngineStats {
 export class EngineService {
   private readonly zone = inject(NgZone);
   private readonly capability = inject(CapabilityService);
+  private readonly assets = inject(AssetService);
   private readonly input = inject(InputService);
   private readonly rendererFactory = inject(RENDERER_FACTORY);
 
@@ -53,6 +55,7 @@ export class EngineService {
   private lastTime: number | null = null;
   private lastFrameMs = 0;
   private renderedFrames = 0;
+  private size = { width: 0, height: 0 };
 
   /** Independent reasons to stop drawing; the loop runs only when none of them apply. */
   private readonly pauseReasons = { app: false, hidden: false, offscreen: false };
@@ -148,10 +151,16 @@ export class EngineService {
     return this.pauseReasons.app || this.pauseReasons.hidden || this.pauseReasons.offscreen;
   }
 
+  /** Re-applies the current quality settings to the renderer, e.g. after a tier change. */
+  refreshQuality(): void {
+    this.resize(this.size.width, this.size.height);
+  }
+
   resize(width: number, height: number): void {
     if (width === 0 || height === 0) {
       return;
     }
+    this.size = { width, height };
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
@@ -215,6 +224,7 @@ export class EngineService {
       camera: this.camera,
       player: this.player,
       quality: this.capability.settings(),
+      assets: this.assets,
     };
   }
 

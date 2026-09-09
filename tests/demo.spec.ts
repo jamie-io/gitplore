@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { startWorld } from './helpers';
 
 /** M4 (IMPLEMENTATION_PLAN.md §5, §10): both demo kinds are usable. */
 test.describe('demos', () => {
@@ -32,9 +33,7 @@ test.describe('demos', () => {
   });
 
   test('the in-world demo can also be started from the video wall itself', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
-    await page.locator('app-hub-page canvas').focus();
+    await startWorld(page);
 
     // Fast travel to the portal, then sidestep right until the wall next to it is in reach.
     await page.keyboard.press('KeyM');

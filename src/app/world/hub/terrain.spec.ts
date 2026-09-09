@@ -1,5 +1,6 @@
 import { Mesh, MeshStandardMaterial, PerspectiveCamera, Scene } from 'three';
 import { qualitySettings } from '@engine/capability.service';
+import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { TERRAIN_FLAT_RADIUS, TERRAIN_MAX_HEIGHT, Terrain, terrainHeightAt } from './terrain';
 
@@ -44,6 +45,7 @@ describe('Terrain shading', () => {
       camera: new PerspectiveCamera(),
       player: new PlayerController(),
       quality: qualitySettings('low'),
+      assets: new StubAssets(),
     };
     const terrain = new Terrain();
 

@@ -13,10 +13,35 @@ export async function framesRendered(page: Page): Promise<number> {
   return Number(value);
 }
 
+/**
+ * A HUD stat once it has stopped changing: models arrive asynchronously, so the first reading
+ * after boot is not yet the steady state.
+ */
+export async function settledStat(page: Page, name: 'geometries' | 'textures'): Promise<string> {
+  const stats = page.locator('app-hud .stats');
+  let previous = await stats.getAttribute(`data-${name}`);
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(STATS_SETTLE_MS);
+    const current = await stats.getAttribute(`data-${name}`);
+    if (current === previous) {
+      return current ?? '';
+    }
+    previous = current;
+  }
+  throw new Error(`${name} never settled`);
+}
+
 /** Fakes the Page Visibility API, which Playwright cannot trigger for real. */
 export async function setTabHidden(page: Page, hidden: boolean): Promise<void> {
   await page.evaluate((value) => {
     Object.defineProperty(document, 'hidden', { value, configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   }, hidden);
+}
+
+/** Boots the hub and clicks through the loading screen's start gate, as a visitor would. */
+export async function startWorld(page: Page, url = '/'): Promise<void> {
+  await page.goto(url);
+  await page.locator('button[data-role="start"]').click();
+  await page.locator('app-hub-page canvas').focus();
 }

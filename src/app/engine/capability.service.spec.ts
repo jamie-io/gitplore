@@ -96,3 +96,20 @@ describe('qualitySettings', () => {
     expect(qualitySettings('low').propDensity).toBeLessThan(qualitySettings('high').propDensity);
   });
 });
+
+describe('CapabilityService reduced motion', () => {
+  it('follows the system preference by default', () => {
+    expect(serviceWith({ reducedMotion: true }).reducedMotion()).toBe(true);
+    expect(serviceWith({ reducedMotion: false }).reducedMotion()).toBe(false);
+  });
+
+  it('lets the visitor override the system preference either way', () => {
+    const service = serviceWith({ reducedMotion: false });
+
+    service.overrideReducedMotion(true);
+    expect(service.reducedMotion()).toBe(true);
+
+    service.overrideReducedMotion(null);
+    expect(service.reducedMotion()).toBe(false);
+  });
+});

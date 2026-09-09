@@ -1,18 +1,17 @@
 import { PerspectiveCamera, Scene } from 'three';
+import { AssetLike } from './asset.service';
 import { QualitySettings } from './capability.service';
 import { Interactable } from './interaction/interactable';
 import { Collider, HeightField } from './player/collision';
 import { PlayerController } from './player/player-controller';
 
-/**
- * What a scene gets handed on `init`/`update`. It grows with the milestones: `assets` (M5) and the
- * store bridge (M3) join once those layers exist (IMPLEMENTATION_PLAN.md §2).
- */
+/** What a scene gets handed on `init`/`update` (IMPLEMENTATION_PLAN.md §2). */
 export interface WorldContext {
   readonly scene: Scene;
   readonly camera: PerspectiveCamera;
   readonly player: PlayerController;
   readonly quality: QualitySettings;
+  readonly assets: AssetLike;
 }
 
 export interface WorldObject {

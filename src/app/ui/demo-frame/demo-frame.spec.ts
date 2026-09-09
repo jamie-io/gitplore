@@ -45,7 +45,9 @@ describe('DemoFrame', () => {
     await create({ embeddable: false });
 
     expect(host().querySelector('iframe')).toBeNull();
-    expect(host().querySelector('img')?.getAttribute('src')).toBe('assets/screens/novaverta.webp');
+    expect(host().querySelector('img')?.getAttribute('src')).toContain(
+      'assets/screens/novaverta.webp',
+    );
     expect(host().querySelector('a[data-role="open-tab"]')).not.toBeNull();
   });
 

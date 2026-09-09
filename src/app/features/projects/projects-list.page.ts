@@ -1,11 +1,12 @@
 import { Component, inject } from '@angular/core';
+import { NgOptimizedImage } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ContentService } from '@content/content.service';
 
 /** The simple view: the screen-reader and mobile path (IMPLEMENTATION_PLAN.md §7). */
 @Component({
   selector: 'app-projects-list-page',
-  imports: [RouterLink],
+  imports: [RouterLink, NgOptimizedImage],
   template: `
     <main>
       <header>
@@ -22,11 +23,10 @@ import { ContentService } from '@content/content.service';
             <article [style.--primary]="project.theme.primary">
               @if (project.demo.kind === 'iframe') {
                 <img
-                  [src]="project.demo.screenshot"
+                  [ngSrc]="project.demo.screenshot"
                   [alt]="'Screenshot von ' + project.title"
                   width="1024"
                   height="640"
-                  loading="lazy"
                 />
               }
               <h2>

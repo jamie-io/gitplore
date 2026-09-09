@@ -1,21 +1,17 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { startWorld } from './helpers';
 
 /**
  * M3 (IMPLEMENTATION_PLAN.md §10): walk to a portal, use it, come back at its exit point. The
  * suite polls for the prompt rather than timing the walk, because software rendering runs the
  * simulation slower than wall-clock time.
  */
-async function bootHub(page: Page): Promise<void> {
-  await page.goto('/');
-  await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
-  await page.locator('app-hub-page canvas').focus();
-}
 
 test.describe('landmarks and interaction', () => {
   test('walking up to the portal shows a prompt, E opens the project, Esc returns to the portal', async ({
     page,
   }) => {
-    await bootHub(page);
+    await startWorld(page);
     const prompt = page.locator('app-hud .prompt');
     await expect(prompt).toBeEmpty();
 
@@ -42,7 +38,7 @@ test.describe('landmarks and interaction', () => {
   });
 
   test('the menu fast-travels to a landmark and opens a project', async ({ page }) => {
-    await bootHub(page);
+    await startWorld(page);
 
     await page.keyboard.press('KeyM');
     const menu = page.getByRole('dialog', { name: 'Projekte' });
@@ -60,7 +56,7 @@ test.describe('landmarks and interaction', () => {
   });
 
   test('the menu button in the HUD opens the menu and Esc closes it', async ({ page }) => {
-    await bootHub(page);
+    await startWorld(page);
 
     await page.locator('button[data-role="menu"]').click();
     await expect(page.getByRole('dialog', { name: 'Projekte' })).toBeVisible();
@@ -74,6 +70,7 @@ test.describe('landmarks and interaction', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
 
     await page.locator('button[data-role="close"]').click();
+    await page.locator('button[data-role="start"]').click();
 
     await expect(page.locator('app-hud .area')).toHaveText('Deslopify');
   });
