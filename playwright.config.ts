@@ -22,6 +22,8 @@ export default defineConfig({
       // Chromium rather than WebKit: this project exists to prove the simple-view redirect, and
       // pinning one engine keeps CI to a single browser download.
       name: 'iphone',
+      // The phone is redirected away from the hub, so the world suite does not apply here.
+      testIgnore: /world\.spec\.ts/,
       use: { ...devices['iPhone 14'], browserName: 'chromium' },
     },
   ],
