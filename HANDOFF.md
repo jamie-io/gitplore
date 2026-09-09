@@ -9,19 +9,21 @@ decided on Jamie's behalf, and what is left.
 
 ## 1. Where things stand
 
-| Milestone                    | State                                                                                                                   |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| M0 Scaffold, M1 Engine       | Done on `main` (`82a8c89`, `605cd5e`), deployed                                                                         |
-| M2 Content and panel         | Done, `a6df2d3`                                                                                                         |
-| M3 Landmarks and interaction | Done, `4c8645f`                                                                                                         |
-| M4 Demos                     | Done, `cac4df7`                                                                                                         |
-| M5 Assets and polish         | Done, `2a3ea02`                                                                                                         |
-| M6 Release                   | Done locally, `28a0b6f` + review fixes `85d8607` and the final-review wave (last commit) — **not yet merged or pushed** |
+| Milestone                    | State                                                                                |
+| ---------------------------- | ------------------------------------------------------------------------------------ |
+| M0 Scaffold, M1 Engine       | Done on `main` (`82a8c89`, `605cd5e`), deployed                                      |
+| M2 Content and panel         | Done, `a6df2d3`                                                                      |
+| M3 Landmarks and interaction | Done, `4c8645f`                                                                      |
+| M4 Demos                     | Done, `cac4df7`                                                                      |
+| M5 Assets and polish         | Done, `2a3ea02`                                                                      |
+| M6 Release                   | Done, `28a0b6f` + review fixes `85d8607`, `1712b03`, `d9c9927` — merged and deployed |
 
-Everything lives on `feat/m2-m6`, branched from `main` at `605cd5e`. `main` has not moved. Merging
-and pushing were left to Jamie on purpose: a push to `main` deploys to GitHub Pages.
+`feat/m2-m6` was fast-forwarded into `main` and pushed at Jamie's request; the deploy workflow
+succeeded and the live site was smoke-tested from a browser (start gate, walking to the portal,
+`E` opening `/p/deslopify`, the `/p/novaverta` deep link through the 404 trick with README and
+demo iframe, `assets/manifest.json`, and the phone redirect to `/projects`).
 
-Live (still M1): <https://jamie-io.github.io/gitplore/> · Repo: <https://github.com/jamie-io/gitplore>
+Live: <https://jamie-io.github.io/gitplore/> · Repo: <https://github.com/jamie-io/gitplore>
 
 ## 2. Environment
 
@@ -30,10 +32,10 @@ Node `24.21.0` via nvm, pinned in `.nvmrc`; every shell needs
 Docker Desktop was started during the session for the M6 container test and is probably still
 running.
 
-## 3. Verification status at `85d8607`
+## 3. Verification status at `d9c9927`
 
 ```
-npm run verify        → lint clean, typecheck clean, 345 unit tests, 11 node script tests,
+npm run verify        → lint clean, typecheck clean, 346 unit tests, 11 node script tests,
                         build, then `budget:check` (initial scripts gzipped ≤ 350 kB; ~80 kB now)
 npx playwright test   → 28 passed, 3 skipped (project-specific), stable across repeats
 Lighthouse a11y       → 1.00 on /projects and 1.00 on / with the start gate open
@@ -113,6 +115,9 @@ example video titles in `deslopify.landmark.ts` are fictional and marked as exam
   models); preload progress counts textures via loader callbacks, not the `LoadingManager`.
 - Quality-tier changes at runtime re-apply pixel ratio and shadows; fog distance and terrain
   density need a reload (the dialog says so).
+- The memory e2e compares scene-owned geometry/texture counts (flat across cycles) and requires
+  GPU counts not to exceed them; `renderer.info.memory` alone is view-dependent, since Three
+  counts a geometry only once it has been drawn.
 - `AssetService.preload()` keeps one reference per core asset for the session (a cache, never
   released) — intentional, but the refcount then no longer reads as "live consumers".
 - Three review rounds were run by subagents (M2+M3, M4+M5, whole branch); all Critical and
@@ -123,7 +128,7 @@ example video titles in `deslopify.landmark.ts` are fictional and marked as exam
 
 ## 7. Next steps
 
-1. Review §5, then merge `feat/m2-m6` into `main` and push — that deploys to Pages.
-2. Check the live site: hub boots, `/p/deslopify` deep link, phone redirect, the panel iframe
-   for `novaverta` (same-origin on github.io, so it embeds).
-3. Optional: add a Playwright job to `deploy.yml`; revisit the deferred minors above.
+1. Review §5 — every ruling there is reversible.
+2. Optional: add a Playwright job to `deploy.yml`; revisit the deferred minors above.
+3. The GitHub explorer phase (`features/explorer`, `GitHubContentSource`, `environments/plaza`)
+   is the next product step; landmarks already build from `Project` data alone.
