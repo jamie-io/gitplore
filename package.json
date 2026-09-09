@@ -11,6 +11,9 @@
     "format": "prettier --write .",
     "typecheck": "tsc -b --noEmit",
     "e2e": "playwright test",
+    "content:sync": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-readmes.mjs",
+    "content:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-embeddable.mjs",
+    "content:screens": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/capture-screens.mjs",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build",
     "prepare": "husky"
   },
@@ -36,6 +39,7 @@
     "@eslint/js": "^10.0.1",
     "@gltf-transform/cli": "^4.5.0",
     "@playwright/test": "^1.63.0",
+    "@types/node": "^26.5.0",
     "@types/three": "^0.185.4",
     "angular-eslint": "22.5.0",
     "eslint": "^10.9.1",

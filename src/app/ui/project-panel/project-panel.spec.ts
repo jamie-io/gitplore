@@ -1,0 +1,108 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Router, provideRouter } from '@angular/router';
+import { ContentService } from '@content/content.service';
+import { ProjectPanel } from './project-panel';
+
+describe('ProjectPanel', () => {
+  let fixture: ComponentFixture<ProjectPanel>;
+  let http: HttpTestingController;
+
+  const host = () => fixture.nativeElement as HTMLElement;
+  const text = () => host().textContent ?? '';
+
+  async function open(slug: string, readme = '# Phönix\n\nEine Website.') {
+    fixture.componentRef.setInput('slug', slug);
+    // Tick first: awaiting stability before flushing would deadlock on the pending README request.
+    TestBed.tick();
+    await Promise.resolve();
+    http.match(() => true).forEach((request) => request.flush(readme));
+    TestBed.tick();
+    await fixture.whenStable();
+  }
+
+  beforeEach(async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [ProjectPanel],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+    }).compileComponents();
+    http = TestBed.inject(HttpTestingController);
+    await TestBed.inject(ContentService).ready;
+    fixture = TestBed.createComponent(ProjectPanel);
+  });
+
+  it('is a modal dialog labelled by the project', async () => {
+    await open('novaverta');
+    const dialog = host().querySelector('[role="dialog"]');
+
+    expect(dialog?.getAttribute('aria-modal')).toBe('true');
+    expect(dialog?.getAttribute('aria-label')).toContain('Phönix');
+  });
+
+  it('shows the title, summary and tags', async () => {
+    await open('novaverta');
+
+    expect(text()).toContain('Phönix Industriedienstleistungen');
+    expect(text()).toContain('NOVA VERTA');
+    expect(text()).toContain('JavaScript');
+  });
+
+  it('renders the bundled README', async () => {
+    await open('novaverta', '# Überschrift\n\nAbsatz.');
+
+    expect(host().querySelector('app-markdown h3')?.textContent).toContain('Überschrift');
+  });
+
+  it('links to the source repository', async () => {
+    await open('novaverta');
+    const link = host().querySelector<HTMLAnchorElement>('a[data-role="source"]');
+
+    expect(link?.href).toBe('https://github.com/jamie-io/novaverta');
+    expect(link?.rel).toContain('noopener');
+  });
+
+  it('offers the live demo in a new tab', async () => {
+    await open('novaverta');
+    const link = host().querySelector<HTMLAnchorElement>('a[data-role="demo"]');
+
+    expect(link?.href).toBe('https://jamie-io.github.io/novaverta/');
+    expect(link?.target).toBe('_blank');
+  });
+
+  it('shows no demo link for a project that has none to open', async () => {
+    await open('deslopify');
+
+    expect(host().querySelector('a[data-role="demo"]')).toBeNull();
+  });
+
+  it('explains itself when the slug is unknown', async () => {
+    await open('does-not-exist');
+
+    expect(text()).toContain('nicht gefunden');
+    expect(host().querySelector('a[data-role="source"]')).toBeNull();
+  });
+
+  it('returns to the hub when closed', async () => {
+    await open('novaverta');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+
+    host().querySelector<HTMLButtonElement>('button[data-role="close"]')?.click();
+
+    expect(navigate).toHaveBeenCalledWith(['/']);
+  });
+
+  it('returns to the hub on Escape', async () => {
+    await open('novaverta');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+
+    host()
+      .querySelector('[role="dialog"]')
+      ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+
+    expect(navigate).toHaveBeenCalledWith(['/']);
+  });
+});

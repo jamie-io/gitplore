@@ -12,7 +12,9 @@ export default defineConfig({
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
   reporter: 'list',
-  use: { baseURL: 'http://localhost:4200', trace: 'on-first-retry' },
+  timeout: 60_000,
+  expect: { timeout: 10_000 },
+  use: { baseURL: 'http://localhost:4173', trace: 'on-first-retry' },
   projects: [
     {
       name: 'chromium',
@@ -23,14 +25,16 @@ export default defineConfig({
       // pinning one engine keeps CI to a single browser download.
       name: 'iphone',
       // The phone is redirected away from the hub, so the world suite does not apply here.
-      testIgnore: /world\.spec\.ts/,
+      testIgnore: /(world|panel)\.spec\.ts/,
       use: { ...devices['iPhone 14'], browserName: 'chromium' },
     },
   ],
+  // The suite runs against the production build, not `ng serve`: no on-demand compilation under
+  // parallel workers, and it tests what ships (§9).
   webServer: {
-    command: 'npm start -- --port 4200',
-    url: 'http://localhost:4200',
+    command: 'npm run build && node scripts/serve-dist.mjs',
+    url: 'http://localhost:4173',
     reuseExistingServer: !process.env['CI'],
-    timeout: 120_000,
+    timeout: 180_000,
   },
 });

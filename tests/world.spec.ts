@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { framesRendered, setTabHidden } from './helpers';
 
 test.describe('hub world', () => {
   test('boots to the ready phase', async ({ page }) => {
@@ -21,47 +22,32 @@ test.describe('hub world', () => {
     expect(before.equals(after)).toBe(false);
   });
 
+  // The pause tests read the engine's own frame counter rather than comparing canvas pixels:
+  // under software rendering the compositor may repaint a paused canvas, which made the pixel
+  // comparison racy without the loop ever running.
   test('stops the render loop while the tab is hidden', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?stats=1');
     await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
-    const canvas = page.locator('app-hub-page canvas');
+    await expect.poll(() => framesRendered(page)).toBeGreaterThan(0);
 
-    await page.evaluate(() => {
-      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    await page.waitForTimeout(150);
-
-    const before = await canvas.screenshot();
+    await setTabHidden(page, true);
+    const before = await framesRendered(page);
     await page.keyboard.down('KeyW');
     await page.waitForTimeout(700);
     await page.keyboard.up('KeyW');
-    const after = await canvas.screenshot();
 
-    expect(before.equals(after)).toBe(true);
+    expect(await framesRendered(page)).toBe(before);
   });
 
   test('resumes rendering when the tab comes back', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?stats=1');
     await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
-    const canvas = page.locator('app-hub-page canvas');
+    await setTabHidden(page, true);
+    const hidden = await framesRendered(page);
 
-    await page.evaluate(() => {
-      Object.defineProperty(document, 'hidden', { value: true, configurable: true });
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    await page.waitForTimeout(150);
-    const hidden = await canvas.screenshot();
+    await setTabHidden(page, false);
 
-    await page.evaluate(() => {
-      Object.defineProperty(document, 'hidden', { value: false, configurable: true });
-      document.dispatchEvent(new Event('visibilitychange'));
-    });
-    await page.keyboard.down('KeyW');
-    await page.waitForTimeout(700);
-    await page.keyboard.up('KeyW');
-
-    expect((await canvas.screenshot()).equals(hidden)).toBe(false);
+    await expect.poll(() => framesRendered(page)).toBeGreaterThan(hidden);
   });
 
   test('exposes the world to keyboard users with a labelled application region', async ({

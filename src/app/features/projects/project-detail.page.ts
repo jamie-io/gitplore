@@ -1,15 +1,85 @@
-import { Component, input } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { ContentService } from '@content/content.service';
+import { MarkdownComponent } from '@content/markdown/markdown.component';
+import { ReadmeService } from '@content/readme.service';
 
-/** Simple-view counterpart of the project panel. Filled with real content in M2. */
+/** Simple-view counterpart of the project panel (IMPLEMENTATION_PLAN.md §7). */
 @Component({
   selector: 'app-project-detail-page',
+  imports: [MarkdownComponent, RouterLink],
   template: `
     <main>
-      <h1>{{ slug() }}</h1>
-      <p>The project detail view arrives with M2.</p>
+      <a data-role="back" routerLink="/projects">← Alle Projekte</a>
+
+      @if (project(); as project) {
+        <h1 [style.color]="project.theme.primary">{{ project.title }}</h1>
+        <p class="summary">{{ project.summary }}</p>
+
+        <nav class="actions">
+          @if (demoUrl(); as url) {
+            <a data-role="demo" [href]="url" target="_blank" rel="noopener noreferrer">
+              Demo öffnen
+            </a>
+          }
+          <a data-role="source" [href]="project.repoUrl" target="_blank" rel="noopener noreferrer">
+            Quellcode
+          </a>
+        </nav>
+
+        @if (readme.isLoading()) {
+          <p role="status">README wird geladen …</p>
+        } @else if (readme.value(); as markdown) {
+          <app-markdown [markdown]="markdown" />
+        }
+      } @else if (contentReady()) {
+        <h1>Projekt nicht gefunden</h1>
+        <p>Für „{{ slug() }}“ gibt es keinen Eintrag.</p>
+      }
     </main>
+  `,
+  styles: `
+    main {
+      max-inline-size: 48rem;
+      margin-inline: auto;
+      padding: clamp(1rem, 4vw, 2.5rem);
+      font-family: system-ui, sans-serif;
+      line-height: 1.6;
+    }
+    .summary {
+      max-inline-size: 60ch;
+      font-size: 1.05rem;
+    }
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-block: 1.25rem 2rem;
+    }
+    .actions a {
+      padding: 0.5rem 1rem;
+      border: 1px solid currentcolor;
+      border-radius: 0.5rem;
+      text-decoration: none;
+    }
   `,
 })
 export class ProjectDetailPage {
-  readonly slug = input('');
+  readonly slug = input<string>();
+
+  private readonly content = inject(ContentService);
+
+  protected readonly contentReady = this.content.loaded;
+  protected readonly project = computed(() => this.content.bySlug(this.slug()));
+  protected readonly demoUrl = computed(() => {
+    const demo = this.project()?.demo;
+    return demo?.kind === 'iframe' ? demo.url : null;
+  });
+
+  protected readonly readme = inject(ReadmeService).readme(
+    computed(() => {
+      const project = this.project();
+      return project?.readme.kind === 'bundled' ? project.slug : undefined;
+    }),
+  );
 }
