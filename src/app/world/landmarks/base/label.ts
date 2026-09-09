@@ -1,4 +1,4 @@
-import { CanvasTexture, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
+import { CanvasTexture, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace } from 'three';
 
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 256;
@@ -29,6 +29,7 @@ export function createLabel(text: string, color: string): Mesh | null {
   context.fillText(text, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2, CANVAS_WIDTH - 80);
 
   const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
   const aspect = CANVAS_WIDTH / CANVAS_HEIGHT;
   const mesh = new Mesh(
     new PlaneGeometry(LABEL_HEIGHT * aspect, LABEL_HEIGHT),

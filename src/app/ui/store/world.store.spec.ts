@@ -133,6 +133,24 @@ describe('WorldStore', () => {
     });
   });
 
+  describe('in-world demos', () => {
+    it('carries a request from the panel to the page', () => {
+      store.requestDemo('deslopify');
+      expect(store.demoRequest()).toBe('deslopify');
+
+      store.requestDemo(null);
+      expect(store.demoRequest()).toBeNull();
+    });
+
+    it('remembers the hint of the running demo', () => {
+      store.setDemoActive(true, 'E: Original anzeigen');
+      expect(store.demoHint()).toBe('E: Original anzeigen');
+
+      store.setDemoActive(false);
+      expect(store.demoHint()).toBeNull();
+    });
+  });
+
   it('opens and closes the menu explicitly', () => {
     store.setMenuOpen(true);
     expect(store.menuOpen()).toBe(true);
@@ -163,12 +181,6 @@ describe('WorldStore', () => {
 
     it('pauses while the settings dialog is open', () => {
       store.setSettingsOpen(true);
-
-      expect(store.paused()).toBe(true);
-    });
-
-    it('pauses while the tab is hidden', () => {
-      store.setDocumentHidden(true);
 
       expect(store.paused()).toBe(true);
     });

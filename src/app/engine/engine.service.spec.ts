@@ -27,7 +27,8 @@ class StubRenderer implements RendererLike {
   readonly domElement = document.createElement('canvas');
   readonly shadowMap = { enabled: false };
   readonly info = { memory: { geometries: 0, textures: 0 } };
-  readonly renderLists = { dispose: () => undefined };
+  renderListsDisposed = 0;
+  readonly renderLists = { dispose: () => void this.renderListsDisposed++ };
 
   setAnimationLoop(fn: ((time: number) => void) | null) {
     this.loop = fn;
@@ -137,6 +138,21 @@ describe('EngineService', () => {
     engine.setScene(scene);
 
     expect(scene.initialised).toBe(1);
+  });
+
+  it('clears the render lists when the scene is swapped (§2)', () => {
+    engine.setScene(stubScene('first'));
+    engine.setScene(stubScene('second'));
+
+    expect(renderer.renderListsDisposed).toBeGreaterThanOrEqual(1);
+  });
+
+  it('forgets the nearby listener on detach so a dead page is not retained', () => {
+    engine.onNearbyChange = () => undefined;
+
+    engine.detach();
+
+    expect(engine.onNearbyChange).toBeNull();
   });
 
   it('disposes the previous scene before swapping in a new one', () => {

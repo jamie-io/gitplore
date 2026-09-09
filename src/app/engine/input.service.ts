@@ -149,7 +149,7 @@ export class InputService {
 
     const action = ACTION_KEYS[event.code];
 
-    if (action && (this.mode() === 'world' || GLOBAL_ACTIONS.includes(action))) {
+    if (action && (this.mode() !== 'ui' || GLOBAL_ACTIONS.includes(action))) {
       this.actions.add(action);
       this.listeners.forEach((listener) => listener(action));
       return;

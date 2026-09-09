@@ -29,22 +29,33 @@ const TYPES = {
   '.woff2': 'font/woff2',
 };
 
+/** Static files answer 404 when missing, as Pages and nginx would; only routes fall back. */
+const STATIC_PREFIXES = ['/assets/', '/content/'];
+
 async function resolve(pathname) {
   const safe = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
   const candidate = join(ROOT, safe);
   if (candidate.startsWith(ROOT)) {
     const info = await stat(candidate).catch(() => null);
     if (info?.isFile()) {
-      return candidate;
+      return { file: candidate, status: 200 };
     }
   }
-  return join(ROOT, 'index.html');
+  if (STATIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return { file: null, status: 404 };
+  }
+  return { file: join(ROOT, 'index.html'), status: 200 };
 }
 
 createServer(async (request, response) => {
   const { pathname } = new URL(request.url ?? '/', 'http://localhost');
-  const file = await resolve(pathname);
-  response.writeHead(200, {
+  const { file, status } = await resolve(pathname);
+  if (!file) {
+    response.writeHead(status, { 'content-type': 'text/plain' });
+    response.end('not found');
+    return;
+  }
+  response.writeHead(status, {
     'content-type': TYPES[extname(file)] ?? 'application/octet-stream',
     'cache-control': 'no-store',
   });

@@ -18,6 +18,7 @@ export interface HubSceneOptions {
   readonly reducedMotion: boolean;
   readonly projects: readonly Project[];
   readonly onEnter: (project: Project) => void;
+  readonly onDemo?: (landmark: Landmark) => void;
   readonly onAreaChange?: (area: string) => void;
   readonly textures?: TextureProvider;
 }
@@ -48,10 +49,11 @@ export class HubScene implements WorldScene {
         ground: this.terrain,
         reducedMotion: options.reducedMotion,
         onEnter: options.onEnter,
+        onDemo: options.onDemo,
         textures: options.textures,
       }),
     );
-    // Landmarks fill these in `build`, which runs on init, so expose the live arrays.
+    // Shapes are known before init (`Landmark.describe`), so the engine can read one flat list.
     this.colliders = this.landmarks.flatMap((landmark) => landmark.colliders);
     this.interactables = this.landmarks.flatMap((landmark) => landmark.interactables);
   }

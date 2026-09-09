@@ -20,12 +20,14 @@ const STATS_INTERVAL_MS = 500;
         <p class="notice" role="status">Lädt {{ store.loadProgress().label }} … {{ percent() }}%</p>
       }
       @case ('ready') {
-        @if (!store.paused()) {
+        @if (store.inputMode() === 'world') {
           <div class="crosshair" aria-hidden="true"></div>
         }
         <p class="area" aria-live="polite">{{ store.area() }}</p>
         <p class="prompt" aria-live="polite">
-          @if (store.nearby(); as nearby) {
+          @if (store.demoHint(); as hint) {
+            {{ hint }}
+          } @else if (store.nearby(); as nearby) {
             <kbd>E</kbd> {{ nearby.prompt }}
           }
         </p>
@@ -39,7 +41,13 @@ const STATS_INTERVAL_MS = 500;
     }
 
     @if (showStats()) {
-      <p class="stats" aria-hidden="true" [attr.data-frames]="stats().frames">
+      <p
+        class="stats"
+        aria-hidden="true"
+        [attr.data-frames]="stats().frames"
+        [attr.data-geometries]="stats().geometries"
+        [attr.data-textures]="stats().textures"
+      >
         {{ fpsLabel() }} fps · {{ stats().geometries }} geo · {{ stats().textures }} tex
       </p>
     }
@@ -88,7 +96,7 @@ const STATS_INTERVAL_MS = 500;
       padding: 0.05em 0.4em;
       border: 1px solid rgb(255 255 255 / 70%);
       border-radius: 0.3em;
-      background: rgb(0 0 0 / 45%);
+      background: rgb(0 0 0 / 70%);
       font: inherit;
       text-align: center;
       text-shadow: none;
@@ -107,7 +115,7 @@ const STATS_INTERVAL_MS = 500;
       padding: 0.4rem 0.8rem;
       border: 1px solid rgb(255 255 255 / 70%);
       border-radius: 999px;
-      background: rgb(0 0 0 / 45%);
+      background: rgb(0 0 0 / 70%);
       color: inherit;
       font: inherit;
       text-decoration: none;

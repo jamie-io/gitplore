@@ -43,7 +43,7 @@ export class PortalLandmark extends Landmark {
           position: this.position.clone(),
           radius: INTERACT_RADIUS,
           prompt: `${this.project.title} betreten`,
-          onInteract: () => this.interact(),
+          onInteract: () => this.use(),
         },
       ],
     };
@@ -107,7 +107,7 @@ export class PortalLandmark extends Landmark {
     super.dispose();
   }
 
-  private interact(): void {
+  private use(): void {
     if (this.dolly) {
       return;
     }
