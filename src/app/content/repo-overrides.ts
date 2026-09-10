@@ -70,9 +70,17 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
   },
 };
 
-/** The repositories the sync must leave out, for `scripts/sync-repos.mjs`. */
-export function hiddenRepoNames(): string[] {
-  return Object.entries(REPO_OVERRIDES)
+/**
+ * Extracts repository names marked as hidden. Takes the record as a parameter so the
+ * filter can be tested against fixtures rather than against production data.
+ */
+export function hiddenNamesIn(overrides: Readonly<Record<string, RepoOverride>>): string[] {
+  return Object.entries(overrides)
     .filter(([, override]) => override.hidden)
     .map(([name]) => name);
+}
+
+/** The repositories the sync must leave out, for `scripts/sync-repos.mjs`. */
+export function hiddenRepoNames(): string[] {
+  return hiddenNamesIn(REPO_OVERRIDES);
 }
