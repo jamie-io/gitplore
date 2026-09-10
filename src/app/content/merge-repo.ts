@@ -26,7 +26,10 @@ const MONTHS = [
  */
 function factualSummary(repo: SyncedRepo): string {
   const pushed = new Date(repo.pushedAt);
-  const when = `${MONTHS[pushed.getMonth()]} ${pushed.getFullYear()}`;
+  // `pushedAt` is a UTC timestamp and `mergeRepo` runs in the visitor's browser, so reading it
+  // with the local-time getters would shift the printed month for anyone not on UTC — wrong text
+  // in front of a reader near a month boundary. Read it back in UTC to match how it was written.
+  const when = `${MONTHS[pushed.getUTCMonth()]} ${pushed.getUTCFullYear()}`;
 
   return repo.language
     ? `${repo.language} · zuletzt aktualisiert im ${when}`
@@ -39,6 +42,8 @@ export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined):
   const landmark: ProjectLandmark = {
     kind: override?.landmark?.kind ?? 'portal',
     ...(override?.landmark?.position ? { position: override.landmark.position } : {}),
+    // A truthy check would silently drop a legitimate `rotationY: 0` (facing straight ahead is a
+    // real, common value), so numeric fields need the strict `!== undefined` check instead.
     ...(override?.landmark?.rotationY !== undefined
       ? { rotationY: override.landmark.rotationY }
       : {}),

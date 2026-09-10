@@ -18,6 +18,18 @@ describe('mergeRepo', () => {
     expect(mergeRepo(repo({ name: 'Deslopify' }), undefined).slug).toBe('deslopify');
   });
 
+  it('defaults the title to the repository name when the override has none', () => {
+    expect(mergeRepo(repo({ name: 'webkatalog_demoshop' }), undefined).title).toBe(
+      'webkatalog_demoshop',
+    );
+  });
+
+  it('lets an override give the project a human-readable title', () => {
+    expect(mergeRepo(repo(), { title: 'Christopher Pötzsch – Objektservice' }).title).toBe(
+      'Christopher Pötzsch – Objektservice',
+    );
+  });
+
   it('lets an override rename the slug, so existing links keep working', () => {
     expect(mergeRepo(repo({ name: 'poetzscher-homepage' }), { slug: 'poetzscher' }).slug).toBe(
       'poetzscher',
@@ -48,10 +60,34 @@ describe('mergeRepo', () => {
     );
   });
 
+  it("reads the push date in UTC, not the visitor's local timezone (start-of-month boundary)", () => {
+    // Just after midnight UTC on the 1st: a reader west of UTC (e.g. US Pacific) must not see
+    // this roll back to the previous month.
+    expect(mergeRepo(repo({ pushedAt: '2026-03-01T00:30:00Z' }), undefined).summary).toBe(
+      'JavaScript · zuletzt aktualisiert im März 2026',
+    );
+  });
+
+  it("reads the push date in UTC, not the visitor's local timezone (end-of-month boundary)", () => {
+    // Just before midnight UTC on the 31st: a reader east of UTC (e.g. Kiritimati, UTC+14) must
+    // not see this roll forward to the next month.
+    expect(mergeRepo(repo({ pushedAt: '2026-03-31T23:30:00Z' }), undefined).summary).toBe(
+      'JavaScript · zuletzt aktualisiert im März 2026',
+    );
+  });
+
   it('builds tags from language and topics when none are given', () => {
     const merged = mergeRepo(repo({ topics: ['shop', 'demo'] }), undefined);
 
     expect(merged.tags).toEqual(['JavaScript', 'shop', 'demo']);
+  });
+
+  it('takes the tags the override declares instead of deriving them', () => {
+    const merged = mergeRepo(repo({ language: 'JavaScript', topics: ['shop'] }), {
+      tags: ['Static Site', 'Privacy by design'],
+    });
+
+    expect(merged.tags).toEqual(['Static Site', 'Privacy by design']);
   });
 
   it('promises a bundled README under the resolved slug when one was synced', () => {
@@ -60,6 +96,17 @@ describe('mergeRepo', () => {
     });
 
     expect(merged.readme).toEqual({ kind: 'bundled', path: 'content/readme/poetzscher.md' });
+  });
+
+  it('has no year when the override does not give one', () => {
+    const merged = mergeRepo(repo(), undefined);
+
+    expect(merged.year).toBeUndefined();
+    expect('year' in merged).toBe(false);
+  });
+
+  it('takes the year the override declares', () => {
+    expect(mergeRepo(repo(), { year: 2026 }).year).toBe(2026);
   });
 
   it('promises no README at all when the repository has none', () => {
@@ -85,7 +132,25 @@ describe('mergeRepo', () => {
     expect(merged.landmark).toEqual({ kind: 'screen', position: [26, 0, -14], rotationY: -0.7 });
   });
 
-  it('has no demo when neither the override nor a homepage offers one', () => {
+  it('carries a custom landmark model path through from the override', () => {
+    const merged = mergeRepo(repo(), {
+      landmark: { kind: 'deslopify', model: 'assets/models/arch.glb' },
+    });
+
+    expect(merged.landmark.model).toBe('assets/models/arch.glb');
+  });
+
+  it('falls back to the default theme when the override does not give one', () => {
+    expect(mergeRepo(repo(), undefined).theme).toEqual({ primary: '#3a4a5a', accent: '#e9edf1' });
+  });
+
+  it('takes the theme the override declares', () => {
+    const theme = { primary: '#1b4f8f', accent: '#e8eef6' } as const;
+
+    expect(mergeRepo(repo(), { theme }).theme).toEqual(theme);
+  });
+
+  it('has no demo when the override does not declare one', () => {
     expect(mergeRepo(repo(), undefined).demo).toEqual({ kind: 'none' });
   });
 
