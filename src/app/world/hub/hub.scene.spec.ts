@@ -3,8 +3,10 @@ import { qualitySettings } from '@engine/capability.service';
 import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
+import type { Project, ProjectLandmark } from '@content/project.model';
 import { PROJECTS } from '@content/projects';
 import { HubScene, HubSceneOptions, HUB_AREA } from './hub.scene';
+import { ringPlacements } from './placement';
 import { terrainHeightAt } from './terrain';
 
 function context(): WorldContext {
@@ -25,6 +27,23 @@ function hub(overrides: Partial<HubSceneOptions> = {}): HubScene {
     textures: { load: () => new Texture(), release: () => undefined },
     ...overrides,
   });
+}
+
+/**
+ * A project fixture built from scratch rather than derived from `PROJECTS`, so placement tests
+ * neither pass nor fail because of unrelated changes to the curated content.
+ */
+function syntheticProject(slug: string, landmark: ProjectLandmark): Project {
+  return {
+    slug,
+    title: `Fixture ${slug}`,
+    summary: 'Synthetic project used only to test HubScene placement.',
+    tags: [],
+    repoUrl: `https://example.invalid/${slug}`,
+    demo: { kind: 'none' },
+    theme: { primary: '#000000', accent: '#ffffff' },
+    landmark,
+  };
 }
 
 describe('HubScene', () => {
@@ -73,6 +92,60 @@ describe('HubScene', () => {
 
     expect(scene.spawn.y).toBe(0);
     expect(scene.ground.heightAt(scene.spawn.x, scene.spawn.z)).toBe(0);
+  });
+
+  describe('placement', () => {
+    it('keeps a pinned project at its authored position and rotation', () => {
+      const pinned = syntheticProject('pinned-only', {
+        kind: 'portal',
+        position: [12, 0, -7],
+        rotationY: 1.234,
+      });
+      const scene = hub({ projects: [pinned] });
+
+      const landmark = scene.landmarkFor('pinned-only')!;
+
+      // Y is derived from ground.heightAt, not authored, so only X/Z/rotation are checked here.
+      expect(landmark.position.x).toBe(12);
+      expect(landmark.position.z).toBe(-7);
+      expect(landmark.rotationY).toBe(1.234);
+    });
+
+    it('gives unpinned projects ring spots in list order, leaving pinned neighbours untouched', () => {
+      const pinnedA = syntheticProject('pinned-a', {
+        kind: 'portal',
+        position: [5, 0, 5],
+        rotationY: 1,
+      });
+      const unpinnedB = syntheticProject('unpinned-b', { kind: 'portal' });
+      const pinnedC = syntheticProject('pinned-c', {
+        kind: 'portal',
+        position: [-9, 0, 2],
+        rotationY: -1,
+      });
+      const unpinnedD = syntheticProject('unpinned-d', { kind: 'portal' });
+      const scene = hub({ projects: [pinnedA, unpinnedB, pinnedC, unpinnedD] });
+
+      // Two unpinned projects above, so this is the exact ring they should be drawing from.
+      const ring = ringPlacements(2);
+      const b = scene.landmarkFor('unpinned-b')!;
+      const d = scene.landmarkFor('unpinned-d')!;
+      expect(b.position.x).toBeCloseTo(ring[0].position[0], 5);
+      expect(b.position.z).toBeCloseTo(ring[0].position[2], 5);
+      expect(b.rotationY).toBeCloseTo(ring[0].rotationY, 5);
+      expect(d.position.x).toBeCloseTo(ring[1].position[0], 5);
+      expect(d.position.z).toBeCloseTo(ring[1].position[2], 5);
+      expect(d.rotationY).toBeCloseTo(ring[1].rotationY, 5);
+
+      const a = scene.landmarkFor('pinned-a')!;
+      const c = scene.landmarkFor('pinned-c')!;
+      expect(a.position.x).toBe(5);
+      expect(a.position.z).toBe(5);
+      expect(a.rotationY).toBe(1);
+      expect(c.position.x).toBe(-9);
+      expect(c.position.z).toBe(2);
+      expect(c.rotationY).toBe(-1);
+    });
   });
 
   describe('areas', () => {
