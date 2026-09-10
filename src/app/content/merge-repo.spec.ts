@@ -82,6 +82,12 @@ describe('mergeRepo', () => {
     expect(merged.tags).toEqual(['JavaScript', 'shop', 'demo']);
   });
 
+  it('falls back to a generic tag when the repository has no language and no topics', () => {
+    const merged = mergeRepo(repo({ language: null, topics: [] }), undefined);
+
+    expect(merged.tags).toEqual(['Repository']);
+  });
+
   it('takes the tags the override declares instead of deriving them', () => {
     const merged = mergeRepo(repo({ language: 'JavaScript', topics: ['shop'] }), {
       tags: ['Static Site', 'Privacy by design'],

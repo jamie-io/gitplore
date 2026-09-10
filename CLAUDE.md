@@ -87,8 +87,11 @@ Key consequences of the design:
 ## Working conventions
 
 - The full folder skeleton is in §1 — follow it rather than inventing new locations.
-- New projects are entries in `content/projects.ts`; the `Project` union in §4 (`readme`, `demo`,
-  `landmark`) is validated by a schema unit test (unique slugs, screenshots exist, valid demo union).
+- New projects appear automatically once `npm run content:sync` picks up a public repository;
+  curating one — title, summary, tags, landmark, demo — means adding an entry to
+  `content/repo-overrides.ts`, keyed by repository name. The `Project` union in §4 (`readme`,
+  `demo`, `landmark`) is validated by a schema unit test (`content/merged-projects.spec.ts`: unique
+  slugs, screenshots exist, valid demo union) against the merged result.
 - Markdown is rendered through `marked` + `dompurify` in `MarkdownComponent`. Do not add
   `ngx-markdown`.
 - Accessibility is part of the definition of done: `prefers-reduced-motion` disables the camera
