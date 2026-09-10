@@ -43,6 +43,20 @@ describe('ProjectDetailPage', () => {
     expect(host().querySelector('app-markdown h2')?.textContent).toContain('Überschrift');
   });
 
+  it('omits the README section for a project that has none', async () => {
+    const content = TestBed.inject(ContentService);
+    const original = content.bySlug('novaverta')!;
+    content.bySlug = (slug) =>
+      slug === 'novaverta' ? { ...original, readme: undefined } : undefined;
+
+    fixture.componentRef.setInput('slug', 'novaverta');
+    TestBed.tick();
+    await fixture.whenStable();
+
+    expect(host().querySelector('app-markdown')).toBeNull();
+    expect(host().textContent).not.toContain('README');
+  });
+
   it('links to the demo and the source', async () => {
     await open('novaverta');
 

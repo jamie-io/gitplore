@@ -89,6 +89,20 @@ describe('ProjectPanel', () => {
     expect(host().querySelector('a[data-role="source"]')).toBeNull();
   });
 
+  it('omits the README section for a project that has none', async () => {
+    const content = TestBed.inject(ContentService);
+    const original = content.bySlug('novaverta')!;
+    content.bySlug = (slug) =>
+      slug === 'novaverta' ? { ...original, readme: undefined } : undefined;
+
+    fixture.componentRef.setInput('slug', 'novaverta');
+    TestBed.tick();
+    await fixture.whenStable();
+
+    expect(host().querySelector('app-markdown')).toBeNull();
+    expect(text()).not.toContain('README');
+  });
+
   it('returns to the hub when closed', async () => {
     await open('novaverta');
     const router = TestBed.inject(Router);

@@ -8,8 +8,13 @@ import { LandmarkOptions } from '../base/landmark';
 import { EXAMPLE_VIDEOS, DeslopifyLandmark } from './deslopify.landmark';
 
 function options(overrides: Partial<LandmarkOptions> = {}): LandmarkOptions {
+  const target = overrides.project ?? PROJECTS.find((p) => p.slug === 'deslopify')!;
   return {
-    project: PROJECTS.find((p) => p.slug === 'deslopify')!,
+    project: target,
+    placement: {
+      position: target.landmark.position ?? [0, 0, 0],
+      rotationY: target.landmark.rotationY ?? 0,
+    },
     ground: { heightAt: () => 0 },
     reducedMotion: () => true,
     onEnter: () => undefined,

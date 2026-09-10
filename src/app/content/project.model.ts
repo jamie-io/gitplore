@@ -34,8 +34,10 @@ export type LandmarkKind = 'portal' | 'screen' | (string & {});
 
 export interface ProjectLandmark {
   readonly kind: LandmarkKind;
-  readonly position: readonly [number, number, number];
-  readonly rotationY: number;
+  /** Absent means the scene places it at one of the environment's anchors. */
+  readonly position?: readonly [number, number, number];
+  /** Absent means the scene turns it to face the spawn. */
+  readonly rotationY?: number;
   readonly model?: string;
 }
 
@@ -46,7 +48,8 @@ export interface Project {
   readonly tags: readonly string[];
   readonly repoUrl: string;
   readonly year?: number;
-  readonly readme: ReadmeSource;
+  /** Absent when the repository ships no README; the panel then omits the section. */
+  readonly readme?: ReadmeSource;
   readonly demo: ProjectDemo;
   readonly landmark: ProjectLandmark;
   readonly theme: { readonly primary: string; readonly accent: string };

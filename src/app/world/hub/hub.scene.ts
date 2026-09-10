@@ -49,6 +49,11 @@ export class HubScene implements WorldScene {
     this.landmarks = options.projects.map((project) =>
       createLandmark({
         project,
+        // Task 5 replaces this fallback with a real layout for projects with no authored position.
+        placement: {
+          position: project.landmark.position ?? [0, 0, 0],
+          rotationY: project.landmark.rotationY ?? 0,
+        },
         ground: this.terrain,
         reducedMotion: options.reducedMotion,
         onEnter: options.onEnter,
