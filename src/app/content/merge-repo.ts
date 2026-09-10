@@ -5,6 +5,14 @@ import type { SyncedRepo } from './synced-repo';
 /** Used by any repository the overrides file does not colour in. */
 const DEFAULT_THEME = { primary: '#3a4a5a', accent: '#e9edf1' } as const;
 
+/**
+ * The last resort for a repository with no language and no topics — GitHub gives every repository
+ * a `language: null` window right after creation (docs-only, or a language it can't detect yet),
+ * and `Project.tags` must never be empty: `merged-projects.spec.ts` requires at least one tag, and
+ * an empty list would also render as a visibly blank row of chips in the panel and list.
+ */
+const DEFAULT_TAG = 'Repository';
+
 const MONTHS = [
   'Januar',
   'Februar',
@@ -36,6 +44,14 @@ function factualSummary(repo: SyncedRepo): string {
     : `Zuletzt aktualisiert im ${when}`;
 }
 
+/** Same reasoning as `factualSummary`: plain metadata, falling back to `DEFAULT_TAG` only when
+ * GitHub gives nothing at all to describe the repository with. */
+function defaultTags(repo: SyncedRepo): string[] {
+  const detected = [repo.language, ...repo.topics].filter((tag): tag is string => !!tag);
+
+  return detected.length > 0 ? detected : [DEFAULT_TAG];
+}
+
 /** One synced repository plus its override, resolved into the `Project` the world consumes. */
 export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined): Project {
   const slug = override?.slug ?? repo.name.toLowerCase();
@@ -54,7 +70,7 @@ export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined):
     slug,
     title: override?.title ?? repo.name,
     summary: override?.summary ?? repo.description ?? factualSummary(repo),
-    tags: override?.tags ?? [repo.language, ...repo.topics].filter((tag): tag is string => !!tag),
+    tags: override?.tags ?? defaultTags(repo),
     repoUrl: repo.repoUrl,
     ...(override?.year !== undefined ? { year: override.year } : {}),
     ...(repo.hasReadme

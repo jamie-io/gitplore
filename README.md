@@ -82,8 +82,10 @@ npm run assets:author   # Hero-Modelle (glTF) aus Code erzeugen → assets-src/m
 npm run assets:optimize # Modelle komprimieren (meshopt, WebP) und manifest.json schreiben
 ```
 
-Neue Projekte sind Einträge in `src/app/content/projects.ts`; ein Schema-Test hält die Daten
-konsistent.
+Neue Projekte entstehen automatisch aus den öffentlichen Repositories: `npm run content:sync`
+holt sie und legt sie als Wahrzeichen an. Deutsche Titel, Zusammenfassungen und alles, was GitHub
+nicht liefert, kommen aus `src/app/content/repo-overrides.ts`; ein Schema-Test hält die
+zusammengeführten Daten konsistent.
 
 ## Deployment
 

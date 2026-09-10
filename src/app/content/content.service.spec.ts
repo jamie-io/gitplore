@@ -69,4 +69,23 @@ describe('ContentService', () => {
     expect(content.loaded()).toBe(true);
     expect(content.projects()).toEqual([]);
   });
+
+  it('has no error once the source resolves', async () => {
+    const content = serviceWith();
+    await content.ready;
+
+    expect(content.error()).toBeNull();
+  });
+
+  it('reaches a settled, non-hanging state when the source rejects, instead of an unhandled rejection', async () => {
+    const content = serviceWith({ projects: () => Promise.reject(new Error('network down')) });
+
+    // A rejecting `ready` would fail this test with an unhandled rejection instead of resolving.
+    await content.ready;
+
+    expect(content.loaded()).toBe(true);
+    expect(content.projects()).toEqual([]);
+    expect(content.error()).toMatch(/[a-zäöüß]/i);
+    expect(content.error()).not.toContain('network down');
+  });
 });
