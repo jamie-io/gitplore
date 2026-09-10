@@ -1,0 +1,52 @@
+[
+  {
+    "name": "gitplore",
+    "description": "An interactive 3D portfolio: explore projects as landmarks in a small walkable world. Angular 22 + Three.js.",
+    "language": "TypeScript",
+    "topics": [],
+    "repoUrl": "https://github.com/jamie-io/gitplore",
+    "homepage": null,
+    "pushedAt": "2026-09-09T19:10:34Z",
+    "stars": 0
+  },
+  {
+    "name": "webkatalog_demoshop",
+    "description": null,
+    "language": "JavaScript",
+    "topics": [],
+    "repoUrl": "https://github.com/jamie-io/webkatalog_demoshop",
+    "homepage": null,
+    "pushedAt": "2026-09-09T09:17:09Z",
+    "stars": 0
+  },
+  {
+    "name": "novaverta",
+    "description": null,
+    "language": "HTML",
+    "topics": [],
+    "repoUrl": "https://github.com/jamie-io/novaverta",
+    "homepage": null,
+    "pushedAt": "2026-09-05T10:18:13Z",
+    "stars": 0
+  },
+  {
+    "name": "poetzscher-homepage",
+    "description": null,
+    "language": "HTML",
+    "topics": [],
+    "repoUrl": "https://github.com/jamie-io/poetzscher-homepage",
+    "homepage": null,
+    "pushedAt": "2026-09-03T17:30:44Z",
+    "stars": 0
+  },
+  {
+    "name": "deslopify",
+    "description": null,
+    "language": "JavaScript",
+    "topics": [],
+    "repoUrl": "https://github.com/jamie-io/deslopify",
+    "homepage": null,
+    "pushedAt": "2026-06-11T14:29:38Z",
+    "stars": 0
+  }
+]
