@@ -17,6 +17,10 @@ import { ContentService } from '@content/content.service';
         </a>
       </header>
 
+      @if (error(); as message) {
+        <p class="load-error" role="alert">{{ message }}</p>
+      }
+
       <ul class="cards">
         @for (project of projects(); track project.slug) {
           <li>
@@ -51,6 +55,13 @@ import { ContentService } from '@content/content.service';
       padding: clamp(1rem, 4vw, 2.5rem);
       font-family: system-ui, sans-serif;
       line-height: 1.55;
+    }
+    .load-error {
+      padding: 0.85rem 1rem;
+      border: 1px solid rgb(143 47 47 / 35%);
+      border-radius: 0.5rem;
+      background: #f6eaea;
+      color: #6d2323;
     }
     .cards {
       display: grid;
@@ -100,5 +111,9 @@ import { ContentService } from '@content/content.service';
   `,
 })
 export class ProjectsListPage {
-  protected readonly projects = inject(ContentService).projects;
+  private readonly content = inject(ContentService);
+
+  protected readonly projects = this.content.projects;
+  /** German, and shown here too: `/projects` is the phone and screen-reader path (§7). */
+  protected readonly error = this.content.error;
 }

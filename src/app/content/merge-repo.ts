@@ -13,6 +13,13 @@ const DEFAULT_THEME = { primary: '#3a4a5a', accent: '#e9edf1' } as const;
  */
 const DEFAULT_TAG = 'Repository';
 
+/**
+ * Below this a GitHub description is metadata, not a summary — "wip", "test", "-". Showing it
+ * would put a two-word fragment where the panel and the list expect a sentence, and
+ * `merged-projects.spec.ts` (which the deploy runs) requires more than this many characters.
+ */
+const MIN_USEFUL_SUMMARY = 10;
+
 const MONTHS = [
   'Januar',
   'Februar',
@@ -52,9 +59,43 @@ function defaultTags(repo: SyncedRepo): string[] {
   return detected.length > 0 ? detected : [DEFAULT_TAG];
 }
 
+/**
+ * The repository's own description, but only when it is long enough to read as one.
+ *
+ * GitHub guarantees nothing about this field, and the deploy runs the schema test on whatever
+ * `content:sync` discovered: a repository described as "wip" must fall back rather than break the
+ * build (docs/superpowers/specs/2026-09-10-repo-worlds-design.md §3).
+ */
+function usefulDescription(repo: SyncedRepo): string | undefined {
+  const described = repo.description?.trim() ?? '';
+
+  return described.length > MIN_USEFUL_SUMMARY ? described : undefined;
+}
+
+/**
+ * The repository's slug: a single url path segment, always starting with a letter or digit.
+ *
+ * GitHub repository names may contain dots (`.github`, `jamie-io.github.io`) and may start with
+ * `.`, `-` or `_`, none of which the slug schema allows — and a name nobody has curated must never
+ * be able to fail the deploy. Exported because `scripts/sync-readmes.mjs` writes the README file
+ * this slug names, so the two must agree character for character.
+ */
+export function repoSlug(repo: SyncedRepo, override: RepoOverride | undefined): string {
+  if (override?.slug) {
+    return override.slug;
+  }
+
+  const cleaned = repo.name.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+  const trimmed = cleaned.replace(/^[^a-z0-9]+/, '');
+
+  // A name made only of separators (`___`) would strip to nothing; prefixing keeps it routable
+  // and keeps two such repositories apart, which dropping to a constant would not.
+  return trimmed || `repo-${cleaned}`;
+}
+
 /** One synced repository plus its override, resolved into the `Project` the world consumes. */
 export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined): Project {
-  const slug = override?.slug ?? repo.name.toLowerCase();
+  const slug = repoSlug(repo, override);
   const landmark: ProjectLandmark = {
     kind: override?.landmark?.kind ?? 'portal',
     ...(override?.landmark?.position ? { position: override.landmark.position } : {}),
@@ -69,7 +110,7 @@ export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined):
   return {
     slug,
     title: override?.title ?? repo.name,
-    summary: override?.summary ?? repo.description ?? factualSummary(repo),
+    summary: override?.summary ?? usefulDescription(repo) ?? factualSummary(repo),
     tags: override?.tags ?? defaultTags(repo),
     repoUrl: repo.repoUrl,
     ...(override?.year !== undefined ? { year: override.year } : {}),
@@ -80,4 +121,28 @@ export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined):
     landmark,
     theme: override?.theme ?? DEFAULT_THEME,
   };
+}
+
+/**
+ * The portfolio: every synced repository, minus the hidden ones, merged with its override.
+ *
+ * The single place that decides which repositories are part of the site. `GithubContentSource`
+ * calls it over HTTP and `scripts/lib/portfolio.mjs` calls it over the committed tree, so a
+ * portfolio-level rule cannot land in one reader and miss the other.
+ *
+ * `hidden` is enforced here and not only in `scripts/sync-repos.mjs`, because that sync soft-fails
+ * on a network problem: the previously committed `repos.json` then stands, and a repository hidden
+ * since the last successful sync would otherwise still get a landmark and still ship.
+ *
+ * `overrides` is a parameter rather than a default of `REPO_OVERRIDES` for two reasons: the rules
+ * can be tested against fixtures, exactly as `hiddenNamesIn` already is, and this module stays
+ * free of runtime imports — which is what lets the node scripts load it through type stripping.
+ */
+export function mergePortfolio(
+  repos: readonly SyncedRepo[],
+  overrides: Readonly<Record<string, RepoOverride>>,
+): readonly Project[] {
+  return repos
+    .filter((repo) => !overrides[repo.name]?.hidden)
+    .map((repo) => mergeRepo(repo, overrides[repo.name]));
 }

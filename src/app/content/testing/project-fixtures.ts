@@ -6,8 +6,11 @@ import type { Project } from '../project.model';
  * that file drifts with every sync, and unit tests exercising scene placement, landmark behaviour
  * or panel rendering must not fail because a repository was renamed or reprioritised on GitHub.
  *
- * Mirrors the pre-sync curated portfolio (novaverta, poetzscher, deslopify) exactly, so existing
- * behavioural assertions keep their meaning.
+ * The three entries started life as copies of the pre-sync curated portfolio, but they are
+ * synthetic and deliberately frozen: nothing keeps them in step with `REPO_OVERRIDES`, and nothing
+ * should. A change to the real copy, themes or pinned positions is expected to leave this file
+ * alone — the assertions built on it are about scene placement, landmark behaviour and panel
+ * rendering, none of which should move because a summary was reworded.
  */
 export const PROJECT_FIXTURES: readonly Project[] = [
   {

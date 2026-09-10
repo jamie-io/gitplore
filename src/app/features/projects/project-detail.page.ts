@@ -36,6 +36,10 @@ import { ReadmeService } from '@content/readme.service';
             <app-markdown [markdown]="markdown" />
           }
         }
+      } @else if (error(); as message) {
+        <!-- The project may well exist; what failed is the fetch, so do not claim otherwise. -->
+        <h1>Projekte nicht verfügbar</h1>
+        <p class="load-error" role="alert">{{ message }}</p>
       } @else if (contentReady()) {
         <h1>Projekt nicht gefunden</h1>
         <p>Für „{{ slug() }}“ gibt es keinen Eintrag.</p>
@@ -53,6 +57,13 @@ import { ReadmeService } from '@content/readme.service';
     .summary {
       max-inline-size: 60ch;
       font-size: 1.05rem;
+    }
+    .load-error {
+      padding: 0.85rem 1rem;
+      border: 1px solid rgb(143 47 47 / 35%);
+      border-radius: 0.5rem;
+      background: #f6eaea;
+      color: #6d2323;
     }
     .actions {
       display: flex;
@@ -74,6 +85,8 @@ export class ProjectDetailPage {
   private readonly content = inject(ContentService);
 
   protected readonly contentReady = this.content.loaded;
+  /** Non-null once the portfolio could not be read at all — a different story from "not found". */
+  protected readonly error = this.content.error;
   protected readonly project = computed(() => this.content.bySlug(this.slug()));
   protected readonly demoUrl = computed(() => {
     const demo = this.project()?.demo;

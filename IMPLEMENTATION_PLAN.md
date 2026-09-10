@@ -54,7 +54,8 @@ gitplore/
     content/readme/<slug>.md          # synced from GitHub, committed
     404.html                          # SPA redirect for GitHub Pages
   scripts/                            # node ESM
-    optimize-assets.mjs  sync-readmes.mjs  check-embeddable.mjs
+    optimize-assets.mjs  sync-repos.mjs  sync-readmes.mjs  check-embeddable.mjs
+    lib/portfolio.mjs                 # the one "read repos.json and merge it" for scripts
   src/app/
     app.config.ts  app.routes.ts  app.ts
     engine/            # Three.js only; knows nothing about projects or Angular UI
@@ -63,11 +64,12 @@ gitplore/
       player/   player-controller.ts  camera-rig.ts  collision.ts
       interaction/  interactable.ts  interaction.system.ts
     world/             # scene content built on engine
-      hub/  hub.scene.ts  terrain.ts  sky.ts  props.ts
+      hub/  hub.scene.ts  terrain.ts  sky.ts  props.ts  placement.ts
       environments/  plaza.ts  showroom.ts       # reusable, also for generated worlds
       landmarks/  base/portal.landmark.ts  base/screen.landmark.ts  <slug>/<slug>.landmark.ts
     content/           # data + adapters, no Three
-      project.model.ts  projects.ts  content-source.ts  static-content.source.ts
+      project.model.ts  synced-repo.ts  repo-overrides.ts  merge-repo.ts
+      content-source.ts  github-content.source.ts
       readme.service.ts  markdown/markdown.component.ts
     ui/                # Angular components + signal stores
       store/  world.store.ts  settings.store.ts
@@ -142,9 +144,16 @@ export interface Project {
 }
 ```
 
-- `content/projects.ts` exports a readonly `Project[]`. `ContentSource { projects(): Promise<Project[]> }`
-  has `StaticContentSource` now and `GitHubContentSource` later (maps repos to `Project`, using
-  `homepage` for `demo`, `landmark.kind: 'portal'`, positions from `environments/plaza.ts`).
+- The portfolio is synced, not hand-written (`docs/superpowers/specs/2026-09-10-repo-worlds-design.md`
+  §3–§4). `scripts/sync-repos.mjs` writes the committed `public/content/repos.json`;
+  `content/repo-overrides.ts` holds everything GitHub cannot express (German copy, pinned
+  landmarks, bespoke demos), keyed by repository name. `merge-repo.ts` resolves one `SyncedRepo`
+  plus its override into a `Project`, and `mergePortfolio` does the whole list, dropping anything
+  marked `hidden`. `ContentSource { projects(): Promise<Project[]> }` has one implementation,
+  `GithubContentSource`, which fetches `repos.json` same-origin and calls `mergePortfolio`;
+  `scripts/lib/portfolio.mjs` is its twin over the committed tree. Unpinned projects are placed by
+  `world/hub/placement.ts` on a ring around the spawn, skipping spots that would collide with a
+  pinned landmark.
 - **README bundled at build time.** `scripts/sync-readmes.mjs` fetches
   `raw.githubusercontent.com/<owner>/<repo>/HEAD/README.md` into `public/content/readme/<slug>.md`,
   rewriting relative image links to absolute raw URLs. The files are committed; the CI workflow
@@ -240,8 +249,9 @@ same `MarkdownComponent`.
   `Cross-Origin-*` headers so iframes work.
 - Budgets: initial bundle at most 350 kB gz (Three core is about 150 kB gz with ES imports; the
   hub route is lazy), `anyComponentStyle` 8 kB.
-- Unit tests (vitest): `WorldStore` transitions, `projects.ts` schema test (unique slugs,
-  screenshots exist, valid demo union), `PlayerController` math (`heightAt`, collision
+- Unit tests (vitest): `WorldStore` transitions, `merged-projects.spec.ts` schema test over the
+  merged portfolio (unique url-safe slugs, screenshots and READMEs exist, valid demo union) and
+  `portfolio-placement.spec.ts` over where the hub puts it, `PlayerController` math (`heightAt`, collision
   resolution), `InteractionSystem` selection, `MarkdownComponent` sanitisation. `EngineService`
   is behind an `ENGINE` injection token so UI tests mock it; Three math classes run fine in Node.
 - E2E (Playwright 1.63): Chromium with `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader`.
@@ -257,7 +267,7 @@ same `MarkdownComponent`.
 |---|---|---|
 | M0 Scaffold | `npx @angular/cli@22 new gitplore --style=scss --ssr=false` (zoneless default), path aliases, eslint/prettier, Playwright, `deploy.yml` publishing an empty page to Pages, `simpleViewGuard`, `/projects` placeholder, German README updated. | Pages URL serves the app; `/p/x` deep link on Pages loads through the 404 trick. |
 | M1 Engine | `EngineService`, `InputService`, `PlayerController`, `CapabilityService`, procedural terrain and sky, HUD with stats; free walking. | Steady 60 fps at `medium` on a MacBook integrated GPU; tab-hide pauses the loop; controller math tests green. |
-| M2 Content and panel | `Project` model, `projects.ts` with 3 projects, README sync script, `MarkdownComponent`, `ProjectPanelComponent` on `/p/:slug`, list and detail pages. | Deep link shows the README; iPhone emulation shows the list; schema test green. |
+| M2 Content and panel | `Project` model, the synced portfolio (`repos.json` + `repo-overrides.ts` + `merge-repo.ts`), README sync script, `MarkdownComponent`, `ProjectPanelComponent` on `/p/:slug`, list and detail pages. | Deep link shows the README; iPhone emulation shows the list; the merged-portfolio schema test green. |
 | M3 Landmarks and interaction | `Landmark`, `Interactable`, `PortalLandmark`, `ScreenLandmark`, proximity prompt, enter and return with spawn at exit point, project menu fast travel. | E2E: scripted keys walk to a portal, `E` opens the panel, `Esc` returns the player at the portal. |
 | M4 Demos | `DemoFrameComponent` with iframe and the embeddable check script; one custom in-world landmark with `enter()` / `exit()`. | Both demo kinds usable; CI fails on a non-embeddable URL. |
 | M5 Assets and polish | glTF pipeline, one hero glTF landmark, manifest preload, loading screen, settings, reduced motion, focus management, adaptive quality. | Lighthouse accessibility at least 90 on `/projects`; bundle within budget; `renderer.info.memory` stable after 5 enter/exit cycles. |

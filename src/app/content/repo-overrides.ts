@@ -22,6 +22,20 @@ export interface RepoOverride {
 }
 
 export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
+  gitplore: {
+    title: 'Gitplore',
+    summary:
+      'Dieses Portfolio selbst: eine begehbare 3D-Welt, in der jedes öffentliche Repository als Landmarke steht. Angular 22 zoneless mit Signals, Three.js direkt statt über einen Wrapper, Gelände und Bauten prozedural im Code erzeugt.',
+    tags: ['Angular 22', 'Three.js', 'TypeScript', 'WebGL2'],
+    theme: { primary: '#4a3f8f', accent: '#ecebf6' },
+  },
+  webkatalog_demoshop: {
+    title: 'Nordwerk – Demoshop für den 3D office WebKatalog',
+    summary:
+      'Vollständiger B2B-Möbelshop eines fiktiven Fachhändlers als Vertriebsmittel: Produktdaten, Preise, Bilder und 3D-Konfiguration kommen aus dem WebKatalog. Statisches HTML mit ES-Modulen, ohne Build und ohne Backend — von der Startseite bis zu Bestellung, Angebot und OCI-5.0-Übergabe.',
+    tags: ['JavaScript', 'ES Modules', 'B2B E-Commerce', 'OCI 5.0'],
+    theme: { primary: '#8f6a2f', accent: '#f6f0ea' },
+  },
   novaverta: {
     title: 'Phönix Industriedienstleistungen',
     summary:
@@ -83,4 +97,9 @@ export function hiddenNamesIn(overrides: Readonly<Record<string, RepoOverride>>)
 /** The repositories the sync must leave out, for `scripts/sync-repos.mjs`. */
 export function hiddenRepoNames(): string[] {
   return hiddenNamesIn(REPO_OVERRIDES);
+}
+
+/** The repositories the sync must keep whatever the cap says, for `scripts/sync-repos.mjs`. */
+export function curatedRepoNames(): string[] {
+  return Object.keys(REPO_OVERRIDES);
 }

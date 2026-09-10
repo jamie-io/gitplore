@@ -1,4 +1,4 @@
-import { REPO_OVERRIDES, hiddenRepoNames, hiddenNamesIn } from './repo-overrides';
+import { REPO_OVERRIDES, curatedRepoNames, hiddenRepoNames, hiddenNamesIn } from './repo-overrides';
 import type { RepoOverride } from './repo-overrides';
 
 describe('repo overrides', () => {
@@ -19,13 +19,18 @@ describe('repo overrides', () => {
     }
   });
 
-  it('pins a position for every curated project, so a push cannot move it', () => {
+  it('pins a position wherever it authors a rotation, which the ring would otherwise discard', () => {
+    // An unpinned project takes a ring spot, and the spot carries its own rotation: a `rotationY`
+    // without a `position` is silently thrown away (`HubScene`), so the two belong together.
     expect.hasAssertions();
     for (const [name, override] of Object.entries(REPO_OVERRIDES)) {
-      if (override.hidden) {
+      if (override.landmark?.rotationY === undefined) {
         continue;
       }
-      expect(override.landmark?.position, `${name} needs a pinned position`).toBeDefined();
+      expect(
+        override.landmark.position,
+        `${name} authors a rotation but no position`,
+      ).toBeDefined();
     }
   });
 
@@ -50,5 +55,21 @@ describe('repo overrides', () => {
   it('lists hidden repositories from production data', () => {
     // This grows when a repository is actually marked hidden in REPO_OVERRIDES.
     expect(hiddenRepoNames()).toEqual([]);
+  });
+
+  it('names every curated repository, so the sync cap can never drop one', () => {
+    expect(curatedRepoNames().sort()).toEqual(Object.keys(REPO_OVERRIDES).sort());
+    expect(curatedRepoNames()).toContain('deslopify');
+  });
+
+  it('writes German copy for every repository the world shows', () => {
+    // gitplore and webkatalog_demoshop used to fall through to the raw repository name and, for
+    // gitplore, its English GitHub description — an underscored machine name and an English
+    // paragraph among four German ones.
+    for (const name of ['gitplore', 'webkatalog_demoshop']) {
+      expect(REPO_OVERRIDES[name]?.title, name).toBeTruthy();
+      expect(REPO_OVERRIDES[name]?.summary, name).toBeTruthy();
+      expect(REPO_OVERRIDES[name]?.theme, name).toBeDefined();
+    }
   });
 });

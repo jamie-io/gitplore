@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-10-repo-worlds-design.md` — read §3 (data pipeline) and §4 (content model) before starting. This plan implements those two sections only; §5–§7 (environments, scene swap, routing) are Plan 2.
 
+**Deliberately deferred to Plan 2:** `SyncedRepo.homepage`. It is synced and committed, but nothing reads it: spec §4 sketched it as the seed for an auto-discovered iframe demo, and an auto-discovered demo cannot honour the `embeddable` contract without a `content:check` pass and a captured screenshot, neither of which this plan builds. It stays in `repos.json` so the data is already there when Plan 2 adds the demo derivation; until then a demo is only ever what an override declares.
+
 **Deliberately deferred to Plan 2:** the `EnvironmentId` union and `Project.environment` from spec §4. Nothing in this plan reads them, and a field no code consumes is a field nobody keeps honest. `RepoOverride` gains `environment?: EnvironmentId` in Plan 2, alongside the environments it selects.
 
 ## Global Constraints

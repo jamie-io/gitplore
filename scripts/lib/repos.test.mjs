@@ -130,3 +130,49 @@ test('caps the world at REPO_LIMIT entries', () => {
     validNames.slice(0, REPO_LIMIT),
   );
 });
+
+test('never lets the cap drop a curated repository', () => {
+  // REPO_LIMIT freshly pushed repositories, then the curated one that has not been touched in a
+  // year. Without the exemption it falls off the end, `merged-projects.spec.ts` fails on an
+  // override pointing at nothing, and the deploy breaks several steps from the cause.
+  const repos = Array.from({ length: REPO_LIMIT }, (_, i) => api(`repo-${i}`));
+  repos.push(api('novaverta', { pushed_at: '2025-01-01T12:00:00Z' }));
+
+  const selected = selectRepos(repos, [], ['novaverta']);
+
+  assert.ok(selected.some((repo) => repo.name === 'novaverta'));
+});
+
+test('still caps the world, dropping an uncurated repository to make room', () => {
+  const repos = Array.from({ length: REPO_LIMIT }, (_, i) => api(`repo-${i}`));
+  repos.push(api('novaverta', { pushed_at: '2025-01-01T12:00:00Z' }));
+
+  const selected = selectRepos(repos, [], ['novaverta']);
+
+  assert.equal(selected.length, REPO_LIMIT);
+  // The least recently pushed uncurated repository is the one that makes way.
+  assert.equal(
+    selected.some((repo) => repo.name === `repo-${REPO_LIMIT - 1}`),
+    false,
+  );
+});
+
+test('keeps the pushed order when a curated repository is rescued', () => {
+  const selected = selectRepos([api('newest'), api('curated'), api('oldest')], [], ['curated']);
+
+  assert.deepEqual(
+    selected.map((repo) => repo.name),
+    ['newest', 'curated', 'oldest'],
+  );
+});
+
+test('keeps every curated repository even when there are more than the cap allows', () => {
+  const curated = Array.from({ length: REPO_LIMIT + 2 }, (_, i) => `curated-${i}`);
+  const selected = selectRepos(
+    curated.map((name) => api(name)),
+    [],
+    curated,
+  );
+
+  assert.equal(selected.length, REPO_LIMIT + 2);
+});

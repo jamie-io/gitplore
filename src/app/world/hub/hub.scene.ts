@@ -47,8 +47,14 @@ export class HubScene implements WorldScene {
   constructor(options: HubSceneOptions) {
     this.sky = new Sky(options);
     this.onAreaChange = options.onAreaChange;
+    // Pinned landmarks are placed by hand and never move, so the ring has to work around them:
+    // without this a ring spot can land on top of one (IMPLEMENTATION_PLAN.md §3).
+    const pinnedPositions = options.projects
+      .map((project) => project.landmark.position)
+      .filter((position) => position !== undefined);
     const ring = ringPlacements(
       options.projects.filter((project) => !project.landmark.position).length,
+      pinnedPositions,
     );
     let ringIndex = 0;
 
