@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { CapabilityService, DEVICE_CAPABILITIES } from '@engine/capability.service';
+import { CONTENT_SOURCE } from '@content/content-source';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { SettingsStore } from '../store/settings.store';
 import { WorldStore } from '../store/world.store';
 import { SettingsDialog } from './settings-dialog';
@@ -25,7 +27,13 @@ describe('SettingsDialog', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [SettingsDialog],
-      providers: [{ provide: DEVICE_CAPABILITIES, useValue: CAPABLE }],
+      providers: [
+        { provide: DEVICE_CAPABILITIES, useValue: CAPABLE },
+        {
+          provide: CONTENT_SOURCE,
+          useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+        },
+      ],
     }).compileComponents();
     settings = TestBed.inject(SettingsStore);
     world = TestBed.inject(WorldStore);

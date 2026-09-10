@@ -3,10 +3,11 @@
  * (IMPLEMENTATION_PLAN.md §8). The results are committed, so a build never needs the network.
  */
 import { execFileSync } from 'node:child_process';
-import { mkdir, rm } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
-import { PROJECTS } from '../src/app/content/projects.ts';
+import { mergeRepo } from '../src/app/content/merge-repo.ts';
+import { REPO_OVERRIDES } from '../src/app/content/repo-overrides.ts';
 
 const WIDTH = 1024;
 const HEIGHT = 640;
@@ -14,6 +15,11 @@ const QUALITY = 82;
 
 const OUT_DIR = new URL('../public/assets/screens/', import.meta.url);
 await mkdir(OUT_DIR, { recursive: true });
+
+const repos = JSON.parse(
+  await readFile(new URL('../public/content/repos.json', import.meta.url), 'utf8'),
+);
+const PROJECTS = repos.map((repo) => mergeRepo(repo, REPO_OVERRIDES[repo.name]));
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });

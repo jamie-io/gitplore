@@ -1,7 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
-import { PROJECTS } from '@content/projects';
+import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
 import { ProjectsListPage } from './projects-list.page';
 
 describe('ProjectsListPage', () => {
@@ -12,7 +13,10 @@ describe('ProjectsListPage', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ProjectsListPage],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        { provide: CONTENT_SOURCE, useValue: { projects: () => Promise.resolve(PROJECTS) } },
+      ],
     }).compileComponents();
     await TestBed.inject(ContentService).ready;
     fixture = TestBed.createComponent(ProjectsListPage);

@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from '../store/world.store';
 import { ProjectMenu } from './project-menu';
 
@@ -14,7 +16,13 @@ describe('ProjectMenu', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ProjectMenu],
-      providers: [provideRouter([{ path: '**', children: [] }])],
+      providers: [
+        provideRouter([{ path: '**', children: [] }]),
+        {
+          provide: CONTENT_SOURCE,
+          useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+        },
+      ],
     }).compileComponents();
     await TestBed.inject(ContentService).ready;
     store = TestBed.inject(WorldStore);

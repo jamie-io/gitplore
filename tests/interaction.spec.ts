@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { startWorld } from './helpers';
+
+const SYNCED_COUNT = JSON.parse(readFileSync('public/content/repos.json', 'utf8')).length as number;
 
 /**
  * M3 (IMPLEMENTATION_PLAN.md §10): walk to a portal, use it, come back at its exit point. The
@@ -43,7 +46,7 @@ test.describe('landmarks and interaction', () => {
     await page.keyboard.press('KeyM');
     const menu = page.getByRole('dialog', { name: 'Projekte' });
     await expect(menu).toBeVisible();
-    await expect(menu.locator('li')).toHaveCount(3);
+    await expect(menu.locator('li')).toHaveCount(SYNCED_COUNT);
 
     await menu.locator('button[data-role="travel"][data-slug="novaverta"]').click();
     await expect(menu).toHaveCount(0);

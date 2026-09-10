@@ -3,7 +3,7 @@ import { qualitySettings } from '@engine/capability.service';
 import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
-import { PROJECTS } from '@content/projects';
+import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
 import { LandmarkOptions } from '../base/landmark';
 import { EXAMPLE_VIDEOS, DeslopifyLandmark } from './deslopify.landmark';
 

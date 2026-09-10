@@ -4,7 +4,7 @@ import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
 import type { Project, ProjectLandmark } from '@content/project.model';
-import { PROJECTS } from '@content/projects';
+import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
 import { HubScene, HubSceneOptions, HUB_AREA } from './hub.scene';
 import { ringPlacements } from './placement';
 import { terrainHeightAt } from './terrain';

@@ -2,10 +2,22 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
+import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { Component } from '@angular/core';
 import { WorldStore } from '../store/world.store';
 import { ProjectPanel } from './project-panel';
+
+/**
+ * A source stub, not `GithubContentSource`: these specs flush every pending HTTP request
+ * indiscriminately (`http.match(() => true)`), which would otherwise also answer the portfolio's
+ * own `content/repos.json` fetch with README markdown and break JSON parsing.
+ */
+const contentSourceProvider = {
+  provide: CONTENT_SOURCE,
+  useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+};
 
 @Component({ template: '<p>Panel-Demo</p>' })
 class StubPanelDemo {}
@@ -31,7 +43,12 @@ describe('ProjectPanel', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ProjectPanel],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        contentSourceProvider,
+      ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     await TestBed.inject(ContentService).ready;
@@ -145,7 +162,12 @@ describe('ProjectPanel demos', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ProjectPanel],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        contentSourceProvider,
+      ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     await TestBed.inject(ContentService).ready;

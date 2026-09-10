@@ -1,10 +1,15 @@
-import type { Project } from './project.model';
+import type { Project } from '../project.model';
 
 /**
- * The curated portfolio. Adding a project means adding an entry here — the schema test in
- * `projects.spec.ts` guards slugs, screenshots and the demo union (IMPLEMENTATION_PLAN.md §4).
+ * Fixed example projects for `@world/*` and `@ui/*` specs that need concrete `Project` objects.
+ * Those specs must not read `public/content/repos.json` the way `merged-projects.spec.ts` does —
+ * that file drifts with every sync, and unit tests exercising scene placement, landmark behaviour
+ * or panel rendering must not fail because a repository was renamed or reprioritised on GitHub.
+ *
+ * Mirrors the pre-sync curated portfolio (novaverta, poetzscher, deslopify) exactly, so existing
+ * behavioural assertions keep their meaning.
  */
-export const PROJECTS: readonly Project[] = [
+export const PROJECT_FIXTURES: readonly Project[] = [
   {
     slug: 'novaverta',
     title: 'Phönix Industriedienstleistungen',

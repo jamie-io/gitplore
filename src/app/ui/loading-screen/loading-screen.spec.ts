@@ -1,5 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { CONTENT_SOURCE } from '@content/content-source';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { LoadingScreen } from './loading-screen';
 import { WorldStore } from '../store/world.store';
 
@@ -13,7 +15,13 @@ describe('LoadingScreen', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [LoadingScreen],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: CONTENT_SOURCE,
+          useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+        },
+      ],
     }).compileComponents();
     document.body.appendChild(document.createElement('div'));
     store = TestBed.inject(WorldStore);
