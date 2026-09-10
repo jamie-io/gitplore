@@ -47,9 +47,14 @@ export class PlayerController {
   private velocityY = 0;
   private grounded = false;
 
-  teleport(position: Vector3, yaw = this.yaw): void {
+  /**
+   * Moves the player and defines the full orientation they arrive with. Pitch resets by default:
+   * every destination wants a level horizon, and leaving it to callers only stales it.
+   */
+  teleport(position: Vector3, yaw = this.yaw, pitch = 0): void {
     this.position.copy(position);
     this.yaw = yaw;
+    this.pitch = pitch;
     this.velocityY = 0;
     this.grounded = false;
   }

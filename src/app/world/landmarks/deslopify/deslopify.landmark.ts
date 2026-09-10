@@ -131,7 +131,6 @@ export class DeslopifyLandmark extends PortalLandmark {
     const viewpoint = this.wallCentre.clone().addScaledVector(this.front(), VIEWPOINT_DISTANCE);
     viewpoint.y = this.ground.heightAt(viewpoint.x, viewpoint.z) + PLAYER_EYE_HEIGHT;
     ctx.player.teleport(viewpoint, this.rotationY);
-    ctx.player.pitch = 0;
   }
 
   override interact(): void {

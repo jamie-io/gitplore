@@ -48,18 +48,21 @@ import { WorldStore } from '../store/world.store';
                 [screenshot]="project.demo.screenshot"
               />
             </section>
-          } @else if (project.demo.kind === 'custom' && project.demo.mode === 'panel') {
+          } @else if (project.demo.kind === 'custom') {
             <section class="demo" aria-label="Demo">
-              @if (project.demo.panelComponent; as load) {
-                <app-demo-panel-host [load]="load" />
+              @switch (project.demo.mode) {
+                @case ('panel') {
+                  @if (project.demo.panelComponent; as load) {
+                    <app-demo-panel-host [load]="load" />
+                  }
+                }
+                @case ('in-world') {
+                  <p>Die Demo dazu steht in der 3D-Welt, direkt neben dem Portal.</p>
+                  <button type="button" data-role="try-in-world" (click)="tryInWorld(project.slug)">
+                    In der Welt ausprobieren
+                  </button>
+                }
               }
-            </section>
-          } @else if (project.demo.kind === 'custom' && project.demo.mode === 'in-world') {
-            <section class="demo" aria-label="Demo">
-              <p>Die Demo dazu steht in der 3D-Welt, direkt neben dem Portal.</p>
-              <button type="button" data-role="try-in-world" (click)="tryInWorld(project.slug)">
-                In der Welt ausprobieren
-              </button>
             </section>
           }
 

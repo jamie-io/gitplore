@@ -8,10 +8,10 @@ test('finds the scripts index.html loads up front', () => {
   assert.deepEqual(initialScripts(html), ['main-ABC.js', 'polyfills-X.js']);
 });
 
-test('reports nothing while the gzipped sum stays inside the limit', () => {
-  assert.equal(overBudget({ 'a.js': 100, 'b.js': 200 }, 350), null);
+test('reports nothing while the gzipped total stays inside the limit', () => {
+  assert.equal(overBudget(300, 350), null);
 });
 
 test('reports the excess once the limit is passed', () => {
-  assert.match(overBudget({ 'a.js': 300, 'b.js': 100 }, 350), /400/);
+  assert.match(overBudget(400, 350), /400/);
 });

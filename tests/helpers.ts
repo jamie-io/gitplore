@@ -13,25 +13,33 @@ export async function framesRendered(page: Page): Promise<number> {
   return Number(value);
 }
 
+/** The HUD stats exposed as `data-*` attributes by `?stats=1`. */
+type StatName = 'geometries' | 'textures' | 'scene-geometries' | 'scene-textures';
+
 /**
- * A HUD stat once it has stopped changing: models arrive asynchronously, so the first reading
- * after boot is not yet the steady state.
+ * HUD stats once they have stopped changing: models arrive asynchronously, so the first reading
+ * after boot is not yet the steady state. All requested stats are read from the same sample, both
+ * so they are consistent with each other and so one settle costs one wait, not one per stat.
  */
-export async function settledStat(
+export async function settledStats<T extends StatName>(
   page: Page,
-  name: 'geometries' | 'textures' | 'scene-geometries' | 'scene-textures',
-): Promise<string> {
+  names: readonly T[],
+): Promise<Record<T, number>> {
   const stats = page.locator('app-hud .stats');
-  let previous = await stats.getAttribute(`data-${name}`);
+  const read = async () => Promise.all(names.map((name) => stats.getAttribute(`data-${name}`)));
+
+  let previous = await read();
   for (let i = 0; i < 20; i++) {
     await page.waitForTimeout(STATS_SETTLE_MS);
-    const current = await stats.getAttribute(`data-${name}`);
-    if (current === previous) {
-      return current ?? '';
+    const current = await read();
+    if (current.every((value, index) => value === previous[index])) {
+      return Object.fromEntries(
+        names.map((name, index) => [name, Number(current[index])]),
+      ) as Record<T, number>;
     }
     previous = current;
   }
-  throw new Error(`${name} never settled`);
+  throw new Error(`stats never settled: ${names.join(', ')}`);
 }
 
 /** Fakes the Page Visibility API, which Playwright cannot trigger for real. */

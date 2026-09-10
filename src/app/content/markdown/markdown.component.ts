@@ -7,10 +7,17 @@ import { Marked, type Tokens } from 'marked';
 const MAX_HEADING_LEVEL = 6;
 
 /**
- * A README link that leaves the page would otherwise discard the running world. External links
- * open in a new tab; every anchor gets a safe `rel`, whatever the source markdown carried.
+ * A sanitiser of this module's own rather than the shared default instance: the link policy below
+ * is a README rule, and a hook on the singleton would apply to every DOMPurify caller in the app.
  */
-DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+const purifier = DOMPurify(window);
+
+/**
+ * A README link that leaves the page would otherwise discard the running world. External links
+ * open in a new tab; every anchor gets a safe `rel`, whatever the source markdown carried. This
+ * runs after sanitising rather than in the renderer, so raw HTML anchors are covered too.
+ */
+purifier.addHook('afterSanitizeAttributes', (node) => {
   if (!(node instanceof HTMLAnchorElement)) {
     return;
   }
@@ -85,6 +92,6 @@ export class MarkdownComponent {
 
   protected readonly html = computed(() => {
     const parsed = this.marked().parse(this.markdown(), { async: false });
-    return this.sanitizer.bypassSecurityTrustHtml(DOMPurify.sanitize(parsed));
+    return this.sanitizer.bypassSecurityTrustHtml(purifier.sanitize(parsed));
   });
 }

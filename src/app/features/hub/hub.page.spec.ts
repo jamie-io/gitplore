@@ -2,22 +2,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
-import { DEVICE_CAPABILITIES, DeviceCapabilities } from '@engine/capability.service';
-import { ENGINE, EngineService } from '@engine/engine.service';
+import { DEVICE_CAPABILITIES } from '@engine/capability.service';
+import { EMPTY_ENGINE_STATS, ENGINE, EngineService } from '@engine/engine.service';
 import { InputService } from '@engine/input.service';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldScene } from '@engine/world-object';
 import { WorldStore } from '@ui/store/world.store';
 import { HubPage } from './hub.page';
-
-const CAPABLE: DeviceCapabilities = {
-  webgl2: true,
-  rendererDescription: 'Apple M2',
-  hardwareConcurrency: 10,
-  devicePixelRatio: 2,
-  reducedMotion: false,
-  coarsePointer: false,
-};
+import { CAPABLE } from '@engine/testing/world-context';
 
 /** The engine without a renderer: the page's lifecycle and bridging are what is under test. */
 class StubEngine {
@@ -29,7 +21,7 @@ class StubEngine {
   readonly nearby = null;
 
   stats() {
-    return { fps: 0, geometries: 0, textures: 0, frames: 0, sceneGeometries: 0, sceneTextures: 0 };
+    return EMPTY_ENGINE_STATS;
   }
   private detachInput: (() => void) | null = null;
 

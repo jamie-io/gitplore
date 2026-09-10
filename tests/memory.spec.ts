@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { settledStat, startWorld } from './helpers';
+import { settledStats, startWorld } from './helpers';
 
 /**
  * The hub is never destroyed and destinations are DOM overlays, so resources must not grow across
@@ -28,16 +28,21 @@ test.describe('memory', () => {
 
     // One cycle first, so lazily arriving models (portal glTF) are in place before the baseline.
     await cycle();
-    const geometries = await settledStat(page, 'scene-geometries');
-    const textures = await settledStat(page, 'scene-textures');
+    const baseline = await settledStats(page, ['scene-geometries', 'scene-textures']);
 
     for (let i = 0; i < 5; i++) {
       await cycle();
     }
 
-    expect(await settledStat(page, 'scene-geometries')).toBe(geometries);
-    expect(await settledStat(page, 'scene-textures')).toBe(textures);
-    expect(Number(await settledStat(page, 'geometries'))).toBeLessThanOrEqual(Number(geometries));
-    expect(Number(await settledStat(page, 'textures'))).toBeLessThanOrEqual(Number(textures));
+    const after = await settledStats(page, [
+      'scene-geometries',
+      'scene-textures',
+      'geometries',
+      'textures',
+    ]);
+    expect(after['scene-geometries']).toBe(baseline['scene-geometries']);
+    expect(after['scene-textures']).toBe(baseline['scene-textures']);
+    expect(after.geometries).toBeLessThanOrEqual(baseline['scene-geometries']);
+    expect(after.textures).toBeLessThanOrEqual(baseline['scene-textures']);
   });
 });

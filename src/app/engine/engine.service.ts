@@ -1,5 +1,5 @@
 import { InjectionToken, NgZone, Service, inject } from '@angular/core';
-import { Material, Mesh, PerspectiveCamera, Scene, Texture } from 'three';
+import { BufferGeometry, PerspectiveCamera, Scene, Texture } from 'three';
 import { AssetService } from './asset.service';
 import { CapabilityService } from './capability.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
@@ -10,7 +10,7 @@ import { InputService } from './input.service';
 import { Interactable } from './interaction/interactable';
 import { InteractionSystem } from './interaction/interaction.system';
 import { Tickable, WorldContext, WorldScene } from './world-object';
-import { disposeObject3D } from './dispose';
+import { disposeObject3D, forEachResource } from './dispose';
 
 /** A frame longer than this is treated as a hitch, not as elapsed game time. */
 export const ENGINE_MAX_FRAME_SECONDS = 0.05;
@@ -27,6 +27,16 @@ export interface EngineStats {
   readonly sceneGeometries: number;
   readonly sceneTextures: number;
 }
+
+/** The "nothing measured yet" reading, so stubs and initial values need not respell the shape. */
+export const EMPTY_ENGINE_STATS: EngineStats = {
+  fps: 0,
+  geometries: 0,
+  textures: 0,
+  frames: 0,
+  sceneGeometries: 0,
+  sceneTextures: 0,
+};
 
 /**
  * Owns the renderer, the camera, the active scene and the render loop
@@ -272,21 +282,11 @@ export class EngineService {
 
 /** What the scene graph currently references; the yardstick GPU memory is compared against. */
 function countSceneResources(scene: Scene): { geometries: number; textures: number } {
-  const geometries = new Set<object>();
+  const geometries = new Set<BufferGeometry>();
   const textures = new Set<Texture>();
-  scene.traverse((object) => {
-    const mesh = object as Partial<Mesh>;
-    if (mesh.geometry) {
-      geometries.add(mesh.geometry);
-    }
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (const material of materials as (Material | undefined)[]) {
-      for (const value of Object.values(material ?? {})) {
-        if (value instanceof Texture) {
-          textures.add(value);
-        }
-      }
-    }
+  forEachResource(scene, {
+    geometry: (geometry) => geometries.add(geometry),
+    texture: (texture) => textures.add(texture),
   });
   return { geometries: geometries.size, textures: textures.size };
 }

@@ -10,12 +10,9 @@ import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { distRoot } from './lib/dist.mjs';
 
-/** `DIST_ROOT` lets a second instance serve a copy (e.g. for Lighthouse) while e2e rebuilds dist. */
-const ROOT = process.env.DIST_ROOT
-  ? process.env.DIST_ROOT.replace(/\/?$/, '/')
-  : fileURLToPath(new URL('../dist/gitplore/browser/', import.meta.url));
+const ROOT = distRoot();
 const PORT = Number(process.env.PORT ?? 4173);
 
 const TYPES = {

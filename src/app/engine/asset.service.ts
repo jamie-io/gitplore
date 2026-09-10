@@ -1,8 +1,8 @@
 import { InjectionToken, Service, inject } from '@angular/core';
-import { Group, LoadingManager, Material, Mesh, Texture, TextureLoader } from 'three';
+import { Group, LoadingManager, Texture, TextureLoader } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import { disposeObject3D, markManaged } from './dispose';
+import { disposeObject3D, forEachResource, markManaged } from './dispose';
 
 /** `public/assets/manifest.json`, written by `npm run assets:optimize` (IMPLEMENTATION_PLAN.md §8). */
 export interface AssetManifest {
@@ -75,14 +75,9 @@ export class AssetService implements AssetLike {
 
   /** A shared texture; every `load` needs a matching `release`. */
   load(url: string): Texture {
-    const cached = this.textures.get(url);
-    if (cached) {
-      cached.refs++;
-      return cached.texture;
-    }
-
-    const texture = markManaged(this.textureLoader.load(url));
-    this.textures.set(url, { texture, refs: 1 });
+    const { texture, settled } = this.acquire(url);
+    // Nothing awaits a synchronous `load`; the eviction inside `acquire` is what matters here.
+    settled.catch(() => undefined);
     return texture;
   }
 
@@ -179,54 +174,53 @@ export class AssetService implements AssetLike {
 
   /** `load`, but settled only once the image has arrived (or failed), for honest progress. */
   private loadAsync(url: string): Promise<Texture> {
+    return this.acquire(url).settled;
+  }
+
+  /**
+   * One take on a cached texture: the handle callers get straight away, plus the promise that
+   * says whether it ever arrived. Both entry points go through here, so a failed load is evicted
+   * from the cache however it was started — a blank texture must not be handed out as if it had
+   * arrived, least of all forever.
+   */
+  private acquire(url: string): { texture: Texture; settled: Promise<Texture> } {
     const cached = this.textures.get(url);
     if (cached) {
       cached.refs++;
-      return Promise.resolve(cached.texture);
+      return { texture: cached.texture, settled: Promise.resolve(cached.texture) };
     }
 
-    return new Promise((resolve, reject) => {
-      // The loader may call back synchronously (the test stub does), so the callbacks use their
-      // own arguments and the cache entry is only written for a load that has not already failed.
-      let failed = false;
-      const texture = this.textureLoader.load(
+    // The loader may call back synchronously (the test stub does), so the callbacks use their own
+    // arguments and the cache entry is only written for a load that has not already failed.
+    let failed = false;
+    let texture!: Texture;
+    const settled = new Promise<Texture>((resolve, reject) => {
+      texture = this.textureLoader.load(
         url,
         (loaded) => resolve(loaded),
         undefined,
         (error) => {
-          // A texture that never arrived must not be handed out as if it had.
           failed = true;
           this.textures.delete(url);
           reject(error);
         },
       );
-      if (!failed) {
-        markManaged(texture);
-        this.textures.set(url, { texture, refs: 1 });
-      }
     });
+
+    if (!failed) {
+      markManaged(texture);
+      this.textures.set(url, { texture, refs: 1 });
+    }
+    return { texture, settled };
   }
 }
 
 /** Flags everything a model shares between its clones, so no consumer frees it. */
 function markModelManaged(scene: Group): Group {
-  scene.traverse((object) => {
-    const mesh = object as Partial<Mesh>;
-    if (mesh.geometry) {
-      markManaged(mesh.geometry);
-    }
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (const material of materials) {
-      if (!material) {
-        continue;
-      }
-      markManaged(material as Material);
-      for (const value of Object.values(material)) {
-        if (value instanceof Texture) {
-          markManaged(value);
-        }
-      }
-    }
+  forEachResource(scene, {
+    geometry: markManaged,
+    material: (material) => void markManaged(material),
+    texture: markManaged,
   });
   return scene;
 }

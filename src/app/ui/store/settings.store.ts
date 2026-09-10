@@ -78,8 +78,11 @@ export class SettingsStore {
   }
 }
 
-function clampSensitivity(value: number): number {
-  return Number.isFinite(value) ? Math.min(Math.max(value, MIN_SENSITIVITY), MAX_SENSITIVITY) : 1;
+/** Takes `unknown` because it also guards the untrusted stored value, not just the setter's input. */
+function clampSensitivity(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(Math.max(value, MIN_SENSITIVITY), MAX_SENSITIVITY)
+    : DEFAULTS.sensitivity;
 }
 
 const TIERS: readonly QualityTier[] = ['low', 'medium', 'high'];
@@ -93,13 +96,13 @@ function read(): StoredSettings {
     }
     const parsed = JSON.parse(raw) as Partial<Record<keyof StoredSettings, unknown>>;
     return {
-      qualityOverride: TIERS.includes(parsed.qualityOverride as QualityTier)
-        ? (parsed.qualityOverride as QualityTier)
-        : null,
-      sensitivity:
-        typeof parsed.sensitivity === 'number' ? clampSensitivity(parsed.sensitivity) : 1,
+      qualityOverride:
+        TIERS.find((tier) => tier === parsed.qualityOverride) ?? DEFAULTS.qualityOverride,
+      sensitivity: clampSensitivity(parsed.sensitivity),
       reducedMotionOverride:
-        typeof parsed.reducedMotionOverride === 'boolean' ? parsed.reducedMotionOverride : null,
+        typeof parsed.reducedMotionOverride === 'boolean'
+          ? parsed.reducedMotionOverride
+          : DEFAULTS.reducedMotionOverride,
     };
   } catch {
     return DEFAULTS;
