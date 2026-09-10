@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { ComponentFixture } from '@angular/core/testing';
-import { ENGINE, EngineService } from '@engine/engine.service';
+import { EMPTY_ENGINE_STATS, ENGINE, EngineService } from '@engine/engine.service';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { Hud } from './hud';
 import { WorldStore } from '../store/world.store';
@@ -12,6 +12,7 @@ const routeWithQuery = (query: Record<string, string>) => ({
 /** The HUD only ever asks the engine for stats; §9 puts it behind a token exactly for this. */
 const stubEngine = {
   stats: () => ({
+    ...EMPTY_ENGINE_STATS,
     fps: 58.6,
     geometries: 3,
     textures: 2,

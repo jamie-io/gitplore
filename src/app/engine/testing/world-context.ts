@@ -1,6 +1,6 @@
 import { Group, PerspectiveCamera, Scene, Texture } from 'three';
 import { AssetLike } from '../asset.service';
-import { qualitySettings } from '../capability.service';
+import { DeviceCapabilities, qualitySettings } from '../capability.service';
 import { PlayerController } from '../player/player-controller';
 import { WorldContext } from '../world-object';
 
@@ -58,3 +58,13 @@ export function stubContext(assets: AssetLike = new StubAssets()): WorldContext 
     assets,
   };
 }
+
+/** A desktop that comfortably clears every capability gate; the baseline most specs want. */
+export const CAPABLE: DeviceCapabilities = {
+  webgl2: true,
+  rendererDescription: 'Apple M2',
+  hardwareConcurrency: 10,
+  devicePixelRatio: 2,
+  reducedMotion: false,
+  coarsePointer: false,
+};

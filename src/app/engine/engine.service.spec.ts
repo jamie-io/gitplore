@@ -1,21 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { Scene } from 'three';
-import { CapabilityService, DEVICE_CAPABILITIES, DeviceCapabilities } from './capability.service';
+import { CapabilityService, DEVICE_CAPABILITIES } from './capability.service';
 import { ENGINE_MAX_FRAME_SECONDS, EngineService } from './engine.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
 import { BoxGeometry, Mesh, MeshStandardMaterial, Texture, Vector3 } from 'three';
 import { Interactable } from './interaction/interactable';
 import { HeightField } from './player/collision';
 import { WorldScene } from './world-object';
-
-const CAPABLE: DeviceCapabilities = {
-  webgl2: true,
-  rendererDescription: 'Apple M2',
-  hardwareConcurrency: 10,
-  devicePixelRatio: 2,
-  reducedMotion: false,
-  coarsePointer: false,
-};
+import { CAPABLE } from './testing/world-context';
 
 class StubRenderer implements RendererLike {
   loop: ((time: number) => void) | null = null;

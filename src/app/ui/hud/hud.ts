@@ -1,6 +1,6 @@
 import { Component, DestroyRef, computed, inject, isDevMode, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ENGINE, EngineStats } from '@engine/engine.service';
+import { EMPTY_ENGINE_STATS, ENGINE, EngineStats } from '@engine/engine.service';
 import { WorldStore } from '../store/world.store';
 
 /** Twice a second is enough to read, and keeps signal writes rare (IMPLEMENTATION_PLAN.md §2). */
@@ -146,14 +146,7 @@ export class Hud {
 
   private readonly engine = inject(ENGINE);
 
-  protected readonly stats = signal<EngineStats>({
-    fps: 0,
-    geometries: 0,
-    textures: 0,
-    frames: 0,
-    sceneGeometries: 0,
-    sceneTextures: 0,
-  });
+  protected readonly stats = signal<EngineStats>(EMPTY_ENGINE_STATS);
 
   /** Always on in development; `?stats=1` switches it on in a production build too. */
   protected readonly showStats = signal(

@@ -1,21 +1,9 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import {
-  CapabilityService,
-  DEVICE_CAPABILITIES,
-  DeviceCapabilities,
-} from '@engine/capability.service';
+import { CapabilityService, DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { SettingsStore } from '../store/settings.store';
 import { WorldStore } from '../store/world.store';
 import { SettingsDialog } from './settings-dialog';
-
-const CAPABLE: DeviceCapabilities = {
-  webgl2: true,
-  rendererDescription: 'Apple M2',
-  hardwareConcurrency: 10,
-  devicePixelRatio: 2,
-  reducedMotion: false,
-  coarsePointer: false,
-};
+import { CAPABLE } from '@engine/testing/world-context';
 
 describe('SettingsDialog', () => {
   let fixture: ComponentFixture<SettingsDialog>;

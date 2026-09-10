@@ -134,7 +134,7 @@ export class HubPage {
     // render, because the closing dialog's focus trap restores focus to its opener on destroy.
     const injector = inject(Injector);
     effect(() => {
-      if (this.store.inputMode() !== 'ui' && this.store.started() && !this.destroyed) {
+      if (this.store.inputMode() !== 'ui' && this.store.started()) {
         afterNextRender(
           () => {
             if (!this.destroyed) {
@@ -271,7 +271,6 @@ export class HubPage {
     }
 
     const yaw = facing === 'away' ? landmark.spawnYaw : landmark.rotationY;
-    this.engine.player.pitch = 0;
     this.engine.player.teleport(
       landmark.spawn.clone().setY(landmark.spawn.y + PLAYER_EYE_HEIGHT),
       yaw,

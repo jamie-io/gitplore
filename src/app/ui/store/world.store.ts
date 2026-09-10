@@ -117,13 +117,12 @@ export class WorldStore {
    * comes back from /projects — with nobody left to close it.
    */
   resetTransient(): void {
-    this.menuOpen.set(false);
-    this.settingsOpen.set(false);
-    this.demoActive.set(false);
-    this.demoHint.set(null);
-    this.demoRequest.set(null);
-    this.nearby.set(null);
-    this.area.set('');
+    this.setMenuOpen(false);
+    this.setSettingsOpen(false);
+    this.setDemoActive(false);
+    this.requestDemo(null);
+    this.setNearby(null);
+    this.setArea('');
   }
 
   setSettingsOpen(open: boolean): void {
