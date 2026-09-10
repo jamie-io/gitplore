@@ -1,13 +1,32 @@
 import { TestBed } from '@angular/core/testing';
 import { CONTENT_SOURCE, ContentSource } from './content-source';
 import { ContentService } from './content.service';
+import { mergeRepo } from './merge-repo';
 import type { Project } from './project.model';
-import { PROJECTS } from './projects';
+import type { SyncedRepo } from './synced-repo';
+
+const repo: SyncedRepo = {
+  name: 'novaverta',
+  description: null,
+  language: 'HTML',
+  topics: [],
+  repoUrl: 'https://github.com/jamie-io/novaverta',
+  homepage: null,
+  pushedAt: '2026-01-01T00:00:00Z',
+  stars: 0,
+};
+/** A stand-in for the merged portfolio: this spec exercises `ContentService`, not `mergeRepo`. */
+const PROJECTS: readonly Project[] = [mergeRepo(repo, undefined)];
 
 function serviceWith(source?: ContentSource): ContentService {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
-    providers: source ? [{ provide: CONTENT_SOURCE, useValue: source }] : [],
+    providers: [
+      {
+        provide: CONTENT_SOURCE,
+        useValue: source ?? { projects: () => Promise.resolve(PROJECTS) },
+      },
+    ],
   });
   return TestBed.inject(ContentService);
 }

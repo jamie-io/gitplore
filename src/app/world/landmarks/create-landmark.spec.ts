@@ -1,4 +1,4 @@
-import { PROJECTS } from '@content/projects';
+import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
 import { Project } from '@content/project.model';
 import { PortalLandmark } from './base/portal.landmark';
 import { ScreenLandmark } from './base/screen.landmark';

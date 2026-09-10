@@ -2,7 +2,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { ProjectDetailPage } from './project-detail.page';
 
 describe('ProjectDetailPage', () => {
@@ -24,7 +26,18 @@ describe('ProjectDetailPage', () => {
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
       imports: [ProjectDetailPage],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        // Not `GithubContentSource`: `open()` flushes every pending HTTP request
+        // indiscriminately, which would otherwise also answer the portfolio's own
+        // `content/repos.json` fetch with README markdown and break JSON parsing.
+        {
+          provide: CONTENT_SOURCE,
+          useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+        },
+      ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     await TestBed.inject(ContentService).ready;

@@ -1,10 +1,10 @@
 import { InjectionToken } from '@angular/core';
+import { GithubContentSource } from './github-content.source';
 import type { Project } from './project.model';
-import { StaticContentSource } from './static-content.source';
 
 /**
- * Where projects come from. `StaticContentSource` reads the curated list today; the explorer phase
- * adds a GitHub-backed source without touching anything above (IMPLEMENTATION_PLAN.md §4).
+ * Where projects come from: the synced repository list merged with `REPO_OVERRIDES`
+ * (IMPLEMENTATION_PLAN.md §4).
  */
 export interface ContentSource {
   projects(): Promise<readonly Project[]>;
@@ -12,5 +12,5 @@ export interface ContentSource {
 
 export const CONTENT_SOURCE = new InjectionToken<ContentSource>('CONTENT_SOURCE', {
   providedIn: 'root',
-  factory: () => new StaticContentSource(),
+  factory: () => new GithubContentSource(),
 });

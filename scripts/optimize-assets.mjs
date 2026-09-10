@@ -6,10 +6,11 @@
  * when the player is near; everything else is `core` and preloads behind the loading screen.
  */
 import { execFile } from 'node:child_process';
-import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { PROJECTS } from '../src/app/content/projects.ts';
+import { mergeRepo } from '../src/app/content/merge-repo.ts';
+import { REPO_OVERRIDES } from '../src/app/content/repo-overrides.ts';
 
 const run = promisify(execFile);
 const SRC = fileURLToPath(new URL('../assets-src/models/', import.meta.url));
@@ -17,6 +18,11 @@ const OUT = fileURLToPath(new URL('../public/assets/models/', import.meta.url));
 const SCREENS = fileURLToPath(new URL('../public/assets/screens/', import.meta.url));
 const MANIFEST = fileURLToPath(new URL('../public/assets/manifest.json', import.meta.url));
 const CLI = fileURLToPath(new URL('../node_modules/.bin/gltf-transform', import.meta.url));
+
+const repos = JSON.parse(
+  await readFile(new URL('../public/content/repos.json', import.meta.url), 'utf8'),
+);
+const PROJECTS = repos.map((repo) => mergeRepo(repo, REPO_OVERRIDES[repo.name]));
 
 /** Which project (if any) a model belongs to; a model no project names is `core`. */
 const GROUPS = Object.fromEntries(

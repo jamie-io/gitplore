@@ -7,6 +7,8 @@ import { EMPTY_ENGINE_STATS, ENGINE, EngineService } from '@engine/engine.servic
 import { InputService } from '@engine/input.service';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldScene } from '@engine/world-object';
+import { CONTENT_SOURCE } from '@content/content-source';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from '@ui/store/world.store';
 import { HubPage } from './hub.page';
 import { CAPABLE } from '@engine/testing/world-context';
@@ -83,6 +85,12 @@ describe('HubPage', () => {
         provideHttpClientTesting(),
         { provide: DEVICE_CAPABILITIES, useValue: CAPABLE },
         { provide: ENGINE, useValue: engine },
+        // Content resolves at once here, same as `StaticContentSource` did: `bootWithoutManifest`
+        // only flushes the manifest request, so content must not need an HTTP round trip too.
+        {
+          provide: CONTENT_SOURCE,
+          useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+        },
       ],
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);

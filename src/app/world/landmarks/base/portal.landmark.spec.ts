@@ -3,7 +3,7 @@ import { qualitySettings } from '@engine/capability.service';
 import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
-import { PROJECTS } from '@content/projects';
+import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
 import { Project } from '@content/project.model';
 import { LandmarkOptions, SPAWN_DISTANCE } from './landmark';
 import { DOLLY_SECONDS, MODEL_LOAD_RADIUS, PortalLandmark } from './portal.landmark';

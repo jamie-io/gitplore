@@ -36,7 +36,7 @@ async function probe(url, fetchImpl) {
 
 /**
  * Returns one message per project whose `embeddable` claim does not match the live headers, or
- * whose demo could not be reached at all. An empty array means projects.ts tells the truth.
+ * whose demo could not be reached at all. An empty array means the synced portfolio tells the truth.
  */
 export async function mismatches(projects, fetchImpl = fetch) {
   const failures = [];

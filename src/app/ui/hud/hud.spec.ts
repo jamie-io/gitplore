@@ -2,12 +2,20 @@ import { TestBed } from '@angular/core/testing';
 import { ComponentFixture } from '@angular/core/testing';
 import { EMPTY_ENGINE_STATS, ENGINE, EngineService } from '@engine/engine.service';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
+import { CONTENT_SOURCE } from '@content/content-source';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { Hud } from './hud';
 import { WorldStore } from '../store/world.store';
 
 const routeWithQuery = (query: Record<string, string>) => ({
   snapshot: { queryParamMap: convertToParamMap(query) },
 });
+
+/** The HUD does not use project data at all; this only keeps `WorldStore`'s injection cheap. */
+const stubContentSource = {
+  provide: CONTENT_SOURCE,
+  useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+};
 
 /** The HUD only ever asks the engine for stats; §9 puts it behind a token exactly for this. */
 const stubEngine = {
@@ -37,6 +45,7 @@ describe('Hud', () => {
       providers: [
         { provide: ENGINE, useValue: stubEngine },
         { provide: ActivatedRoute, useValue: routeWithQuery({ stats: '1' }) },
+        stubContentSource,
       ],
     }).compileComponents();
     store = TestBed.inject(WorldStore);
@@ -111,6 +120,7 @@ describe('Hud stats overlay', () => {
       providers: [
         { provide: ENGINE, useValue: stubEngine },
         { provide: ActivatedRoute, useValue: routeWithQuery(query) },
+        stubContentSource,
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(Hud);
@@ -153,6 +163,7 @@ describe('Hud interaction prompt and navigation', () => {
       providers: [
         { provide: ENGINE, useValue: stubEngine },
         { provide: ActivatedRoute, useValue: routeWithQuery({}) },
+        stubContentSource,
       ],
     }).compileComponents();
     store = TestBed.inject(WorldStore);
@@ -206,6 +217,7 @@ describe('Hud during an in-world demo', () => {
       providers: [
         { provide: ENGINE, useValue: stubEngine },
         { provide: ActivatedRoute, useValue: routeWithQuery({}) },
+        stubContentSource,
       ],
     }).compileComponents();
     const store = TestBed.inject(WorldStore);

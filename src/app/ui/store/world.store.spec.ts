@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { Interactable } from '@engine/interaction/interactable';
+import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from './world.store';
 
 const PORTAL: Interactable = {
@@ -17,6 +19,14 @@ describe('WorldStore', () => {
 
   beforeEach(() => {
     TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        {
+          provide: CONTENT_SOURCE,
+          useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+        },
+      ],
+    });
     store = TestBed.inject(WorldStore);
   });
 
@@ -101,6 +111,14 @@ describe('WorldStore', () => {
 
     it('is the ui until the visitor has clicked through the start gate', () => {
       TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          {
+            provide: CONTENT_SOURCE,
+            useValue: { projects: () => Promise.resolve(PROJECT_FIXTURES) },
+          },
+        ],
+      });
       expect(TestBed.inject(WorldStore).inputMode()).toBe('ui');
     });
 
