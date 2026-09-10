@@ -1,0 +1,78 @@
+import type { ProjectDemo, ProjectLandmark } from './project.model';
+
+/**
+ * Everything GitHub cannot express about one of Jamie's repositories, keyed by repository name
+ * (docs/superpowers/specs/2026-09-10-repo-worlds-design.md §4).
+ *
+ * German copy lives here because GitHub holds none and the site is German. Anything that is code
+ * — a bespoke landmark kind, a panel component — necessarily lives here too.
+ */
+export interface RepoOverride {
+  /** Keeps the repository out of the world entirely. */
+  readonly hidden?: boolean;
+  /** Defaults to the repository name, lowercased. */
+  readonly slug?: string;
+  readonly title?: string;
+  readonly summary?: string;
+  readonly tags?: readonly string[];
+  readonly year?: number;
+  readonly demo?: ProjectDemo;
+  readonly landmark?: Partial<ProjectLandmark>;
+  readonly theme?: { readonly primary: string; readonly accent: string };
+}
+
+export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
+  novaverta: {
+    title: 'Phönix Industriedienstleistungen',
+    summary:
+      'Website für den deutschen Generalimporteur der NOVA VERTA Lackierkabinen. Reines HTML, CSS und JavaScript, ohne Build-Schritt und ohne Laufzeitabhängigkeiten.',
+    tags: ['HTML', 'CSS', 'JavaScript', 'Static Site'],
+    year: 2026,
+    demo: {
+      kind: 'iframe',
+      url: 'https://jamie-io.github.io/novaverta/',
+      embeddable: true,
+      screenshot: 'assets/screens/novaverta.webp',
+    },
+    landmark: { kind: 'screen', position: [-24, 0, -18], rotationY: 0.6 },
+    theme: { primary: '#1b4f8f', accent: '#e8eef6' },
+  },
+  'poetzscher-homepage': {
+    slug: 'poetzscher',
+    title: 'Christopher Pötzsch – Objektservice',
+    summary:
+      'Statische Website für Objektservice und Gebäudetechnik, bewusst ohne externe Verbindungen: lokale Schriften, kein Analytics, kein Cookie-Banner.',
+    tags: ['HTML', 'CSS', 'JavaScript', 'Privacy by design'],
+    year: 2026,
+    demo: {
+      kind: 'iframe',
+      url: 'https://jamie-io.github.io/poetzscher-homepage/',
+      embeddable: true,
+      screenshot: 'assets/screens/poetzscher.webp',
+    },
+    landmark: { kind: 'screen', position: [26, 0, -14], rotationY: -0.7 },
+    theme: { primary: '#2f6b4f', accent: '#eaf2ec' },
+  },
+  deslopify: {
+    title: 'Deslopify',
+    summary:
+      'Browser-Erweiterung, die von YouTube automatisch übersetzte Titel, Thumbnails, Beschreibungen und Tonspuren durch die Originale der Urheber ersetzt.',
+    tags: ['JavaScript', 'Chrome Extension', 'MV3'],
+    year: 2026,
+    demo: { kind: 'custom', mode: 'in-world' },
+    landmark: {
+      kind: 'deslopify',
+      position: [0, 0, -20],
+      rotationY: 0,
+      model: 'assets/models/arch.glb',
+    },
+    theme: { primary: '#8f2f2f', accent: '#f6eaea' },
+  },
+};
+
+/** The repositories the sync must leave out, for `scripts/sync-repos.mjs`. */
+export function hiddenRepoNames(): string[] {
+  return Object.entries(REPO_OVERRIDES)
+    .filter(([, override]) => override.hidden)
+    .map(([name]) => name);
+}
