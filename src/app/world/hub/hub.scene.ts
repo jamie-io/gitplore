@@ -3,9 +3,10 @@ import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
 import { WorldContext, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
-import { Landmark, TextureProvider } from '../landmarks/base/landmark';
+import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { createLandmark } from '../landmarks/create-landmark';
 import { Monument } from './monument';
+import { ringPlacements } from './placement';
 import { Sky } from './sky';
 import { Terrain } from './terrain';
 
@@ -46,21 +47,27 @@ export class HubScene implements WorldScene {
   constructor(options: HubSceneOptions) {
     this.sky = new Sky(options);
     this.onAreaChange = options.onAreaChange;
-    this.landmarks = options.projects.map((project) =>
-      createLandmark({
+    const ring = ringPlacements(
+      options.projects.filter((project) => !project.landmark.position).length,
+    );
+    let ringIndex = 0;
+
+    this.landmarks = options.projects.map((project) => {
+      const pinned = project.landmark.position;
+      const placement: LandmarkPlacement = pinned
+        ? { position: pinned, rotationY: project.landmark.rotationY ?? 0 }
+        : ring[ringIndex++];
+
+      return createLandmark({
         project,
-        // Task 5 replaces this fallback with a real layout for projects with no authored position.
-        placement: {
-          position: project.landmark.position ?? [0, 0, 0],
-          rotationY: project.landmark.rotationY ?? 0,
-        },
+        placement,
         ground: this.terrain,
         reducedMotion: options.reducedMotion,
         onEnter: options.onEnter,
         onDemo: options.onDemo,
         textures: options.textures,
-      }),
-    );
+      });
+    });
     // Shapes are known before init (`Landmark.describe`), so the engine can read one flat list.
     this.colliders = [
       ...this.monument.colliders,
