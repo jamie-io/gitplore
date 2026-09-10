@@ -27,12 +27,14 @@ import { ReadmeService } from '@content/readme.service';
           </a>
         </nav>
 
-        @if (readme.isLoading()) {
-          <p role="status">README wird geladen …</p>
-        } @else if (readme.error()) {
-          <p role="alert">Die README konnte nicht geladen werden – der Quellcode enthält sie.</p>
-        } @else if (readme.value(); as markdown) {
-          <app-markdown [markdown]="markdown" />
+        @if (project.readme) {
+          @if (readme.isLoading()) {
+            <p role="status">README wird geladen …</p>
+          } @else if (readme.error()) {
+            <p role="alert">Die README konnte nicht geladen werden – der Quellcode enthält sie.</p>
+          } @else if (readme.value(); as markdown) {
+            <app-markdown [markdown]="markdown" />
+          }
         }
       } @else if (contentReady()) {
         <h1>Projekt nicht gefunden</h1>
@@ -81,7 +83,7 @@ export class ProjectDetailPage {
   protected readonly readme = inject(ReadmeService).readme(
     computed(() => {
       const project = this.project();
-      return project?.readme.kind === 'bundled' ? project.slug : undefined;
+      return project?.readme?.kind === 'bundled' ? project.slug : undefined;
     }),
     inject(Injector),
   );

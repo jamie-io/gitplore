@@ -37,7 +37,7 @@ describe('projects.ts schema', () => {
 
   it('bundles a README path that matches the slug', () => {
     for (const project of PROJECTS) {
-      if (project.readme.kind === 'bundled') {
+      if (project.readme?.kind === 'bundled') {
         expect(project.readme.path).toBe(`content/readme/${project.slug}.md`);
       }
     }
@@ -45,7 +45,7 @@ describe('projects.ts schema', () => {
 
   it('ships the README file every bundled project promises', () => {
     for (const project of PROJECTS) {
-      if (project.readme.kind === 'bundled') {
+      if (project.readme?.kind === 'bundled') {
         expect(existsSync(PUBLIC_DIR + project.readme.path)).toBe(true);
       }
     }
@@ -88,13 +88,17 @@ describe('projects.ts schema', () => {
 
   it('places every landmark away from the spawn plateau', () => {
     for (const project of PROJECTS) {
-      const [x, , z] = project.landmark.position;
+      // The curated portfolio always gives its landmarks an explicit position (see project.model.ts).
+      const position = project.landmark.position;
+      expect(position).toBeDefined();
+      if (!position) continue;
+      const [x, , z] = position;
       expect(Math.hypot(x, z)).toBeGreaterThan(14);
     }
   });
 
   it('does not stack two landmarks on the same spot', () => {
-    const seen = new Set(PROJECTS.map((p) => p.landmark.position.join(',')));
+    const seen = new Set(PROJECTS.map((p) => p.landmark.position?.join(',') ?? p.slug));
 
     expect(seen.size).toBe(PROJECTS.length);
   });

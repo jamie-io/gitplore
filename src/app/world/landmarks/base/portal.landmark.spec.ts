@@ -16,8 +16,13 @@ function project(overrides: Partial<Project['landmark']> = {}): Project {
 }
 
 function options(overrides: Partial<LandmarkOptions> = {}): LandmarkOptions {
+  const target = overrides.project ?? project();
   return {
-    project: project(),
+    project: target,
+    placement: {
+      position: target.landmark.position ?? [0, 0, 0],
+      rotationY: target.landmark.rotationY ?? 0,
+    },
     ground: FLAT,
     reducedMotion: () => false,
     onEnter: () => undefined,

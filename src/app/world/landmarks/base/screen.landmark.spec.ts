@@ -31,8 +31,13 @@ class StubTextures implements TextureProvider {
 }
 
 function options(overrides: Partial<LandmarkOptions> = {}): LandmarkOptions {
+  const target = overrides.project ?? PROJECTS.find((p) => p.slug === 'novaverta')!;
   return {
-    project: PROJECTS.find((p) => p.slug === 'novaverta')!,
+    project: target,
+    placement: {
+      position: target.landmark.position ?? [0, 0, 0],
+      rotationY: target.landmark.rotationY ?? 0,
+    },
     ground: { heightAt: () => 0 },
     reducedMotion: () => false,
     onEnter: () => undefined,
@@ -81,7 +86,10 @@ describe('ScreenLandmark', () => {
 
   it('is solid: the player cannot walk through the screen', () => {
     const screen = new ScreenLandmark(options({ textures: new StubTextures() }));
-    const [x, , z] = screen.project.landmark.position;
+    const position = screen.project.landmark.position;
+    expect(position).toBeDefined();
+    if (!position) return;
+    const [x, , z] = position;
 
     const box = screen.colliders[0];
     expect(box.kind).toBe('aabb');

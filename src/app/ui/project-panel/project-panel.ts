@@ -82,12 +82,16 @@ import { WorldStore } from '../store/world.store';
             </a>
           </nav>
 
-          @if (readme.isLoading()) {
-            <p role="status">README wird geladen …</p>
-          } @else if (readme.error()) {
-            <p role="alert">Die README konnte nicht geladen werden – der Quellcode enthält sie.</p>
-          } @else if (readme.value(); as markdown) {
-            <app-markdown [markdown]="markdown" [topLevel]="3" />
+          @if (project.readme) {
+            @if (readme.isLoading()) {
+              <p role="status">README wird geladen …</p>
+            } @else if (readme.error()) {
+              <p role="alert">
+                Die README konnte nicht geladen werden – der Quellcode enthält sie.
+              </p>
+            } @else if (readme.value(); as markdown) {
+              <app-markdown [markdown]="markdown" [topLevel]="3" />
+            }
           }
         } @else if (contentReady()) {
           <h2>Projekt nicht gefunden</h2>
@@ -202,7 +206,7 @@ export class ProjectPanel {
   protected readonly readme = inject(ReadmeService).readme(
     computed(() => {
       const project = this.project();
-      return project?.readme.kind === 'bundled' ? project.slug : undefined;
+      return project?.readme?.kind === 'bundled' ? project.slug : undefined;
     }),
     inject(Injector),
   );

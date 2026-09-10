@@ -32,8 +32,15 @@ export class PlainTextureProvider implements TextureProvider {
   }
 }
 
+/** Where a scene decided this landmark stands. Resolved before construction. */
+export interface LandmarkPlacement {
+  readonly position: readonly [number, number, number];
+  readonly rotationY: number;
+}
+
 export interface LandmarkOptions {
   readonly project: Project;
+  readonly placement: LandmarkPlacement;
   readonly ground: HeightField;
   readonly reducedMotion: () => boolean;
   /** The landmark was used; the page turns this into the `/p/:slug` route (§3). */
@@ -78,7 +85,7 @@ export abstract class Landmark implements WorldObject {
   readonly demoHint: string | null = null;
 
   constructor(options: LandmarkOptions) {
-    const { position, rotationY } = options.project.landmark;
+    const { position, rotationY } = options.placement;
 
     this.project = options.project;
     this.id = `landmark:${options.project.slug}`;

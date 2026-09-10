@@ -5,6 +5,7 @@ import { ScreenLandmark } from './base/screen.landmark';
 import { createLandmark } from './create-landmark';
 
 const base = {
+  placement: { position: [0, 0, 0] as const, rotationY: 0 },
   ground: { heightAt: () => 0 },
   reducedMotion: () => false,
   onEnter: () => undefined,
