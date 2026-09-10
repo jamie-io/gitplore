@@ -94,4 +94,33 @@ describe('ProjectDetailPage', () => {
 
     expect(host().textContent).toContain('nicht gefunden');
   });
+
+  describe('when the portfolio could not be loaded', () => {
+    beforeEach(async () => {
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({
+        imports: [ProjectDetailPage],
+        providers: [
+          provideRouter([]),
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          {
+            provide: CONTENT_SOURCE,
+            useValue: { projects: () => Promise.reject(new Error('offline')) },
+          },
+        ],
+      }).compileComponents();
+      http = TestBed.inject(HttpTestingController);
+      await TestBed.inject(ContentService).ready;
+      fixture = TestBed.createComponent(ProjectDetailPage);
+    });
+
+    it('says the projects could not be loaded, not that this one does not exist', async () => {
+      await open('novaverta');
+
+      const alert = host().querySelector('[role="alert"]');
+      expect(alert?.textContent).toContain('konnten nicht geladen werden');
+      expect(host().textContent).not.toContain('nicht gefunden');
+    });
+  });
 });

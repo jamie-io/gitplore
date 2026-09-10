@@ -10,44 +10,25 @@
  * `REPO_OVERRIDES` — that person promised a README. An auto-discovered repository nobody has
  * looked at yet gets a warning, no file, and `mergeRepo` simply omits the README section: the build
  * must not break every time GitHub gains a new repository.
+ *
+ * `hasReadme` is derived from the committed tree after the loop, never from whether this run's
+ * fetch succeeded. A 404, a timeout or a DNS blip must not clear the flag: for an auto-discovered
+ * repository that path exits 0, so the deploy would go on and ship a project whose README section
+ * had silently vanished, while the previous good copy still sat on disk and still got copied into
+ * `dist`. The cost of this rule is the mirror case — a README genuinely deleted upstream keeps its
+ * committed copy until someone notices — which is stale text rather than missing content, and
+ * visible in a diff rather than invisible on the live site.
  */
 import { randomUUID } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { repoSlug } from '../src/app/content/merge-repo.ts';
 import { REPO_OVERRIDES } from '../src/app/content/repo-overrides.ts';
+import { absolutise, ownerRepo } from './lib/readme.mjs';
 
 const OUT_DIR = new URL('../public/content/readme/', import.meta.url);
 const REPOS = new URL('../public/content/repos.json', import.meta.url);
-
-function ownerRepo(repoUrl) {
-  const match = /github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?$/.exec(repoUrl);
-  if (!match) {
-    throw new Error(`repoUrl is not a GitHub repository: ${repoUrl}`);
-  }
-  return { owner: match[1], repo: match[2] };
-}
-
-/** Relative links only resolve on github.com, so point them at the repository explicitly. */
-function absolutise(markdown, owner, repo, ref) {
-  const raw = `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/`;
-  const blob = `https://github.com/${owner}/${repo}/blob/${ref}/`;
-  const isAbsolute = (target) => /^(https?:|mailto:|data:|#)/i.test(target);
-  const clean = (target) => target.replace(/^\.?\//, '');
-
-  return markdown
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (whole, alt, target, title) =>
-      isAbsolute(target) ? whole : `![${alt}](${raw}${clean(target)}${title})`,
-    )
-    .replace(
-      /(^|[^!])\[([^\]]*)\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g,
-      (whole, lead, text, target, title) =>
-        isAbsolute(target) ? whole : `${lead}[${text}](${blob}${clean(target)}${title})`,
-    )
-    .replace(
-      /<img([^>]*?)src="(?!https?:|data:)([^"]+)"/gi,
-      (_, attrs, src) => `<img${attrs}src="${raw}${clean(src)}"`,
-    );
-}
 
 let failures = 0;
 await mkdir(OUT_DIR, { recursive: true });
@@ -56,7 +37,14 @@ const repos = JSON.parse(await readFile(REPOS, 'utf8'));
 
 for (const repo of repos) {
   const override = REPO_OVERRIDES[repo.name];
-  const slug = override?.slug ?? repo.name.toLowerCase();
+  if (override?.hidden) {
+    // Not part of the portfolio: `mergePortfolio` drops it, so fetching its README would only
+    // write a file nothing reads.
+    continue;
+  }
+
+  // The same slug `mergeRepo` resolves, so the file this writes is the file the panel asks for.
+  const slug = repoSlug(repo, override);
   const { owner, repo: repoName } = ownerRepo(repo.repoUrl);
   const ref = 'HEAD';
   const source = `https://raw.githubusercontent.com/${owner}/${repoName}/${ref}/README.md`;
@@ -69,18 +57,26 @@ for (const repo of repos) {
 
     const markdown = absolutise(await response.text(), owner, repoName, ref);
     await writeFile(new URL(`${slug}.md`, OUT_DIR), markdown, 'utf8');
-    repo.hasReadme = true;
     console.log(`✓ ${slug.padEnd(22)} ${markdown.length} bytes  ← ${owner}/${repoName}`);
   } catch (error) {
-    repo.hasReadme = false;
     if (override) {
       // A curated repository promised a README; a missing one is a content bug, not weather.
       failures++;
       console.error(`✗ ${slug.padEnd(22)} ${source}\n  ${error.message}`);
     } else {
-      console.warn(`! ${slug.padEnd(22)} no README; the panel omits the section`);
+      console.warn(`! ${slug.padEnd(22)} could not be fetched; keeping whatever is committed`);
     }
   }
+}
+
+// The flag says what the committed tree holds, not what this run managed to download — see the
+// header. A repository whose fetch failed keeps the file and the flag it already had.
+for (const repo of repos) {
+  const override = REPO_OVERRIDES[repo.name];
+  if (override?.hidden) {
+    continue;
+  }
+  repo.hasReadme = existsSync(new URL(`${repoSlug(repo, override)}.md`, OUT_DIR));
 }
 
 // The list records what was actually synced, so `mergeRepo` never promises a missing document.

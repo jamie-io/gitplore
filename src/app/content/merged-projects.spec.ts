@@ -1,13 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { mergeRepo } from './merge-repo';
+import { existsSync } from 'node:fs';
+import { mergedProjects, syncedRepos } from '../../../scripts/lib/portfolio.mjs';
+import { repoSlug } from './merge-repo';
 import { REPO_OVERRIDES } from './repo-overrides';
-import type { SyncedRepo } from './synced-repo';
 
 const PUBLIC_DIR = 'public/';
-const repos: readonly SyncedRepo[] = JSON.parse(
-  readFileSync(`${PUBLIC_DIR}content/repos.json`, 'utf8'),
-);
-const projects = repos.map((repo) => mergeRepo(repo, REPO_OVERRIDES[repo.name]));
+const repos = syncedRepos();
+const projects = mergedProjects();
 
 describe('the merged portfolio', () => {
   it('contains every synced repository', () => {
@@ -19,7 +17,8 @@ describe('the merged portfolio', () => {
     // for every entry, since `Array.prototype.map` preserves length), this fails if a repository
     // gets dropped, duplicated, or renamed to a slug nothing asked for.
     const expectedSlugs = repos
-      .map((repo) => REPO_OVERRIDES[repo.name]?.slug ?? repo.name.toLowerCase())
+      .filter((repo) => !REPO_OVERRIDES[repo.name]?.hidden)
+      .map((repo) => repoSlug(repo, REPO_OVERRIDES[repo.name]))
       .sort();
     const actualSlugs = projects.map((project) => project.slug).sort();
 

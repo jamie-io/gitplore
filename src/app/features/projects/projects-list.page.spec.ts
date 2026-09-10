@@ -57,4 +57,35 @@ describe('ProjectsListPage', () => {
   it('has exactly one first-level heading', () => {
     expect(host().querySelectorAll('h1').length).toBe(1);
   });
+
+  describe('when the portfolio could not be loaded', () => {
+    beforeEach(async () => {
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({
+        imports: [ProjectsListPage],
+        providers: [
+          provideRouter([]),
+          {
+            provide: CONTENT_SOURCE,
+            useValue: { projects: () => Promise.reject(new Error('offline')) },
+          },
+        ],
+      }).compileComponents();
+      await TestBed.inject(ContentService).ready;
+      fixture = TestBed.createComponent(ProjectsListPage);
+      await fixture.whenStable();
+    });
+
+    it('says so in German instead of showing an empty page', () => {
+      // This route is the phone path and the screen-reader path, so it is the one that has to
+      // degrade honestly rather than look like a portfolio with nothing in it.
+      const alert = host().querySelector('[role="alert"]');
+
+      expect(alert?.textContent).toContain('konnten nicht geladen werden');
+    });
+
+    it('shows no project cards at all', () => {
+      expect(host().querySelectorAll('article').length).toBe(0);
+    });
+  });
 });

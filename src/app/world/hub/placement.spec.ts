@@ -1,4 +1,4 @@
-import { ringPlacements, RING_RADIUS } from './placement';
+import { MIN_LANDMARK_SEPARATION, ringPlacements, RING_RADIUS } from './placement';
 
 describe('ringPlacements', () => {
   it('returns exactly as many spots as asked for', () => {
@@ -35,5 +35,48 @@ describe('ringPlacements', () => {
         expect(distance).toBeGreaterThan(6);
       }
     }
+  });
+
+  describe('avoiding pinned landmarks', () => {
+    /** The spot `ringPlacements(1)` would otherwise take: straight ahead of the spawn. */
+    const AHEAD = [0, 0, -RING_RADIUS] as const;
+
+    const distanceTo = (spot: readonly [number, number, number], other: readonly number[]) =>
+      Math.hypot(spot[0] - other[0], spot[2] - other[2]);
+
+    it('leaves a spot that would stand on top of a pinned landmark empty', () => {
+      const pinned = [0, 0, -20] as const;
+
+      for (const { position } of ringPlacements(2, [pinned])) {
+        expect(distanceTo(position, pinned)).toBeGreaterThanOrEqual(MIN_LANDMARK_SEPARATION);
+      }
+    });
+
+    it('still returns every spot it was asked for after skipping', () => {
+      expect(ringPlacements(2, [AHEAD]).length).toBe(2);
+      expect(ringPlacements(4, [AHEAD]).length).toBe(4);
+    });
+
+    it('keeps the remaining spots apart from each other', () => {
+      const spots = ringPlacements(4, [AHEAD]).map(({ position }) => position);
+
+      for (let i = 0; i < spots.length; i++) {
+        for (let j = i + 1; j < spots.length; j++) {
+          expect(distanceTo(spots[i], spots[j])).toBeGreaterThanOrEqual(MIN_LANDMARK_SEPARATION);
+        }
+      }
+    });
+
+    it('places everything anyway when no spot on the ring is clear', () => {
+      // Pinning a landmark at every usable slot leaves nowhere to go; dropping a project from the
+      // world would be worse than a tight fit, so the plain ring stands in.
+      const everywhere = ringPlacements(15).map(({ position }) => position);
+
+      expect(ringPlacements(3, everywhere)).toEqual(ringPlacements(3));
+    });
+
+    it('is unchanged when nothing is pinned near the ring', () => {
+      expect(ringPlacements(3, [[0, 0, 0]])).toEqual(ringPlacements(3));
+    });
   });
 });

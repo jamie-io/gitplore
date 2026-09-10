@@ -2,17 +2,10 @@
  * Verifies that every `embeddable: true` in the synced portfolio is actually true
  * (IMPLEMENTATION_PLAN.md §5). CI runs this before every build; a mismatch fails the deploy.
  */
-import { readFile } from 'node:fs/promises';
-import { mergeRepo } from '../src/app/content/merge-repo.ts';
-import { REPO_OVERRIDES } from '../src/app/content/repo-overrides.ts';
 import { mismatches } from './lib/embeddable.mjs';
+import { mergedProjects } from './lib/portfolio.mjs';
 
-const repos = JSON.parse(
-  await readFile(new URL('../public/content/repos.json', import.meta.url), 'utf8'),
-);
-const projects = repos.map((repo) => mergeRepo(repo, REPO_OVERRIDES[repo.name]));
-
-const failures = await mismatches(projects);
+const failures = await mismatches(mergedProjects());
 
 for (const failure of failures) {
   console.error(`✗ ${failure}`);

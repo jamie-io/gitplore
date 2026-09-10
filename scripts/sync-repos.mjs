@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, rename, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { selectRepos } from './lib/repos.mjs';
-import { hiddenRepoNames } from '../src/app/content/repo-overrides.ts';
+import { curatedRepoNames, hiddenRepoNames } from '../src/app/content/repo-overrides.ts';
 
 // gitplore is one developer's portfolio; a single hardcoded owner is deliberate, not a
 // placeholder left over from a more general version of this script.
@@ -34,7 +34,7 @@ try {
     throw new Error(`HTTP ${response.status} ${response.statusText}`);
   }
 
-  const selected = selectRepos(await response.json(), hiddenRepoNames());
+  const selected = selectRepos(await response.json(), hiddenRepoNames(), curatedRepoNames());
   await mkdir(new URL('.', TARGET), { recursive: true });
 
   // repos.json is the offline build's only fallback, so a write that fails partway (ENOSPC, an

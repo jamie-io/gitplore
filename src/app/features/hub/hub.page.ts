@@ -207,8 +207,9 @@ export class HubPage {
       await this.content.ready;
       // `content.ready` always settles now (ContentService catches its own load failure), so a
       // failed sync is reported here instead of arriving as a rejection.
-      if (this.content.error()) {
-        throw new Error(this.content.error() ?? undefined);
+      const loadError = this.content.error();
+      if (loadError) {
+        throw new Error(loadError);
       }
       await this.preloadCoreAssets();
       // The visitor may have left for /projects while the content loaded: never attach to a

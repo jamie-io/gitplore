@@ -30,6 +30,25 @@ describe('mergeRepo', () => {
     );
   });
 
+  it('replaces characters GitHub allows in a name but a url slug does not', () => {
+    // GitHub permits dots; the slug is a route segment and the schema test rejects them.
+    expect(mergeRepo(repo({ name: 'jamie-io.github.io' }), undefined).slug).toBe(
+      'jamie-io-github-io',
+    );
+  });
+
+  it('makes a slug start with a letter or digit, whatever the repository is called', () => {
+    // `.github` is a real, common repository name; a leading dash or dot is not a valid slug.
+    expect(mergeRepo(repo({ name: '.github' }), undefined).slug).toBe('github');
+    expect(mergeRepo(repo({ name: '_config' }), undefined).slug).toBe('config');
+  });
+
+  it('still produces a usable slug for a name with nothing alphanumeric in it', () => {
+    // Stripping would leave an empty slug and an unroutable project, so the name is prefixed
+    // instead of thrown away — two such repositories still get two different slugs.
+    expect(mergeRepo(repo({ name: '___' }), undefined).slug).toBe('repo-___');
+  });
+
   it('lets an override rename the slug, so existing links keep working', () => {
     expect(mergeRepo(repo({ name: 'poetzscher-homepage' }), { slug: 'poetzscher' }).slug).toBe(
       'poetzscher',
@@ -46,6 +65,25 @@ describe('mergeRepo', () => {
 
   it('falls back to the GitHub description when there is no override', () => {
     expect(mergeRepo(repo({ description: 'A demo shop' }), undefined).summary).toBe('A demo shop');
+  });
+
+  it('ignores a GitHub description too short to tell a visitor anything', () => {
+    // GitHub happily stores "wip"; the panel and the list would show it as the whole project.
+    expect(mergeRepo(repo({ description: 'wip' }), undefined).summary).toBe(
+      'JavaScript · zuletzt aktualisiert im März 2026',
+    );
+  });
+
+  it('ignores a GitHub description that is only whitespace', () => {
+    expect(mergeRepo(repo({ description: '   ' }), undefined).summary).toBe(
+      'JavaScript · zuletzt aktualisiert im März 2026',
+    );
+  });
+
+  it('keeps the shortest description that still says something', () => {
+    expect(mergeRepo(repo({ description: 'Ein Demoshop' }), undefined).summary).toBe(
+      'Ein Demoshop',
+    );
   });
 
   it('falls back to language and last push when GitHub has no description either', () => {
