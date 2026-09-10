@@ -166,6 +166,11 @@ entry with its override. The precedence is fixed and testable:
 No invented prose: the third summary fallback is factual metadata, not a placeholder pretending to
 be a description.
 
+The merge cannot discover on its own whether a repository has a README, so `sync-readmes.mjs`
+records the answer: it writes `hasReadme` back into each `repos.json` entry after fetching, and the
+merge only names a README source when that flag is true. The committed file is then the record of
+what was actually synced.
+
 ### Ordering and anchor assignment
 
 Projects keep the API's `pushed` order, and unpinned projects take anchors in that order, so the
