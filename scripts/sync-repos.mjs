@@ -6,11 +6,14 @@
  * committed so the app reads it same-origin and an offline build still works
  * (docs/superpowers/specs/2026-09-10-repo-worlds-design.md §3).
  */
-import { mkdir, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, rename, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { selectRepos } from './lib/repos.mjs';
 import { hiddenRepoNames } from '../src/app/content/repo-overrides.ts';
 
+// gitplore is one developer's portfolio; a single hardcoded owner is deliberate, not a
+// placeholder left over from a more general version of this script.
 const OWNER = 'jamie-io';
 // Overridable so the soft-failure path below can be exercised (e.g. against a 404) without
 // editing this file or depending on GitHub actually being unreachable.
@@ -29,7 +32,15 @@ try {
 
   const selected = selectRepos(await response.json(), hiddenRepoNames());
   await mkdir(new URL('.', TARGET), { recursive: true });
-  await writeFile(TARGET, `${JSON.stringify(selected, null, 2)}\n`, 'utf8');
+
+  // repos.json is the offline build's only fallback, so a write that fails partway (ENOSPC, an
+  // interrupted syscall, ...) must never leave it truncated or containing a fragment — that would
+  // be silently worse than leaving the previous good copy in place. Writing to a fresh temp file
+  // and rename()-ing it over the target is atomic on one filesystem: readers always see either the
+  // old complete file or the new complete file, never something in between.
+  const tmpTarget = new URL(`repos.json.tmp-${randomUUID()}`, TARGET);
+  await writeFile(tmpTarget, `${JSON.stringify(selected, null, 2)}\n`, 'utf8');
+  await rename(tmpTarget, TARGET);
 
   for (const repo of selected) {
     console.log(`✓ ${repo.name.padEnd(22)} ${repo.language ?? '—'}`);
