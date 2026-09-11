@@ -23,6 +23,7 @@ import { ContentService } from '@content/content.service';
 import { Hud } from '@ui/hud/hud';
 import { LoadingScreen } from '@ui/loading-screen/loading-screen';
 import { ProjectMenu } from '@ui/project-menu/project-menu';
+import { SceneVeil } from '@ui/scene-veil/scene-veil';
 import { SettingsDialog } from '@ui/settings-dialog/settings-dialog';
 import { WorldStore } from '@ui/store/world.store';
 import { SceneDirector } from './scene-director';
@@ -34,7 +35,7 @@ import { SceneDirector } from './scene-director';
  */
 @Component({
   selector: 'app-world-page',
-  imports: [RouterOutlet, Hud, ProjectMenu, SettingsDialog, LoadingScreen],
+  imports: [RouterOutlet, Hud, ProjectMenu, SettingsDialog, LoadingScreen, SceneVeil],
   template: `
     <h1 class="sr-only">Gitplore – 3D-Welt</h1>
     <canvas
@@ -47,6 +48,7 @@ import { SceneDirector } from './scene-director';
       [inert]="overlayOpen()"
     ></canvas>
     <app-hud [inert]="overlayOpen()" />
+    <app-scene-veil [visible]="store.swapping()" [instant]="capability.reducedMotion()" />
     @if (store.menuOpen()) {
       <app-project-menu (travel)="travelTo($event)" />
     }
@@ -96,7 +98,7 @@ export class WorldPage {
 
   private readonly canvas = viewChild.required<ElementRef<HTMLCanvasElement>>('canvas');
   private readonly engine = inject(ENGINE);
-  private readonly capability = inject(CapabilityService);
+  protected readonly capability = inject(CapabilityService);
   private readonly content = inject(ContentService);
   private readonly assets = inject(AssetService);
   private readonly http = inject(HttpClient);
