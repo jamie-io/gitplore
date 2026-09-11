@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { ENGINE } from '@engine/engine.service';
 import { DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { CAPABLE } from '@engine/testing/world-context';
@@ -222,5 +222,29 @@ describe('SceneDirector', () => {
     expect(engine.world).toBeNull();
     expect(engine.scenesSet).toBe(0);
     expect(store.swapping()).toBe(false);
+  });
+
+  it('teleports to a landmark, facing it, when fast-travelling inside the start world', async () => {
+    await director.show(null);
+    const hub = engine.world as HubScene;
+    const landmark = hub.landmarkFor('novaverta')!;
+
+    director.travelTo('novaverta');
+
+    expect(engine.player.position.x).toBeCloseTo(landmark.spawn.x, 5);
+    expect(engine.player.position.z).toBeCloseTo(landmark.spawn.z, 5);
+    // `rotationY`, not `spawnYaw`: fast travel faces the landmark, unlike arriving through it.
+    expect(engine.player.yaw).toBeCloseTo(landmark.rotationY, 5);
+  });
+
+  it('navigates instead of teleporting when fast-travelling from a repo world', async () => {
+    await director.show('novaverta');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+
+    director.travelTo('poetzscher');
+
+    // There is nothing in a repo world to teleport to, so the router builds the destination.
+    expect(navigate).toHaveBeenCalledWith(['/p', 'poetzscher']);
   });
 });
