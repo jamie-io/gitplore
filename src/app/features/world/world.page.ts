@@ -19,22 +19,20 @@ import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { InputAction, InputService } from '@engine/input.service';
 import { ContentService } from '@content/content.service';
-import { ClearingEnvironment } from '@world/environments/clearing';
-import { HubScene } from '@world/hub/hub.scene';
-import { Landmark } from '@world/landmarks/base/landmark';
 import { Hud } from '@ui/hud/hud';
 import { LoadingScreen } from '@ui/loading-screen/loading-screen';
 import { ProjectMenu } from '@ui/project-menu/project-menu';
 import { SettingsDialog } from '@ui/settings-dialog/settings-dialog';
 import { WorldStore } from '@ui/store/world.store';
-import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
+import { SceneDirector } from './scene-director';
 
 /**
- * Canvas host for the 3D world. The hub is created once and never destroyed — a project
- * destination is an overlay rendered into the child outlet (IMPLEMENTATION_PLAN.md §3).
+ * Canvas host for the 3D world. The world is created once and never destroyed — a project
+ * destination is an overlay rendered into the child outlet (IMPLEMENTATION_PLAN.md §3), and which
+ * world stands behind it is the `SceneDirector`'s job, not this page's (spec §6).
  */
 @Component({
-  selector: 'app-hub-page',
+  selector: 'app-world-page',
   imports: [RouterOutlet, Hud, ProjectMenu, SettingsDialog, LoadingScreen],
   template: `
     <h1 class="sr-only">Gitplore – 3D-Welt</h1>
@@ -91,7 +89,7 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
     '[attr.data-input-mode]': 'store.inputMode()',
   },
 })
-export class HubPage {
+export class WorldPage {
   protected readonly input = inject(InputService);
   protected readonly store = inject(WorldStore);
 
@@ -103,25 +101,32 @@ export class HubPage {
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly director = inject(SceneDirector);
 
   /** While a dialog owns the input, what lies beneath it must not be reachable by Tab (§6). */
   protected readonly overlayOpen = computed(() => this.store.inputMode() === 'ui');
 
-  private hub: HubScene | null = null;
-  private demo: Landmark | null = null;
   private destroyed = false;
+  /** The slug the director last showed, or `undefined` before boot has shown anything. */
+  private shown: string | null | undefined = undefined;
 
   /**
-   * The router is the source of truth for which destination is open (§3); everything else follows
-   * from this one signal.
+   * The router is the source of truth for which world is open and whether the panel is on top of
+   * it (spec §6); everything else follows from this one signal.
    */
-  private readonly openSlug = toSignal(
+  private readonly routeState = toSignal(
     this.router.events.pipe(
       filter((event) => event instanceof NavigationEnd),
       startWith(null),
-      map(() => this.route.snapshot.firstChild?.paramMap.get('slug') ?? null),
+      map(() => {
+        const destination = this.route.snapshot.firstChild;
+        return {
+          slug: destination?.paramMap.get('slug') ?? null,
+          panel: destination?.firstChild?.routeConfig?.path === 'info',
+        };
+      }),
     ),
-    { initialValue: null },
+    { initialValue: { slug: null as string | null, panel: false } },
   );
 
   constructor() {
@@ -147,37 +152,40 @@ export class HubPage {
       }
     });
 
-    let previousSlug: string | null = null;
     effect(() => {
-      const slug = this.openSlug();
+      const { slug, panel } = this.routeState();
       this.store.openProject(slug);
-      // Temporary: until Task 9 derives this from the `info` child route, the panel is open
-      // exactly when a destination is. Keeps the start gate honest at every commit.
-      this.store.setPanelOpen(slug !== null);
-      // Keep the hub alive but cheap behind the panel; on the weakest tier stop drawing entirely.
-      this.engine.setThrottle(slug && this.capability.tier() !== 'low' ? 15 : null);
-      // The store owns why the app pauses; the engine adds its own reasons (tab hidden, off-screen).
-      this.engine.setPaused(
-        this.store.paused() || (slug !== null && this.capability.tier() === 'low'),
-      );
-
-      // Entering a destination ends a running demo; the panel is a different place.
-      if (slug !== null) {
-        this.endDemo();
+      this.store.setPanelOpen(panel);
+      // Keep the world alive but cheap behind the panel; on the weakest tier stop drawing entirely.
+      this.engine.setThrottle(panel && this.capability.tier() !== 'low' ? 15 : null);
+      this.engine.setPaused(this.store.paused() || (panel && this.capability.tier() === 'low'));
+      // Opening the panel ends a running demo; the panel is a different place.
+      if (panel) {
+        this.director.endDemo();
       }
-      // Returning from a destination puts the player in front of its landmark, facing away (§3).
-      if (slug === null && previousSlug !== null) {
-        this.placeAt(this.hub?.landmarkFor(previousSlug), 'away');
-      }
-      previousSlug = slug;
     });
 
-    // The panel asks for an in-world demo through the store; fulfil it once the world exists.
+    // Separate, and keyed on the slug alone: a scene build must not be restarted because the panel
+    // opened or the quality tier stepped down.
+    effect(() => {
+      const { slug } = this.routeState();
+      if (this.shown !== slug && this.store.phase() !== 'booting') {
+        this.shown = slug;
+        // Unlike the boot path's `await`, nothing downstream awaits this call — so a rejection
+        // must be turned into a reported failure here, or it becomes an unhandled rejection that
+        // silently leaves the visitor on the old world (as in commit fed20b0).
+        this.director.show(slug).catch((error: unknown) => {
+          this.store.fail(error instanceof Error ? error.message : String(error));
+        });
+      }
+    });
+
+    // The panel asks for an in-world demo through the store; fulfil it once its world exists.
     effect(() => {
       const slug = this.store.demoRequest();
-      if (slug && this.store.ready() && this.store.activeSlug() === null) {
+      if (slug && this.store.ready() && !this.store.panelOpen()) {
         this.store.requestDemo(null);
-        this.startDemo(this.hub?.landmarkFor(slug));
+        this.director.startDemo();
       }
     });
 
@@ -186,15 +194,14 @@ export class HubPage {
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
       offActions();
-      this.endDemo();
+      this.director.reset();
       this.store.resetTransient();
       this.engine.detach();
     });
   }
 
   protected travelTo(slug: string): void {
-    this.endDemo();
-    this.placeAt(this.hub?.landmarkFor(slug), 'towards');
+    this.director.travelTo(slug);
   }
 
   /** The start gate was used: a user gesture, so pointer lock may be requested now. */
@@ -225,27 +232,9 @@ export class HubPage {
       this.engine.resize(canvas.clientWidth, canvas.clientHeight);
       this.engine.onNearbyChange = (nearby) => this.store.setNearby(nearby);
 
-      const hub = new HubScene({
-        environment: new ClearingEnvironment({
-          reducedMotion: () => this.capability.reducedMotion(),
-        }),
-        reducedMotion: () => this.capability.reducedMotion(),
-        projects: this.content.projects(),
-        onEnter: (project) => void this.router.navigate(['/p', project.slug]),
-        onAreaChange: (area) => this.store.setArea(area),
-        textures: this.assets,
-      });
-      this.hub = hub;
-      this.engine.setScene(hub);
-
-      // A deep link starts the visitor at that landmark's exit point rather than the centre.
-      const deepLinked = this.openSlug();
-      const landmark = deepLinked ? hub.landmarkFor(deepLinked) : undefined;
-      if (landmark) {
-        this.placeAt(landmark, 'away');
-      } else {
-        this.engine.player.teleport(hub.spawn.clone().setY(PLAYER_EYE_HEIGHT));
-      }
+      const { slug } = this.routeState();
+      this.shown = slug;
+      await this.director.show(slug);
 
       this.store.reportProgress(1);
       this.store.markReady();
@@ -276,63 +265,29 @@ export class HubPage {
     }
   }
 
-  /** Puts the player on a landmark's spawn point, looking away from it or at it. */
-  private placeAt(landmark: Landmark | undefined, facing: 'away' | 'towards'): void {
-    if (!landmark) {
-      return;
-    }
-
-    const yaw = facing === 'away' ? landmark.spawnYaw : landmark.rotationY;
-    this.engine.player.teleport(
-      landmark.spawn.clone().setY(landmark.spawn.y + PLAYER_EYE_HEIGHT),
-      yaw,
-    );
-  }
-
-  /** Hands the controls to a landmark's demo (§5); `exit` gives them back. */
-  private startDemo(landmark: Landmark | undefined): void {
-    if (!landmark?.enter || this.demo) {
-      return;
-    }
-
-    this.demo = landmark;
-    landmark.enter();
-    this.store.setDemoActive(true, landmark.demoHint);
-  }
-
-  private endDemo(): void {
-    if (!this.demo) {
-      return;
-    }
-    this.demo.exit?.();
-    this.demo = null;
-    this.store.setDemoActive(false);
-  }
-
   private onAction(action: InputAction): void {
     switch (action) {
       case 'interact':
-        if (this.demo) {
-          this.demo.interact?.();
-        } else {
+        // A running demo eats the key; otherwise it goes to whatever the player is facing.
+        if (!this.director.demoInteract()) {
           this.engine.nearby?.onInteract();
         }
         break;
-      // `openSlug` rather than `store.activeSlug`: the store copy trails the router by one
-      // change-detection pass, and a key can land inside that gap.
       case 'menu':
         // Not before the start gate: two modal dialogs at once, and no projects loaded yet.
-        if (this.openSlug() === null && this.store.started()) {
+        if (!this.store.panelOpen() && this.store.started()) {
           this.store.toggleMenu();
         }
         break;
       case 'exit':
         if (this.store.menuOpen()) {
           this.store.setMenuOpen(false);
-        } else if (this.openSlug() !== null) {
+        } else if (this.routeState().panel) {
+          void this.router.navigate(['/p', this.routeState().slug]);
+        } else if (this.store.demoActive()) {
+          this.director.endDemo();
+        } else if (this.routeState().slug !== null) {
           void this.router.navigate(['/']);
-        } else if (this.demo) {
-          this.endDemo();
         }
         break;
     }

@@ -9,7 +9,7 @@ test.describe('project destination', () => {
     await expect(dialog).toContainText('Phönix Industriedienstleistungen');
     // Straight from the bundled README, not from projects.ts.
     await expect(dialog.locator('app-markdown')).toContainText('NOVA VERTA');
-    await expect(page.locator('app-hub-page canvas')).toBeVisible();
+    await expect(page.locator('app-world-page canvas')).toBeVisible();
   });
 
   test('the panel links to the demo and the source', async ({ page }) => {
@@ -33,7 +33,7 @@ test.describe('project destination', () => {
 
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole('dialog', { name: /Phönix/ })).toHaveCount(0);
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
   });
 
   test('escape closes the panel too', async ({ page }) => {
@@ -54,7 +54,7 @@ test.describe('project destination', () => {
   test('walking keys do not move the player while the panel is open', async ({ page }) => {
     await page.goto('/p/novaverta');
     await expect(page.getByRole('dialog')).toBeVisible();
-    const canvas = page.locator('app-hub-page canvas');
+    const canvas = page.locator('app-world-page canvas');
 
     const before = await canvas.screenshot();
     await page.keyboard.down('KeyW');

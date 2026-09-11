@@ -123,6 +123,25 @@ export class SceneDirector {
     return true;
   }
 
+  /**
+   * The project menu's direct travel (spec §7). Inside the start world it is a teleport to that
+   * project's portal; from a repo world there is nothing to teleport to, so it becomes a
+   * navigation and the router builds the world.
+   */
+  travelTo(slug: string): void {
+    const landmark = this.current instanceof HubScene ? this.current.landmarkFor(slug) : undefined;
+    if (!landmark) {
+      void this.router.navigate(['/p', slug]);
+      return;
+    }
+
+    this.endDemo();
+    this.engine.player.teleport(
+      landmark.spawn.clone().setY(landmark.spawn.y + PLAYER_EYE_HEIGHT),
+      landmark.rotationY,
+    );
+  }
+
   /** Page teardown: the store is a root singleton, so the remembered state has to go with it. */
   reset(): void {
     this.endDemo();

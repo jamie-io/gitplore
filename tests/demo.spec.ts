@@ -14,21 +14,21 @@ test.describe('demos', () => {
 
   test('the in-world demo can be started from the panel and left with Esc', async ({ page }) => {
     await page.goto('/p/deslopify');
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
 
     await page.locator('button[data-role="try-in-world"]').click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'demo');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'demo');
     const hint = page.locator('app-hud .prompt');
     await expect(hint).toContainText('Originaltitel');
 
     // E flips the titles; the world keeps running, so nothing else changes.
     await page.keyboard.press('KeyE');
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'demo');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'demo');
 
     await page.keyboard.press('Escape');
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
     await expect(hint).not.toContainText('Originaltitel');
   });
 
@@ -39,7 +39,7 @@ test.describe('demos', () => {
     await page.keyboard.press('KeyM');
     await page.locator('button[data-role="travel"][data-slug="deslopify"]').click();
     // Keys are only read once the world has the input back, i.e. after the menu has closed.
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
     await page.keyboard.down('KeyD');
     await expect(page.locator('app-hud .prompt')).toContainText('ausprobieren', {
       timeout: 20_000,
@@ -48,6 +48,6 @@ test.describe('demos', () => {
 
     await page.keyboard.press('KeyE');
 
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'demo');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'demo');
   });
 });
