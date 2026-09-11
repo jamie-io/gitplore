@@ -55,7 +55,7 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
       <app-settings-dialog />
     }
     <!-- The gate stays out of the way while a deep-linked project is open (§3). -->
-    @if (!store.started() && store.activeSlug() === null) {
+    @if (!store.started() && !store.panelOpen()) {
       <app-loading-screen (start)="startWorld()" />
     }
     <router-outlet />
@@ -151,6 +151,9 @@ export class HubPage {
     effect(() => {
       const slug = this.openSlug();
       this.store.openProject(slug);
+      // Temporary: until Task 9 derives this from the `info` child route, the panel is open
+      // exactly when a destination is. Keeps the start gate honest at every commit.
+      this.store.setPanelOpen(slug !== null);
       // Keep the hub alive but cheap behind the panel; on the weakest tier stop drawing entirely.
       this.engine.setThrottle(slug && this.capability.tier() !== 'low' ? 15 : null);
       // The store owns why the app pauses; the engine adds its own reasons (tab hidden, off-screen).

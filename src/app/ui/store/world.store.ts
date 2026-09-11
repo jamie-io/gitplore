@@ -37,8 +37,12 @@ export class WorldStore {
   /** Slug of the in-world demo the panel asked for; the page fulfils and clears it. */
   readonly demoRequest = signal<string | null>(null);
 
-  /** Which destination is open. The router owns this; the store only mirrors it (§3). */
+  /** Which repo world is open — `null` is the start world. The router owns this (spec §6). */
   readonly activeSlug = signal<string | null>(null);
+  /** The `/p/:slug/info` panel is showing on top of that world. The router owns this too. */
+  readonly panelOpen = signal(false);
+  /** A scene is being built; the veil covers the swap and the loop stands still behind it. */
+  readonly swapping = signal(false);
   readonly activeProject = computed(
     () => this.content.bySlug(this.activeSlug() ?? undefined) ?? null,
   );
@@ -48,12 +52,15 @@ export class WorldStore {
   /** The visitor has clicked through the loading screen; only then does the world take input. */
   readonly started = signal(false);
 
-  /** The app's own reason to stop the render loop; the engine adds tab-hidden and off-screen. */
-  readonly paused = computed(() => this.menuOpen() || this.settingsOpen());
+  /** The app's own reasons to stop the render loop; the engine adds tab-hidden and off-screen. */
+  readonly paused = computed(() => this.menuOpen() || this.settingsOpen() || this.swapping());
 
-  /** Any overlay takes the input away from the world; a running demo takes it next. */
+  /**
+   * Any overlay takes the input away from the world; a running demo takes it next. Standing in a
+   * repo world does not: it is a place, not a dialog, so `activeSlug` is deliberately absent here.
+   */
   readonly inputMode = computed<InputMode>(() => {
-    if (!this.started() || this.activeSlug() !== null || this.menuOpen() || this.settingsOpen()) {
+    if (!this.started() || this.panelOpen() || this.menuOpen() || this.settingsOpen()) {
       return 'ui';
     }
     return this.demoActive() ? 'demo' : 'world';
@@ -84,6 +91,14 @@ export class WorldStore {
 
   openProject(slug: string | null): void {
     this.activeSlug.set(slug);
+  }
+
+  setPanelOpen(open: boolean): void {
+    this.panelOpen.set(open);
+  }
+
+  setSwapping(swapping: boolean): void {
+    this.swapping.set(swapping);
   }
 
   setArea(area: string): void {
@@ -123,6 +138,8 @@ export class WorldStore {
     this.requestDemo(null);
     this.setNearby(null);
     this.setArea('');
+    this.setPanelOpen(false);
+    this.setSwapping(false);
   }
 
   setSettingsOpen(open: boolean): void {
