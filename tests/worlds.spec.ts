@@ -50,7 +50,10 @@ test.describe('walking between worlds', () => {
     await page.goBack();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.locator('app-hud .area')).toContainText('Lichtung');
+    // Placed back at novaverta's own landmark (its exit point), well within the radius that makes
+    // the HUD name the project instead of the place — the same behaviour `worlds.spec.ts`'s first
+    // test and `memory.spec.ts` already rely on for Deslopify's landmark.
+    await expect(page.locator('app-hud .area')).toContainText('Phönix Industriedienstleistungen');
   });
 
   test('the exhibit in a repo world opens that project’s description', async ({ page }) => {
