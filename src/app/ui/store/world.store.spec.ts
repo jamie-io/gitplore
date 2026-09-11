@@ -65,39 +65,6 @@ describe('WorldStore', () => {
     expect(store.ready()).toBe(false);
   });
 
-  describe('the open destination', () => {
-    it('has none to begin with', () => {
-      expect(store.activeSlug()).toBeNull();
-      expect(store.activeProject()).toBeNull();
-    });
-
-    it('resolves an opened slug to the project', async () => {
-      await TestBed.inject(ContentService).ready;
-
-      store.openProject('novaverta');
-
-      expect(store.activeProject()?.title).toContain('Phönix');
-    });
-
-    it('keeps the slug but resolves nothing for an unknown project', async () => {
-      await TestBed.inject(ContentService).ready;
-
-      store.openProject('does-not-exist');
-
-      expect(store.activeSlug()).toBe('does-not-exist');
-      expect(store.activeProject()).toBeNull();
-    });
-
-    it('clears the destination on the way back to the hub', async () => {
-      await TestBed.inject(ContentService).ready;
-      store.openProject('novaverta');
-
-      store.openProject(null);
-
-      expect(store.activeProject()).toBeNull();
-    });
-  });
-
   it('remembers what the player can interact with', () => {
     store.setNearby(PORTAL);
     expect(store.nearby()).toBe(PORTAL);
@@ -126,8 +93,7 @@ describe('WorldStore', () => {
       expect(store.inputMode()).toBe('world');
     });
 
-    it('is the ui while the panel is open over a project', () => {
-      store.openProject('novaverta');
+    it('is the ui while the panel is open over the world', () => {
       store.setPanelOpen(true);
 
       expect(store.inputMode()).toBe('ui');
@@ -241,22 +207,6 @@ describe('WorldStore', () => {
 
       expect(store.paused()).toBe(false);
     });
-  });
-
-  it('leaves the world in charge of the input while the visitor stands in a repo world', () => {
-    // Standing in Deslopify's jungle is not an overlay: WASD must still walk.
-    store.markStarted();
-    store.openProject('deslopify');
-
-    expect(store.inputMode()).toBe('world');
-  });
-
-  it('hands the input to the UI when the panel opens on top of a repo world', () => {
-    store.markStarted();
-    store.openProject('deslopify');
-    store.setPanelOpen(true);
-
-    expect(store.inputMode()).toBe('ui');
   });
 
   it('pauses the render loop while a scene is being built', () => {
