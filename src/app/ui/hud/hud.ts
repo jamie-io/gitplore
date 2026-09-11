@@ -23,6 +23,7 @@ const STATS_INTERVAL_MS = 500;
         @if (store.inputMode() === 'world') {
           <div class="crosshair" aria-hidden="true"></div>
         }
+        <!-- Also the arrival announcement for a scene change (spec §7); the director writes it. -->
         <p class="area" aria-live="polite">{{ store.area() }}</p>
         <p class="prompt" aria-live="polite">
           @if (store.demoHint(); as hint) {
