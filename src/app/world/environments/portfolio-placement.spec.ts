@@ -3,7 +3,7 @@ import { Texture } from 'three';
 import { mergeRepo } from '@content/merge-repo';
 import { REPO_OVERRIDES } from '@content/repo-overrides';
 import type { SyncedRepo } from '@content/synced-repo';
-import { HubScene } from './hub.scene';
+import { HubScene } from '../hub/hub.scene';
 import { MIN_LANDMARK_SEPARATION } from './placement';
 
 /**

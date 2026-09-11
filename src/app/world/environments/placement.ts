@@ -20,7 +20,8 @@ const MAX_RING_SLOTS = Math.floor(
   Math.PI / Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * RING_RADIUS))),
 );
 
-type Position = readonly [number, number, number];
+/** A pinned landmark position, exactly as `ProjectLandmark.position` spells it. */
+export type Position = readonly [number, number, number];
 
 /** `slots` evenly spaced spots, the first one straight ahead of a player looking down −Z. */
 function evenlySpaced(slots: number): LandmarkPlacement[] {

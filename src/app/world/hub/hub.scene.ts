@@ -5,10 +5,10 @@ import { WorldContext, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { createLandmark } from '../landmarks/create-landmark';
-import { Monument } from './monument';
-import { ringPlacements } from './placement';
-import { Sky } from './sky';
-import { Terrain } from './terrain';
+import { Monument } from '../environments/monument';
+import { ringPlacements } from '../environments/placement';
+import { Sky } from '../environments/sky';
+import { Terrain } from '../environments/terrain';
 
 /** Name of the open ground around the spawn. */
 export const HUB_AREA = 'Lichtung';
