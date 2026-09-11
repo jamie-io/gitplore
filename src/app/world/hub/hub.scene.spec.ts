@@ -6,8 +6,8 @@ import { WorldContext } from '@engine/world-object';
 import type { Project, ProjectLandmark } from '@content/project.model';
 import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
 import { HubScene, HubSceneOptions, HUB_AREA } from './hub.scene';
-import { ringPlacements } from './placement';
-import { terrainHeightAt } from './terrain';
+import { ringPlacements } from '../environments/placement';
+import { terrainHeightAt } from '../environments/terrain';
 
 function context(): WorldContext {
   return {
