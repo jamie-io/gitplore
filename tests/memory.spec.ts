@@ -2,16 +2,12 @@ import { expect, test } from '@playwright/test';
 import { settledStats, startWorld } from './helpers';
 
 /**
- * The hub is never destroyed and destinations are DOM overlays, so resources must not grow across
- * enter/exit cycles (IMPLEMENTATION_PLAN.md §2, §11; M5 verify column).
- *
- * Two yardsticks: what the scene graph owns must stay flat, and the GPU must never hold more
- * geometries than the scene owns — anything uploaded but no longer referenced is a leak. The raw
- * `renderer.info.memory` count alone is view-dependent (a geometry counts once it has been drawn),
- * so it is not compared for equality.
+ * The start world is now disposed when the visitor walks into a repo world and built again when
+ * they come back (spec §2, reversing IMPLEMENTATION_PLAN.md §3). Resources must therefore be flat
+ * across start world → repo world → start world, not just across opening and closing an overlay.
  */
 test.describe('memory', () => {
-  test('nothing leaks across five enter/exit cycles', async ({ page }) => {
+  test('nothing leaks across five world changes', async ({ page }) => {
     await startWorld(page, '/?stats=1');
     const stats = page.locator('app-hud .stats');
     await expect(stats).toHaveAttribute('data-scene-geometries', /^[1-9]\d*$/);
@@ -20,15 +16,33 @@ test.describe('memory', () => {
       await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
       await page.keyboard.press('KeyM');
       await page.locator('a[data-role="open"][data-slug="deslopify"]').click();
-      // The menu is a dialog too, so wait for the project panel by name.
-      await expect(page.getByRole('dialog', { name: 'Deslopify' })).toBeVisible();
+      await expect(page).toHaveURL(/\/p\/deslopify$/);
+      await expect(page.locator('app-hud .area')).toContainText('Dschungel');
+
       await page.keyboard.press('Escape');
-      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page).toHaveURL(/\/$/);
+      await expect(page.locator('app-hud .area')).toContainText('Deslopify');
     };
 
-    // One cycle first, so lazily arriving models (portal glTF) are in place before the baseline.
+    // One cycle first, so a lazily arriving model (the portal glTF) is in place before the
+    // baseline — but `settledStats` only needs two 700 ms-apart reads to agree to call a value
+    // settled, and under heavy parallel load the model's first fetch plus its one-time
+    // meshopt-decoder wasm compile can still be in flight after a single cycle. That lets it
+    // declare the pre-model count "stable" before the model ever arrives — a false settle, not a
+    // leak, so cycling continues until two full cycles in a row agree on the count.
     await cycle();
-    const baseline = await settledStats(page, ['scene-geometries', 'scene-textures']);
+    let baseline = await settledStats(page, ['scene-geometries', 'scene-textures']);
+    for (let warmup = 0; warmup < 5; warmup++) {
+      await cycle();
+      const next = await settledStats(page, ['scene-geometries', 'scene-textures']);
+      if (
+        next['scene-geometries'] === baseline['scene-geometries'] &&
+        next['scene-textures'] === baseline['scene-textures']
+      ) {
+        break;
+      }
+      baseline = next;
+    }
 
     for (let i = 0; i < 5; i++) {
       await cycle();

@@ -25,4 +25,14 @@ test.describe('shell', () => {
 
     await expect(page).toHaveURL(/\/projects\/gitplore$/);
   });
+
+  test('a phone deep link to the description also lands on the project detail page', async ({
+    page,
+  }) => {
+    test.skip(test.info().project.name !== 'iphone', 'mobile-only');
+
+    await page.goto('/p/gitplore/info');
+
+    await expect(page).toHaveURL(/\/projects\/gitplore$/);
+  });
 });

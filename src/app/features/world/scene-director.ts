@@ -57,8 +57,11 @@ export class SceneDirector {
       }
 
       const project = slug === null ? null : (this.content.bySlug(slug) ?? null);
-      // An unknown slug builds nothing: the start world stays and the panel explains itself (spec §6).
-      if (slug !== null && !project) {
+      // An unknown slug builds nothing new: whatever world is already standing stays, and the
+      // panel explains itself on top of it (spec §6). A cold boot straight into an unknown slug
+      // has nothing standing yet, though — there `this.current` is still `null`, so this falls
+      // through and builds the start world instead, exactly as a `null` slug would.
+      if (slug !== null && !project && this.current) {
         return;
       }
 

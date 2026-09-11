@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('project destination', () => {
-  test('a deep link opens the panel with the README over the hub', async ({ page }) => {
-    await page.goto('/p/novaverta');
+  test('a deep link opens the panel with the README over that world', async ({ page }) => {
+    await page.goto('/p/novaverta/info');
 
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
@@ -13,7 +13,7 @@ test.describe('project destination', () => {
   });
 
   test('the panel links to the demo and the source', async ({ page }) => {
-    await page.goto('/p/novaverta');
+    await page.goto('/p/novaverta/info');
 
     await expect(page.locator('a[data-role="demo"]')).toHaveAttribute(
       'href',
@@ -25,19 +25,20 @@ test.describe('project destination', () => {
     );
   });
 
-  test('closing returns to the hub and leaves the world running', async ({ page }) => {
-    await page.goto('/p/novaverta');
+  test('closing the panel leaves the visitor in the repository’s own world', async ({ page }) => {
+    await page.goto('/p/novaverta/info');
     await expect(page.getByRole('dialog')).toBeVisible();
 
     await page.locator('button[data-role="close"]').click();
 
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/\/p\/novaverta$/);
     await expect(page.getByRole('dialog', { name: /Phönix/ })).toHaveCount(0);
     await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
+    await expect(page.locator('app-hud .area')).toContainText('Showroom');
   });
 
   test('escape closes the panel too', async ({ page }) => {
-    await page.goto('/p/novaverta');
+    await page.goto('/p/novaverta/info');
     await expect(page.getByRole('dialog')).toBeVisible();
 
     await page.keyboard.press('Escape');
@@ -45,14 +46,15 @@ test.describe('project destination', () => {
     await expect(page.getByRole('dialog', { name: /Phönix/ })).toHaveCount(0);
   });
 
-  test('an unknown slug explains itself instead of breaking', async ({ page }) => {
-    await page.goto('/p/nope');
+  test('an unknown slug explains itself and leaves the start world standing', async ({ page }) => {
+    await page.goto('/p/nope/info');
 
     await expect(page.getByRole('dialog')).toContainText('nicht gefunden');
+    await expect(page.locator('app-hud .area')).toContainText('Lichtung');
   });
 
   test('walking keys do not move the player while the panel is open', async ({ page }) => {
-    await page.goto('/p/novaverta');
+    await page.goto('/p/novaverta/info');
     await expect(page.getByRole('dialog')).toBeVisible();
     const canvas = page.locator('app-world-page canvas');
 
