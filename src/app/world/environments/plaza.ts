@@ -11,7 +11,7 @@ import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import { Anchor, Environment } from './environment';
 import { ProceduralGround } from './ground';
-import { clearOf, Position } from './placement';
+import { arcAnchors, Position } from './placement';
 import { Sky } from './sky';
 import type { EnvironmentOptions } from './create-environment';
 
@@ -52,16 +52,7 @@ export class PlazaEnvironment implements Environment {
 
   /** A semicircle around the fountain, every exhibit facing the middle of the square. */
   anchors(count: number, avoid: readonly Position[] = []): readonly Anchor[] {
-    const slots = count + avoid.length;
-    const candidates: Anchor[] = Array.from({ length: slots }, (_, index) => {
-      const t = slots === 1 ? 0.5 : index / (slots - 1);
-      const angle = (t - 0.5) * EXHIBIT_ARC;
-      const x = Math.sin(angle) * EXHIBIT_RADIUS;
-      const z = -Math.cos(angle) * EXHIBIT_RADIUS;
-      return { position: [x, 0, z] as const, rotationY: Math.atan2(-x, -z) + Math.PI };
-    });
-
-    return clearOf(candidates, avoid, count);
+    return arcAnchors(count, avoid, EXHIBIT_RADIUS, EXHIBIT_ARC);
   }
 
   init(ctx: WorldContext): void {

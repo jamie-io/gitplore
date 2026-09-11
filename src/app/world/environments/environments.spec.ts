@@ -39,6 +39,12 @@ describe.each(BUILDERS)('$id', ({ id, build }) => {
     expect(environment.anchors(2).length).toBe(2);
   });
 
+  it('returns exactly one anchor when asked for one', () => {
+    // The arc-based layouts special-case a single slot, since it has no second spot to
+    // interpolate towards; this is what exercises that branch.
+    expect(build().anchors(1).length).toBe(1);
+  });
+
   it('spreads its anchors far enough apart to read as separate places', () => {
     const anchors = build().anchors(4);
 

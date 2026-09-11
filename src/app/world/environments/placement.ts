@@ -91,3 +91,35 @@ export function clearOf(
 
   return (usable.length >= count ? usable : candidates).slice(0, count);
 }
+
+/**
+ * `count` spots spread over an arc of `radius` metres, swept `arc` radians wide and centred on −Z
+ * (the direction `spawnYaw = 0` looks), each turned to face back at the origin — the arrival point
+ * an environment spawns its visitor at.
+ *
+ * `jungle.ts` and `plaza.ts` are both "landmarks on an arc around the spawn", differing only in how
+ * wide and how far out that arc is, so the formula lives once here rather than once per file: a
+ * correction to the rotation maths that lands in one copy and not the other is exactly the kind of
+ * bug identical code invites.
+ *
+ * A single spot has nothing to interpolate between — `index / (slots - 1)` would divide by zero —
+ * so `slots === 1` is its own branch, placing that spot in the middle of the arc.
+ */
+export function arcAnchors(
+  count: number,
+  avoid: readonly Position[],
+  radius: number,
+  arc: number,
+): readonly LandmarkPlacement[] {
+  const slots = count + avoid.length;
+  const candidates: LandmarkPlacement[] = Array.from({ length: slots }, (_, index) => {
+    const t = slots === 1 ? 0.5 : index / (slots - 1);
+    const angle = (t - 0.5) * arc;
+    const x = Math.sin(angle) * radius;
+    const z = -Math.cos(angle) * radius;
+    // Front direction is (sin r, cos r); facing the arrival point means pointing at the origin.
+    return { position: [x, 0, z] as const, rotationY: Math.atan2(-x, -z) + Math.PI };
+  });
+
+  return clearOf(candidates, avoid, count);
+}

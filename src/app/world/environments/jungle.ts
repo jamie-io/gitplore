@@ -16,7 +16,7 @@ import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import { Anchor, Environment } from './environment';
 import { ProceduralGround } from './ground';
-import { clearOf, Position } from './placement';
+import { arcAnchors, Position } from './placement';
 import type { EnvironmentOptions } from './create-environment';
 
 const SIZE = 160;
@@ -95,18 +95,7 @@ export class JungleEnvironment implements Environment {
 
   /** An arc in front of the arrival point, each exhibit turned back towards it. */
   anchors(count: number, avoid: readonly Position[] = []): readonly Anchor[] {
-    const slots = count + avoid.length;
-    const candidates: Anchor[] = Array.from({ length: slots }, (_, index) => {
-      const t = slots === 1 ? 0.5 : index / (slots - 1);
-      // spawnYaw looks down −Z, so the arc is centred on −Z: angle 0 is straight ahead.
-      const angle = (t - 0.5) * EXHIBIT_ARC;
-      const x = Math.sin(angle) * EXHIBIT_RADIUS;
-      const z = -Math.cos(angle) * EXHIBIT_RADIUS;
-      // Front direction is (sin r, cos r); facing the arrival point means pointing at the origin.
-      return { position: [x, 0, z] as const, rotationY: Math.atan2(-x, -z) + Math.PI };
-    });
-
-    return clearOf(candidates, avoid, count);
+    return arcAnchors(count, avoid, EXHIBIT_RADIUS, EXHIBIT_ARC);
   }
 
   init(ctx: WorldContext): void {
