@@ -5,9 +5,12 @@ import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
 import type { Project, ProjectLandmark } from '@content/project.model';
 import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
-import { HubScene, HubSceneOptions, HUB_AREA } from './hub.scene';
+import { ClearingEnvironment } from '../environments/clearing';
 import { ringPlacements } from '../environments/placement';
 import { terrainHeightAt } from '../environments/terrain';
+import { HubScene, HubSceneOptions } from './hub.scene';
+
+const CLEARING = 'Lichtung';
 
 function context(): WorldContext {
   return {
@@ -21,6 +24,7 @@ function context(): WorldContext {
 
 function hub(overrides: Partial<HubSceneOptions> = {}): HubScene {
   return new HubScene({
+    environment: new ClearingEnvironment({ reducedMotion: () => false }),
     reducedMotion: () => false,
     projects: PROJECTS,
     onEnter: () => undefined,
@@ -63,14 +67,24 @@ describe('HubScene', () => {
   });
 
   it('collects the colliders and interactables of every landmark', () => {
-    const scene = hub();
+    const environment = new ClearingEnvironment({ reducedMotion: () => false });
+    const scene = hub({ environment });
 
     const colliders =
-      scene.monument.colliders.length + scene.landmarks.reduce((n, l) => n + l.colliders.length, 0);
+      environment.colliders.length + scene.landmarks.reduce((n, l) => n + l.colliders.length, 0);
     const interactables = scene.landmarks.reduce((n, l) => n + l.interactables.length, 0);
     expect(scene.colliders.length).toBe(colliders);
     expect(scene.interactables.length).toBe(interactables);
     expect(interactables).toBeGreaterThanOrEqual(PROJECTS.length);
+  });
+
+  it('takes its ground, its spawn and its layout from the environment it is given', () => {
+    const environment = new ClearingEnvironment({ reducedMotion: () => false });
+    const scene = hub({ environment });
+
+    expect(scene.ground).toBe(environment.ground);
+    expect(scene.spawn).toBe(environment.spawn);
+    expect(scene.colliders).toEqual(expect.arrayContaining([...environment.colliders]));
   });
 
   it('finds a landmark by project slug', () => {
@@ -161,7 +175,7 @@ describe('HubScene', () => {
       ctx.player.teleport(target.spawn.clone().setY(1.7));
       scene.update(0.016, ctx);
 
-      expect(areas).toEqual([HUB_AREA, target.project.title]);
+      expect(areas).toEqual([CLEARING, target.project.title]);
     });
 
     it('reports an area only when it changes', () => {
@@ -174,7 +188,7 @@ describe('HubScene', () => {
       ctx.player.teleport(new Vector3(1, 1.7, 1));
       scene.update(0.016, ctx);
 
-      expect(areas).toEqual([HUB_AREA]);
+      expect(areas).toEqual([CLEARING]);
     });
   });
 });

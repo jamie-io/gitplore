@@ -3,20 +3,16 @@ import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
 import { WorldContext, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
+import { Environment } from '../environments/environment';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { createLandmark } from '../landmarks/create-landmark';
-import { Monument } from '../environments/monument';
-import { ringPlacements } from '../environments/placement';
-import { Sky } from '../environments/sky';
-import { Terrain } from '../environments/terrain';
 
-/** Name of the open ground around the spawn. */
-export const HUB_AREA = 'Lichtung';
-
-/** Within this distance of a landmark the HUD names the project instead of the clearing. */
+/** Within this distance of a landmark the HUD names the project instead of the place. */
 const AREA_RADIUS = 10;
 
 export interface HubSceneOptions {
+  /** The surroundings. The scene owns the projects in them, nothing else. */
+  readonly environment: Environment;
   /** Read live, so a settings change applies without rebuilding the world. */
   readonly reducedMotion: () => boolean;
   readonly projects: readonly Project[];
@@ -27,63 +23,72 @@ export interface HubSceneOptions {
 }
 
 /**
- * The world the visitor starts in. It is created once and never destroyed: a project destination is
- * an overlay on top of it (IMPLEMENTATION_PLAN.md §3).
+ * The world the visitor starts in: one landmark per project, standing in whatever environment it
+ * was handed. Unlike before, it is disposed when the visitor walks through a portal and built again
+ * when they return (spec §2) — everything in it is procedural, and the models it does use are
+ * refcounted by `AssetService`.
  */
 export class HubScene implements WorldScene {
   readonly id = 'hub';
 
-  readonly spawn = new Vector3(0, 0, 0);
   readonly landmarks: readonly Landmark[];
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
 
-  private readonly terrain = new Terrain();
-  readonly monument = new Monument();
-  private readonly sky: Sky;
+  private readonly environment: Environment;
   private readonly onAreaChange: ((area: string) => void) | undefined;
   private area: string | null = null;
 
   constructor(options: HubSceneOptions) {
-    this.sky = new Sky(options);
+    this.environment = options.environment;
     this.onAreaChange = options.onAreaChange;
-    // Pinned landmarks are placed by hand and never move, so the ring has to work around them:
-    // without this a ring spot can land on top of one (IMPLEMENTATION_PLAN.md §3).
-    const pinnedPositions = options.projects
+
+    // Pinned landmarks are placed by hand and never move, so generated anchors have to work around
+    // them: without this an anchor can land on top of one.
+    const pinned = options.projects
       .map((project) => project.landmark.position)
       .filter((position) => position !== undefined);
-    const ring = ringPlacements(
+    const anchors = this.environment.anchors(
       options.projects.filter((project) => !project.landmark.position).length,
-      pinnedPositions,
+      pinned,
     );
-    let ringIndex = 0;
+    let anchorIndex = 0;
 
     this.landmarks = options.projects.map((project) => {
-      const pinned = project.landmark.position;
-      const placement: LandmarkPlacement = pinned
-        ? { position: pinned, rotationY: project.landmark.rotationY ?? 0 }
-        : ring[ringIndex++];
+      const position = project.landmark.position;
+      const placement: LandmarkPlacement = position
+        ? { position, rotationY: project.landmark.rotationY ?? 0 }
+        : anchors[anchorIndex++];
 
       return createLandmark({
         project,
         placement,
-        ground: this.terrain,
+        ground: this.environment.ground,
         reducedMotion: options.reducedMotion,
         onEnter: options.onEnter,
         onDemo: options.onDemo,
         textures: options.textures,
       });
     });
+
     // Shapes are known before init (`Landmark.describe`), so the engine can read one flat list.
     this.colliders = [
-      ...this.monument.colliders,
+      ...this.environment.colliders,
       ...this.landmarks.flatMap((landmark) => landmark.colliders),
     ];
     this.interactables = this.landmarks.flatMap((landmark) => landmark.interactables);
   }
 
   get ground() {
-    return this.terrain;
+    return this.environment.ground;
+  }
+
+  get spawn(): Vector3 {
+    return this.environment.spawn;
+  }
+
+  get spawnYaw(): number {
+    return this.environment.spawnYaw;
   }
 
   landmarkFor(slug: string): Landmark | undefined {
@@ -91,24 +96,19 @@ export class HubScene implements WorldScene {
   }
 
   init(ctx: WorldContext): void {
-    this.terrain.init(ctx);
-    this.sky.init(ctx);
-    this.monument.init(ctx);
+    this.environment.init(ctx);
     this.landmarks.forEach((landmark) => landmark.init(ctx));
   }
 
   update(dt: number, ctx: WorldContext): void {
-    this.terrain.update();
-    this.sky.update(dt);
+    this.environment.update(dt, ctx);
     this.landmarks.forEach((landmark) => landmark.update(dt, ctx));
     this.trackArea(ctx);
   }
 
   dispose(): void {
     this.landmarks.forEach((landmark) => landmark.dispose());
-    this.monument.dispose();
-    this.sky.dispose();
-    this.terrain.dispose();
+    this.environment.dispose();
     this.area = null;
   }
 
@@ -125,7 +125,7 @@ export class HubScene implements WorldScene {
       }
     }
 
-    const area = nearest?.project.title ?? HUB_AREA;
+    const area = nearest?.project.title ?? this.environment.name;
     if (area !== this.area) {
       this.area = area;
       this.onAreaChange?.(area);
