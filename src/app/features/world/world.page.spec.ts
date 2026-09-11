@@ -1,18 +1,27 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from '@ui/store/world.store';
-import { HubPage } from './hub.page';
+import { WorldPage } from './world.page';
 import { CAPABLE } from '@engine/testing/world-context';
 import { StubEngine } from '@engine/testing/stub-engine';
 
-describe('HubPage', () => {
-  let fixture: ComponentFixture<HubPage>;
+/**
+ * A stub for the `info` leaf: `WorldPage` only cares that the route was matched, not what it
+ * renders, and the real `ProjectPanel` drags in content and README machinery this suite does not
+ * need.
+ */
+@Component({ template: '' })
+class StubInfoPanel {}
+
+describe('WorldPage', () => {
+  let fixture: ComponentFixture<WorldPage>;
   let engine: StubEngine;
   let http: HttpTestingController;
   let store: WorldStore;
@@ -25,8 +34,12 @@ describe('HubPage', () => {
     http
       .match('assets/manifest.json')
       .forEach((r) => r.flush('', { status: 404, statusText: 'Not Found' }));
-    await Promise.resolve();
-    await Promise.resolve();
+    // The director's build crosses a genuine dynamic `import()` for the environment chunk, so a
+    // fixed number of microtask ticks is no longer enough — settle until boot has moved on.
+    for (let i = 0; i < 20 && store.phase() === 'loading'; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      TestBed.tick();
+    }
     TestBed.tick();
   }
 
@@ -36,9 +49,15 @@ describe('HubPage', () => {
     TestBed.resetTestingModule();
     engine = new StubEngine();
     await TestBed.configureTestingModule({
-      imports: [HubPage],
+      imports: [WorldPage],
       providers: [
-        provideRouter([]),
+        // Mirrors the shape of the real `p/:slug` (componentless) → `info` route (spec §6): since
+        // this component is created directly rather than by a root outlet, its injected
+        // `ActivatedRoute` stands in for `WorldPage`'s own node, so the top-level entry here plays
+        // the part its children play in `app.routes.ts`.
+        provideRouter([
+          { path: 'p/:slug', children: [{ path: 'info', component: StubInfoPanel }] },
+        ]),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: DEVICE_CAPABILITIES, useValue: CAPABLE },
@@ -53,7 +72,7 @@ describe('HubPage', () => {
     }).compileComponents();
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(WorldStore);
-    fixture = TestBed.createComponent(HubPage);
+    fixture = TestBed.createComponent(WorldPage);
     document.body.appendChild(fixture.nativeElement);
   });
 
@@ -84,9 +103,8 @@ describe('HubPage', () => {
     expect(engine.world?.id).toBe('hub');
   });
 
-  // Deslopify's demo now lives behind its own portal (spec §5), so the hub has no landmark left
-  // that can run one; `startDemo` finds nothing with an `enter` and no-ops. Task 9 rewires this
-  // request through the scene director once a destination is open.
+  // Deslopify's demo now lives behind its own portal (spec §5), so the start world has no landmark
+  // left that can run one; the director's `startDemo` finds nothing current and no-ops.
   it('clears a demo request from the panel, though no hub landmark can run one yet', async () => {
     await bootWithoutManifest();
     store.markStarted();
@@ -139,5 +157,27 @@ describe('HubPage', () => {
     TestBed.tick();
 
     expect(canvas.inert).toBe(false);
+  });
+
+  it('asks the director for the start world when it boots at the root route', async () => {
+    await bootWithoutManifest();
+
+    expect(engine.world?.id).toBe('hub');
+  });
+
+  it('asks the director for a repo world when the route names a project', async () => {
+    await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+    await bootWithoutManifest();
+
+    expect(engine.world?.id).toBe('project:novaverta');
+  });
+
+  it('keeps the world in charge of the input while standing in a repo world', async () => {
+    await bootWithoutManifest();
+    store.markStarted();
+    await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+    TestBed.tick();
+
+    expect(fixture.nativeElement.getAttribute('data-input-mode')).toBe('world');
   });
 });

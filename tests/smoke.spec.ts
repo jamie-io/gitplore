@@ -6,7 +6,7 @@ test.describe('shell', () => {
 
     await page.goto('/');
 
-    await expect(page.locator('app-hub-page canvas')).toBeVisible();
+    await expect(page.locator('app-world-page canvas')).toBeVisible();
   });
 
   test('a phone is redirected from the hub to the project list', async ({ page }) => {

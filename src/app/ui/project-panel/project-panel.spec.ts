@@ -120,17 +120,17 @@ describe('ProjectPanel', () => {
     expect(text()).not.toContain('README');
   });
 
-  it('returns to the hub when closed', async () => {
+  it('returns to the repo world, not the hub, when closed', async () => {
     await open('novaverta');
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate');
 
     host().querySelector<HTMLButtonElement>('button[data-role="close"]')?.click();
 
-    expect(navigate).toHaveBeenCalledWith(['/']);
+    expect(navigate).toHaveBeenCalledWith(['/p', 'novaverta']);
   });
 
-  it('returns to the hub on Escape', async () => {
+  it('returns to the repo world on Escape', async () => {
     await open('novaverta');
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate');
@@ -139,7 +139,7 @@ describe('ProjectPanel', () => {
       .querySelector('[role="dialog"]')
       ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
-    expect(navigate).toHaveBeenCalledWith(['/']);
+    expect(navigate).toHaveBeenCalledWith(['/p', 'novaverta']);
   });
 });
 
@@ -223,7 +223,7 @@ describe('ProjectPanel demos', () => {
     expect(button?.textContent).toContain('In der Welt');
   });
 
-  it('asks the page for the demo and returns to the world', async () => {
+  it('asks the page for the demo and returns to its repo world', async () => {
     await open('deslopify');
     const router = TestBed.inject(Router);
     const navigated: string[] = [];
@@ -235,6 +235,6 @@ describe('ProjectPanel demos', () => {
     host().querySelector<HTMLButtonElement>('button[data-role="try-in-world"]')?.click();
 
     expect(TestBed.inject(WorldStore).demoRequest()).toBe('deslopify');
-    expect(navigated).toEqual(['/']);
+    expect(navigated).toEqual(['/p/deslopify']);
   });
 });

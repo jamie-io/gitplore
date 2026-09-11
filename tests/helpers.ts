@@ -55,6 +55,6 @@ export async function startWorld(page: Page, url = '/'): Promise<void> {
   await page.goto(url);
   await page.locator('button[data-role="start"]').click();
   // Keys are only read once the world has the input; a keydown before that is simply dropped.
-  await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
-  await page.locator('app-hub-page canvas').focus();
+  await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
+  await page.locator('app-world-page canvas').focus();
 }

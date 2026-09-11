@@ -17,7 +17,7 @@ test.describe('memory', () => {
     await expect(stats).toHaveAttribute('data-scene-geometries', /^[1-9]\d*$/);
 
     const cycle = async () => {
-      await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
+      await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
       await page.keyboard.press('KeyM');
       await page.locator('a[data-role="open"][data-slug="deslopify"]').click();
       // The menu is a dialog too, so wait for the project panel by name.

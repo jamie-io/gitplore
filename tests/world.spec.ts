@@ -5,7 +5,7 @@ test.describe('hub world', () => {
   test('boots to the ready phase', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-phase', 'ready');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
   });
 
   test('shows a start gate once the world is ready, with the controls explained', async ({
@@ -16,17 +16,17 @@ test.describe('hub world', () => {
     const gate = page.getByRole('dialog', { name: 'Gitplore' });
     await expect(gate).toContainText('WASD');
     // Modal for real: the world and HUD underneath are inert and the gate holds focus.
-    await expect(page.locator('app-hub-page canvas')).toHaveAttribute('inert', '');
+    await expect(page.locator('app-world-page canvas')).toHaveAttribute('inert', '');
     await expect(gate.locator('button[data-role="start"]')).toBeFocused();
     await gate.locator('button[data-role="start"]').click();
-    await expect(page.locator('app-hub-page canvas')).not.toHaveAttribute('inert', '');
+    await expect(page.locator('app-world-page canvas')).not.toHaveAttribute('inert', '');
     await expect(gate).toHaveCount(0);
-    await expect(page.locator('app-hub-page')).toHaveAttribute('data-input-mode', 'world');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
   });
 
   test('renders the world and redraws it as the player walks', async ({ page }) => {
     await startWorld(page);
-    const canvas = page.locator('app-hub-page canvas');
+    const canvas = page.locator('app-world-page canvas');
 
     const before = await canvas.screenshot();
     await page.keyboard.down('KeyW');
@@ -68,7 +68,7 @@ test.describe('hub world', () => {
   }) => {
     await page.goto('/');
 
-    const canvas = page.locator('app-hub-page canvas');
+    const canvas = page.locator('app-world-page canvas');
     await expect(canvas).toHaveAttribute('role', 'application');
     await expect(canvas).toHaveAttribute('tabindex', '0');
     await expect(canvas).toHaveAttribute('aria-label', /WASD/);
@@ -84,6 +84,6 @@ test.describe('focus management', () => {
     await page.keyboard.press('Escape');
 
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.locator('app-hub-page canvas')).toBeFocused();
+    await expect(page.locator('app-world-page canvas')).toBeFocused();
   });
 });

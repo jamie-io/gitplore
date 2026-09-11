@@ -9,8 +9,8 @@ import { DemoPanelHost } from '../demo-panel-host/demo-panel-host';
 import { WorldStore } from '../store/world.store';
 
 /**
- * A project destination, rendered over the still-running hub by the `/p/:slug` child route
- * (IMPLEMENTATION_PLAN.md §3). The iframe demo itself joins in M4.
+ * A project destination, opened by the `/p/:slug/info` child route over the still-running repo
+ * world at `/p/:slug` (spec §7). The iframe demo itself joins in M4.
  */
 @Component({
   selector: 'app-project-panel',
@@ -212,10 +212,10 @@ export class ProjectPanel {
   );
 
   protected close(): void {
-    void this.router.navigate(['/']);
+    void this.router.navigate(['/p', this.slug()]);
   }
 
-  /** Hands the demo request to the hub page, which owns the player and the landmark (§5). */
+  /** Hands the demo request to `WorldPage`, which owns the player and the `SceneDirector` (§5). */
   protected tryInWorld(slug: string): void {
     // An explicit click on the demo counts as starting the world; no extra gate after it.
     this.store.markStarted();
