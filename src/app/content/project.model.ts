@@ -41,6 +41,21 @@ export interface ProjectLandmark {
   readonly model?: string;
 }
 
+/**
+ * Which reusable world stands behind a project's portal
+ * (repo-design-notes/specs/2026-09-10-repo-worlds-design.md §5). `clearing` is the start world and
+ * is not a destination; a repository that names it simply gets a second clearing.
+ */
+export type EnvironmentId = 'clearing' | 'jungle' | 'showroom' | 'plaza';
+
+/** Every id `world/environments/create-environment.ts` can resolve; the schema test's yardstick. */
+export const ENVIRONMENT_IDS: readonly EnvironmentId[] = [
+  'clearing',
+  'jungle',
+  'showroom',
+  'plaza',
+];
+
 export interface Project {
   readonly slug: string;
   readonly title: string;
@@ -52,5 +67,7 @@ export interface Project {
   readonly readme?: ReadmeSource;
   readonly demo: ProjectDemo;
   readonly landmark: ProjectLandmark;
+  /** The world the portal leads to; `mergeRepo` always resolves one. */
+  readonly environment: EnvironmentId;
   readonly theme: { readonly primary: string; readonly accent: string };
 }

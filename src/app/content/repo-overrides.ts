@@ -1,4 +1,4 @@
-import type { ProjectDemo, ProjectLandmark } from './project.model';
+import type { EnvironmentId, ProjectDemo, ProjectLandmark } from './project.model';
 
 /**
  * Everything GitHub cannot express about one of Jamie's repositories, keyed by repository name
@@ -18,6 +18,8 @@ export interface RepoOverride {
   readonly year?: number;
   readonly demo?: ProjectDemo;
   readonly landmark?: Partial<ProjectLandmark>;
+  /** Which reusable world stands behind the portal. Defaults to `'showroom'`. */
+  readonly environment?: EnvironmentId;
   readonly theme?: { readonly primary: string; readonly accent: string };
 }
 
@@ -27,6 +29,7 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
     summary:
       'Dieses Portfolio selbst: eine begehbare 3D-Welt, in der jedes öffentliche Repository als Landmarke steht. Angular 22 zoneless mit Signals, Three.js direkt statt über einen Wrapper, Gelände und Bauten prozedural im Code erzeugt.',
     tags: ['Angular 22', 'Three.js', 'TypeScript', 'WebGL2'],
+    environment: 'plaza',
     theme: { primary: '#4a3f8f', accent: '#ecebf6' },
   },
   webkatalog_demoshop: {
@@ -34,6 +37,7 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
     summary:
       'Vollständiger B2B-Möbelshop eines fiktiven Fachhändlers als Vertriebsmittel: Produktdaten, Preise, Bilder und 3D-Konfiguration kommen aus dem WebKatalog. Statisches HTML mit ES-Modulen, ohne Build und ohne Backend — von der Startseite bis zu Bestellung, Angebot und OCI-5.0-Übergabe.',
     tags: ['JavaScript', 'ES Modules', 'B2B E-Commerce', 'OCI 5.0'],
+    environment: 'showroom',
     theme: { primary: '#8f6a2f', accent: '#f6f0ea' },
   },
   novaverta: {
@@ -49,6 +53,7 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
       screenshot: 'assets/screens/novaverta.webp',
     },
     landmark: { kind: 'screen', position: [-24, 0, -18], rotationY: 0.6 },
+    environment: 'showroom',
     theme: { primary: '#1b4f8f', accent: '#e8eef6' },
   },
   'poetzscher-homepage': {
@@ -65,6 +70,7 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
       screenshot: 'assets/screens/poetzscher.webp',
     },
     landmark: { kind: 'screen', position: [26, 0, -14], rotationY: -0.7 },
+    environment: 'showroom',
     theme: { primary: '#2f6b4f', accent: '#eaf2ec' },
   },
   deslopify: {
@@ -80,6 +86,7 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
       rotationY: 0,
       model: 'assets/models/arch.glb',
     },
+    environment: 'jungle',
     theme: { primary: '#8f2f2f', accent: '#f6eaea' },
   },
 };

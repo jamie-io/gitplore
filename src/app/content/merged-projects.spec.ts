@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mergedProjects, syncedRepos } from '../../../scripts/lib/portfolio.mjs';
 import { repoSlug } from './merge-repo';
+import { ENVIRONMENT_IDS } from './project.model';
 import { REPO_OVERRIDES } from './repo-overrides';
 
 const PUBLIC_DIR = 'public/';
@@ -81,6 +82,12 @@ describe('the merged portfolio', () => {
       if (!REPO_OVERRIDES[name].hidden) {
         expect(names.has(name), `${name} is overridden but not synced`).toBe(true);
       }
+    }
+  });
+
+  it('sends every project to an environment the world can actually build', () => {
+    for (const project of projects) {
+      expect(ENVIRONMENT_IDS, project.slug).toContain(project.environment);
     }
   });
 });
