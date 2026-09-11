@@ -1,7 +1,4 @@
-import { BufferAttribute, Mesh, MeshStandardMaterial, PlaneGeometry } from 'three';
-import { HeightField } from '@engine/player/collision';
-import { WorldContext, WorldObject } from '@engine/world-object';
-import { disposeObject3D } from '@engine/dispose';
+import { ProceduralGround } from './ground';
 
 /** Edge length of the walkable ground, in metres. */
 export const TERRAIN_SIZE = 240;
@@ -11,9 +8,6 @@ export const TERRAIN_FLAT_RADIUS = 14;
 
 /** Largest absolute height the analytic function can produce. */
 export const TERRAIN_MAX_HEIGHT = 5.5;
-
-const SEGMENTS_HIGH = 160;
-const SEGMENTS_LOW = 64;
 
 /**
  * Analytic ground height. Three sine octaves rather than noise: it is cheap, deterministic, has no
@@ -42,51 +36,15 @@ function plateauFade(distance: number): number {
   return t * t * (3 - 2 * t);
 }
 
-export class Terrain implements WorldObject, HeightField {
-  readonly id = 'terrain';
-
-  private mesh?: Mesh;
-
-  heightAt(x: number, z: number): number {
-    return terrainHeightAt(x, z);
-  }
-
-  init(ctx: WorldContext): void {
-    const segments = ctx.quality.propDensity < 0.5 ? SEGMENTS_LOW : SEGMENTS_HIGH;
-    const geometry = new PlaneGeometry(TERRAIN_SIZE, TERRAIN_SIZE, segments, segments);
-    geometry.rotateX(-Math.PI / 2);
-
-    const position = geometry.getAttribute('position') as BufferAttribute;
-    for (let i = 0; i < position.count; i++) {
-      position.setY(i, terrainHeightAt(position.getX(i), position.getZ(i)));
-    }
-    position.needsUpdate = true;
-    // Bake one normal per face instead of `flatShading`: the shader's screen-space derivatives
-    // degenerate on the triangle that straddles the camera and painted it black under SwiftShader.
-    const faceted = geometry.toNonIndexed();
-    geometry.dispose();
-    faceted.computeVertexNormals();
-
-    this.mesh = new Mesh(
-      faceted,
-      new MeshStandardMaterial({
-        color: 0x6c8f5a,
-        roughness: 0.95,
-        metalness: 0,
-      }),
-    );
-    this.mesh.receiveShadow = ctx.quality.shadows;
-    ctx.scene.add(this.mesh);
-  }
-
-  update(): void {
-    // Static ground: nothing moves.
-  }
-
-  dispose(): void {
-    if (this.mesh) {
-      disposeObject3D(this.mesh);
-      this.mesh = undefined;
-    }
+/** The clearing's ground: the analytic relief above, drawn at the hub's resolution. */
+export class Terrain extends ProceduralGround {
+  constructor() {
+    super({
+      id: 'terrain',
+      size: TERRAIN_SIZE,
+      color: 0x6c8f5a,
+      segments: 160,
+      heightAt: terrainHeightAt,
+    });
   }
 }

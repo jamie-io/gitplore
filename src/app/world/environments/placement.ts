@@ -75,3 +75,19 @@ export function ringPlacements(
   // ring has room for. A tight fit is still better than dropping a project out of the world.
   return evenlySpaced(count);
 }
+
+/**
+ * The first `count` candidates that stand clear of every position in `avoid`.
+ *
+ * Falls back to the unfiltered candidates when filtering leaves too few: a tight fit is better than
+ * dropping a project out of the world, which is the same trade-off `ringPlacements` makes.
+ */
+export function clearOf(
+  candidates: readonly LandmarkPlacement[],
+  avoid: readonly Position[],
+  count: number,
+): readonly LandmarkPlacement[] {
+  const usable = candidates.filter((spot) => clears(spot, avoid));
+
+  return (usable.length >= count ? usable : candidates).slice(0, count);
+}
