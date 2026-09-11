@@ -45,8 +45,6 @@ export interface LandmarkOptions {
   readonly reducedMotion: () => boolean;
   /** The landmark was used; the page turns this into the `/p/:slug` route (§3). */
   readonly onEnter: (project: Project) => void;
-  /** The landmark wants to run its in-world demo; the page hands it the controls (§5). */
-  readonly onDemo?: (landmark: Landmark) => void;
   readonly textures?: TextureProvider;
 }
 
@@ -72,17 +70,9 @@ export abstract class Landmark implements WorldObject {
   protected readonly ground: HeightField;
   protected readonly reducedMotion: () => boolean;
   protected readonly onEnter: (project: Project) => void;
-  protected readonly onDemo: ((landmark: Landmark) => void) | undefined;
 
   /** The world this landmark lives in, from `init` on. */
   protected ctx: WorldContext | null = null;
-
-  /** In-world demo hooks (§5); only landmarks of `demo.mode: 'in-world'` projects define them. */
-  enter?(): void;
-  exit?(): void;
-  interact?(): void;
-  /** What the HUD tells the visitor while the demo runs. */
-  readonly demoHint: string | null = null;
 
   constructor(options: LandmarkOptions) {
     const { position, rotationY } = options.placement;
@@ -94,7 +84,6 @@ export abstract class Landmark implements WorldObject {
     this.ground = options.ground;
     this.reducedMotion = options.reducedMotion;
     this.onEnter = options.onEnter;
-    this.onDemo = options.onDemo;
 
     this.position = new Vector3(
       position[0],

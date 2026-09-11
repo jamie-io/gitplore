@@ -98,8 +98,7 @@ describe('SceneDirector', () => {
   it('builds once when two navigations overlap, and disposes the old world once', async () => {
     await director.show(null);
     const first = engine.world!;
-    // Counted by hand rather than with `vi.spyOn`: the Angular vitest builder does not expose `vi`
-    // as a global here, and the existing specs never reach for it.
+    // Counted by hand rather than with `vi.spyOn`, matching the prototype-dispose counter below.
     let disposals = 0;
     const dispose = first.dispose.bind(first);
     first.dispose = () => {

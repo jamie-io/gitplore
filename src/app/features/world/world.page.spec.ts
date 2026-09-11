@@ -246,6 +246,21 @@ describe('WorldPage', () => {
     failingFixture.nativeElement.remove();
   });
 
+  it('does not open the menu on top of a panel activated in the same change-detection pass', async () => {
+    await bootWithoutManifest();
+    store.markStarted();
+
+    await TestBed.inject(Router).navigate(['/p', 'novaverta', 'info']);
+    // No `TestBed.tick()` here, on purpose: `routeState` is a `toSignal` on `NavigationEnd` and has
+    // already flipped `panel` to `true`, but the effect that copies it into `store.panelOpen()`
+    // waits for the next flush and has not run yet. That gap is exactly what `onAction`'s menu
+    // gate must survive — a key landing here must not stack the project menu on the just-activated
+    // panel (two `aria-modal` dialogs at once).
+    press('KeyM');
+
+    expect(store.menuOpen()).toBe(false);
+  });
+
   it('inherits :slug down through the componentless p/:slug route to the info panel', async () => {
     await bootWithoutManifest();
     await TestBed.inject(Router).navigate(['/p', 'novaverta', 'info']);

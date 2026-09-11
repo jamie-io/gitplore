@@ -106,8 +106,9 @@ stats, `?stats=1`).
 12. **Brotli is not configured** in `nginx.conf` (§9 mentions it): `nginx:alpine` ships no brotli
     module. Gzip is on; `X-Content-Type-Options: nosniff` was added.
 
-The German `summary`/`tags` in `projects.ts` are still the previous session's wording; the
-example video titles in `deslopify.landmark.ts` are fictional and marked as examples.
+The German `summary`/`tags` in `content/repo-overrides.ts` are still the previous session's
+wording; the example video titles in `world/projects/deslopify/video-wall.ts` are fictional and
+marked as examples.
 
 ## 6. Known gaps and follow-ups
 
@@ -135,5 +136,6 @@ example video titles in `deslopify.landmark.ts` are fictional and marked as exam
 
 1. Review §5 — every ruling there is reversible.
 2. Optional: add a Playwright job to `deploy.yml`; revisit the deferred minors above.
-3. The GitHub explorer phase (`features/explorer`, `GitHubContentSource`, `environments/plaza`)
-   is the next product step; landmarks already build from `Project` data alone.
+3. `GithubContentSource` and `environments/plaza` (one of gitplore's own worlds) already exist;
+   the remaining explorer-phase step is `features/explorer` itself, and landmarks already build
+   from `Project` data alone.

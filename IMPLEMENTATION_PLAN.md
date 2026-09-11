@@ -161,11 +161,15 @@ export const routes: Routes = [
 ```ts
 export interface Project {
   slug: string; title: string; summary: string; tags: string[]; repoUrl: string; year?: number;
-  readme: { kind: 'bundled'; path: string } | { kind: 'github'; owner: string; repo: string; ref?: string };
+  /** Absent when the repository ships no README; the panel then omits the section. */
+  readme?: { kind: 'bundled'; path: string } | { kind: 'github'; owner: string; repo: string; ref?: string };
   demo: { kind: 'iframe'; url: string; embeddable: boolean; screenshot: string }
       | { kind: 'custom'; mode: 'in-world' | 'panel'; panelComponent?: () => Promise<Type<unknown>> }
       | { kind: 'none' };
-  landmark: { kind: 'portal' | 'screen' | string; position: [number, number, number]; rotationY: number; model?: string };
+  /** Absent position/rotationY mean the scene places and orients it itself. */
+  landmark: { kind: 'portal' | 'screen' | string; position?: [number, number, number]; rotationY?: number; model?: string };
+  /** Which reusable world the portal leads to; `mergeRepo` always resolves one. */
+  environment: 'clearing' | 'jungle' | 'showroom' | 'plaza';
   theme: { primary: string; accent: string };
 }
 ```
@@ -178,8 +182,8 @@ export interface Project {
   marked `hidden`. `ContentSource { projects(): Promise<Project[]> }` has one implementation,
   `GithubContentSource`, which fetches `repos.json` same-origin and calls `mergePortfolio`;
   `scripts/lib/portfolio.mjs` is its twin over the committed tree. Unpinned projects are placed by
-  `world/hub/placement.ts` on a ring around the spawn, skipping spots that would collide with a
-  pinned landmark.
+  `world/environments/placement.ts` on a ring around the spawn, skipping spots that would collide
+  with a pinned landmark.
 - **README bundled at build time.** `scripts/sync-readmes.mjs` fetches
   `raw.githubusercontent.com/<owner>/<repo>/HEAD/README.md` into `public/content/readme/<slug>.md`,
   rewriting relative image links to absolute raw URLs. The files are committed; the CI workflow
@@ -206,11 +210,13 @@ The panel also gives README, source link and "open in new tab" a natural home.
   sends HEAD requests to every `demo.url` in CI, parses those headers, and fails the build if
   `embeddable: true` contradicts reality. Runtime fallback: an 8 s load timeout shows the
   screenshot card with the external link.
-- Custom demos, `mode: 'in-world'`: a `Landmark` subclass implementing `enter()` / `exit()`.
-  `enter()` sets `inputMode = 'demo'`, may take over the camera, and receives `update(dt)` like any
-  landmark. The panel shows "Try it in the world", which fast-travels and calls `enter()`.
-  `mode: 'panel'`: `panelComponent` is loaded lazily inside the panel; if it needs a canvas it gets
-  its own small renderer from `renderer.factory.ts`.
+- Custom demos, `mode: 'in-world'`: an `InWorldDemo` (`demoHint`, `enter(player)`, `interact()`,
+  `exit()`) owned by the project's `ProjectScene` subclass, returned from its `get demo()` — not a
+  `Landmark`, because a demo is a thing you use, not a place you walk to. The panel's "In der Welt
+  ausprobieren" button closes the panel back to `/p/:slug`, already inside that project's own
+  world, and asks `WorldStore` to start the demo; the `SceneDirector` reads `ProjectScene.demo` and
+  calls `enter()` once the world is ready. `mode: 'panel'`: `panelComponent` is loaded lazily inside
+  the panel; if it needs a canvas it gets its own small renderer from `renderer.factory.ts`.
 
 ## 6. UI and HUD layer
 

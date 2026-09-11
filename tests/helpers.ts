@@ -50,7 +50,7 @@ export async function setTabHidden(page: Page, hidden: boolean): Promise<void> {
   }, hidden);
 }
 
-/** Boots the hub and clicks through the loading screen's start gate, as a visitor would. */
+/** Boots whatever world `url` names and clicks through the loading screen's start gate. */
 export async function startWorld(page: Page, url = '/'): Promise<void> {
   await page.goto(url);
   await page.locator('button[data-role="start"]').click();

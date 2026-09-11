@@ -3107,7 +3107,12 @@ Update `travelTo` and `onAction`:
         }
         break;
       case 'menu':
-        if (!this.store.panelOpen() && this.store.started()) {
+        // `routeState().panel` rather than `store.panelOpen()`: the store copy trails the router
+        // by one change-detection pass, and a key can land inside that gap and open the project
+        // menu on top of the just-activated panel — two `aria-modal` dialogs at once. The review
+        // that followed this plan found this sample used `store.panelOpen()`; the shipped code
+        // uses `routeState().panel` and is the authority where the two disagree.
+        if (!this.routeState().panel && this.store.started()) {
           this.store.toggleMenu();
         }
         break;
