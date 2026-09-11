@@ -126,16 +126,19 @@ describe('HubPage', () => {
     expect(engine.world?.id).toBe('hub');
   });
 
-  it('fulfils a demo request from the panel once the world is ready', async () => {
+  // Deslopify's demo now lives behind its own portal (spec §5), so the hub has no landmark left
+  // that can run one; `startDemo` finds nothing with an `enter` and no-ops. Task 9 rewires this
+  // request through the scene director once a destination is open.
+  it('clears a demo request from the panel, though no hub landmark can run one yet', async () => {
     await bootWithoutManifest();
     store.markStarted();
 
     store.requestDemo('deslopify');
     TestBed.tick();
 
-    expect(store.demoActive()).toBe(true);
     expect(store.demoRequest()).toBeNull();
-    expect(store.inputMode()).toBe('demo');
+    expect(store.demoActive()).toBe(false);
+    expect(store.inputMode()).toBe('world');
   });
 
   it('ends a running demo and forgets overlay state when the page goes away', async () => {

@@ -17,7 +17,6 @@ export interface HubSceneOptions {
   readonly reducedMotion: () => boolean;
   readonly projects: readonly Project[];
   readonly onEnter: (project: Project) => void;
-  readonly onDemo?: (landmark: Landmark) => void;
   readonly onAreaChange?: (area: string) => void;
   readonly textures?: TextureProvider;
 }
@@ -66,7 +65,6 @@ export class HubScene implements WorldScene {
         ground: this.environment.ground,
         reducedMotion: options.reducedMotion,
         onEnter: options.onEnter,
-        onDemo: options.onDemo,
         textures: options.textures,
       });
     });

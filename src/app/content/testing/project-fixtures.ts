@@ -62,7 +62,7 @@ export const PROJECT_FIXTURES: readonly Project[] = [
     readme: { kind: 'bundled', path: 'content/readme/deslopify.md' },
     demo: { kind: 'custom', mode: 'in-world' },
     landmark: {
-      kind: 'deslopify',
+      kind: 'portal',
       position: [0, 0, -20],
       rotationY: 0,
       model: 'assets/models/arch.glb',

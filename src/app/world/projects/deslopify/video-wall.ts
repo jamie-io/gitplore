@@ -2,6 +2,8 @@ import {
   BoxGeometry,
   CanvasTexture,
   Color,
+  Euler,
+  Group,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -9,10 +11,12 @@ import {
   SRGBColorSpace,
   Vector3,
 } from 'three';
+import { disposeObject3D } from '@engine/dispose';
+import { Collider, HeightField } from '@engine/player/collision';
+import { PLAYER_EYE_HEIGHT, PlayerController } from '@engine/player/player-controller';
+import { Interactable } from '@engine/interaction/interactable';
 import { WorldContext } from '@engine/world-object';
-import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
-import { LandmarkShape } from '../base/landmark';
-import { PortalLandmark } from '../base/portal.landmark';
+import type { InWorldDemo, SceneObject } from '../../project/project.scene';
 
 /**
  * Fictional videos standing in for what Deslopify fixes: YouTube's auto-translated titles.
@@ -28,9 +32,6 @@ export const EXAMPLE_VIDEOS: readonly { readonly original: string; readonly slop
   { original: 'Git rebase, explained', slop: 'Git Basis neu, erklärt' },
 ];
 
-/** Where the wall stands relative to the portal (local frame, before rotation). */
-const WALL_OFFSET_X = 5.5;
-const WALL_OFFSET_Z = 0.5;
 const CARD_WIDTH = 1.9;
 const CARD_HEIGHT = 1.3;
 const CARD_GAP = 0.2;
@@ -45,112 +46,128 @@ const FLIP_SECONDS = 0.3;
 const CANVAS_WIDTH = 512;
 const CANVAS_HEIGHT = 352;
 
-/**
- * Deslopify's portal plus its in-world demo (IMPLEMENTATION_PLAN.md §5): a wall of video cards
- * showing mistranslated titles. Entering the demo parks the visitor in front of the wall; `E`
- * swaps the titles for the originals, exactly what the extension does on YouTube.
- */
-export class DeslopifyLandmark extends PortalLandmark {
-  override readonly demoHint = 'E: Originaltitel ein- und ausblenden · Esc: Demo verlassen';
+export interface VideoWallOptions {
+  /** Ground-level centre of the wall. */
+  readonly origin: Vector3;
+  readonly rotationY: number;
+  readonly ground: HeightField;
+  readonly accent: string;
+  readonly reducedMotion: () => boolean;
+  readonly onDemo: () => void;
+}
 
-  private originals = false;
+/**
+ * The wall of video cards that shows what Deslopify fixes. It used to hang off the hub's portal;
+ * now it stands in Deslopify's own world, which is where a demo of the project belongs (spec §5).
+ */
+export class VideoWall implements SceneObject, InWorldDemo {
+  readonly id = 'deslopify:wall';
+  readonly demoHint = 'E: Originaltitel ein- und ausblenden · Esc: Demo verlassen';
+  readonly colliders: readonly Collider[];
+  readonly interactables: readonly Interactable[];
+
+  private readonly group = new Group();
+  private readonly centre: Vector3;
+  private readonly options: VideoWallOptions;
   private cards: { mesh: Mesh; slop: MeshBasicMaterial; original: MeshBasicMaterial }[] = [];
+  private originals = false;
   private flip: { elapsed: number } | null = null;
-  private wallCentre = new Vector3();
+
+  constructor(options: VideoWallOptions) {
+    this.options = options;
+    this.centre = options.origin.clone();
+    this.centre.y = options.ground.heightAt(this.centre.x, this.centre.z);
+    this.group.position.copy(this.centre);
+    this.group.rotation.y = options.rotationY;
+    this.group.name = this.id;
+
+    const width = EXAMPLE_VIDEOS.length * (CARD_WIDTH + CARD_GAP);
+    const rotation = new Euler(0, options.rotationY, 0);
+    const corners = [-width / 2, width / 2].flatMap((x) =>
+      [-0.6, 0.6].map((z) => new Vector3(x, 0, z).applyEuler(rotation).add(this.centre)),
+    );
+    this.colliders = [
+      {
+        kind: 'aabb',
+        minX: Math.min(...corners.map((corner) => corner.x)),
+        maxX: Math.max(...corners.map((corner) => corner.x)),
+        minZ: Math.min(...corners.map((corner) => corner.z)),
+        maxZ: Math.max(...corners.map((corner) => corner.z)),
+      },
+    ];
+    this.interactables = [
+      {
+        id: `${this.id}:demo`,
+        position: this.centre.clone(),
+        radius: INTERACT_RADIUS,
+        prompt: 'Deslopify ausprobieren',
+        onInteract: () => options.onDemo(),
+      },
+    ];
+  }
 
   get showingOriginals(): boolean {
     return this.originals;
   }
 
-  protected override describe(): LandmarkShape {
-    const portal = super.describe();
-    const wallWidth = EXAMPLE_VIDEOS.length * (CARD_WIDTH + CARD_GAP);
-    const corners = [-wallWidth / 2, wallWidth / 2].flatMap((x) =>
-      [-0.6, 0.6].map((z) => this.toWorld(WALL_OFFSET_X + x, 0, WALL_OFFSET_Z + z)),
-    );
-    const wall = this.toWorld(WALL_OFFSET_X, 0, WALL_OFFSET_Z);
-
-    return {
-      colliders: [
-        ...portal.colliders,
-        {
-          kind: 'aabb',
-          minX: Math.min(...corners.map((c) => c.x)),
-          maxX: Math.max(...corners.map((c) => c.x)),
-          minZ: Math.min(...corners.map((c) => c.z)),
-          maxZ: Math.max(...corners.map((c) => c.z)),
-        },
-      ],
-      interactables: [
-        ...portal.interactables,
-        {
-          id: `${this.id}:demo`,
-          position: wall,
-          radius: INTERACT_RADIUS,
-          prompt: 'Deslopify ausprobieren',
-          onInteract: () => this.onDemo?.(this),
-        },
-      ],
-    };
+  /** Unit vector pointing out of the wall's face, towards approaching visitors. */
+  private front(): Vector3 {
+    return new Vector3(Math.sin(this.options.rotationY), 0, Math.cos(this.options.rotationY));
   }
 
-  protected override build(ctx: WorldContext): void {
-    super.build(ctx);
-
+  init(ctx: WorldContext): void {
     const wallWidth = EXAMPLE_VIDEOS.length * (CARD_WIDTH + CARD_GAP) + CARD_GAP;
     const backing = new Mesh(
       new BoxGeometry(wallWidth, CARD_HEIGHT + 2 * CARD_GAP + 0.5, WALL_DEPTH),
       new MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.7 }),
     );
     backing.name = 'video-wall';
-    backing.position.set(WALL_OFFSET_X, WALL_CENTRE_Y, WALL_OFFSET_Z);
+    backing.position.set(0, WALL_CENTRE_Y, 0);
     backing.castShadow = ctx.quality.shadows;
     this.group.add(backing);
-    this.wallCentre = this.toWorld(WALL_OFFSET_X, 0, WALL_OFFSET_Z);
 
-    const accent = new Color(this.project.theme.primary);
+    const accent = new Color(this.options.accent);
     EXAMPLE_VIDEOS.forEach((video, index) => {
       const slop = cardMaterial(video.slop, `#${accent.getHexString()}`, index);
       const original = cardMaterial(video.original, '#1b7f4f', index);
       const mesh = new Mesh(new PlaneGeometry(CARD_WIDTH, CARD_HEIGHT), slop);
       mesh.name = `card:${index}`;
-      const x = WALL_OFFSET_X + (index - (EXAMPLE_VIDEOS.length - 1) / 2) * (CARD_WIDTH + CARD_GAP);
-      mesh.position.set(x, WALL_CENTRE_Y + 0.15, WALL_OFFSET_Z + WALL_DEPTH / 2 + 0.01);
+      mesh.position.set(
+        (index - (EXAMPLE_VIDEOS.length - 1) / 2) * (CARD_WIDTH + CARD_GAP),
+        WALL_CENTRE_Y + 0.15,
+        WALL_DEPTH / 2 + 0.01,
+      );
       this.group.add(mesh);
       this.cards.push({ mesh, slop, original });
     });
+
+    ctx.scene.add(this.group);
   }
 
-  override enter(): void {
-    const ctx = this.ctx;
-    if (!ctx) {
-      return;
-    }
-
-    // Stand in front of the wall, looking at it: the wall faces the landmark's front.
-    const viewpoint = this.wallCentre.clone().addScaledVector(this.front(), VIEWPOINT_DISTANCE);
-    viewpoint.y = this.ground.heightAt(viewpoint.x, viewpoint.z) + PLAYER_EYE_HEIGHT;
-    ctx.player.teleport(viewpoint, this.rotationY);
+  /** Parks the visitor in front of the wall, looking at it. */
+  enter(player: PlayerController): void {
+    const viewpoint = this.centre.clone().addScaledVector(this.front(), VIEWPOINT_DISTANCE);
+    viewpoint.y = this.options.ground.heightAt(viewpoint.x, viewpoint.z) + PLAYER_EYE_HEIGHT;
+    player.teleport(viewpoint, this.options.rotationY);
   }
 
-  override interact(): void {
+  interact(): void {
     this.originals = !this.originals;
-    if (this.reducedMotion()) {
+    if (this.options.reducedMotion()) {
       this.applyTitles();
     } else {
       this.flip = { elapsed: 0 };
     }
   }
 
-  override exit(): void {
+  exit(): void {
     this.originals = false;
     this.flip = null;
     this.applyTitles();
     this.cards.forEach((card) => card.mesh.scale.set(1, 1, 1));
   }
 
-  override update(dt: number, ctx: WorldContext): void {
-    super.update(dt, ctx);
+  update(dt: number): void {
     if (!this.flip) {
       return;
     }
@@ -168,7 +185,7 @@ export class DeslopifyLandmark extends PortalLandmark {
     }
   }
 
-  override dispose(): void {
+  dispose(): void {
     this.cards.forEach((card) => {
       card.slop.map?.dispose();
       card.slop.dispose();
@@ -176,7 +193,8 @@ export class DeslopifyLandmark extends PortalLandmark {
       card.original.dispose();
     });
     this.cards = [];
-    super.dispose();
+    disposeObject3D(this.group);
+    this.group.clear();
   }
 
   private applyTitles(): void {
