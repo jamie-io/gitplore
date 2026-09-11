@@ -41,8 +41,9 @@ function syntheticProject(slug: string, landmark: ProjectLandmark): Project {
     tags: [],
     repoUrl: `https://example.invalid/${slug}`,
     demo: { kind: 'none' },
-    theme: { primary: '#000000', accent: '#ffffff' },
     landmark,
+    environment: 'showroom',
+    theme: { primary: '#000000', accent: '#ffffff' },
   };
 }
 

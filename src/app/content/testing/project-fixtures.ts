@@ -29,6 +29,7 @@ export const PROJECT_FIXTURES: readonly Project[] = [
       screenshot: 'assets/screens/novaverta.webp',
     },
     landmark: { kind: 'screen', position: [-24, 0, -18], rotationY: 0.6 },
+    environment: 'showroom',
     theme: { primary: '#1b4f8f', accent: '#e8eef6' },
   },
   {
@@ -47,6 +48,7 @@ export const PROJECT_FIXTURES: readonly Project[] = [
       screenshot: 'assets/screens/poetzscher.webp',
     },
     landmark: { kind: 'screen', position: [26, 0, -14], rotationY: -0.7 },
+    environment: 'showroom',
     theme: { primary: '#2f6b4f', accent: '#eaf2ec' },
   },
   {
@@ -65,6 +67,7 @@ export const PROJECT_FIXTURES: readonly Project[] = [
       rotationY: 0,
       model: 'assets/models/arch.glb',
     },
+    environment: 'jungle',
     theme: { primary: '#8f2f2f', accent: '#f6eaea' },
   },
 ];

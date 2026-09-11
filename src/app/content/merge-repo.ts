@@ -1,9 +1,12 @@
-import type { Project, ProjectLandmark } from './project.model';
+import type { EnvironmentId, Project, ProjectLandmark } from './project.model';
 import type { RepoOverride } from './repo-overrides';
 import type { SyncedRepo } from './synced-repo';
 
 /** Used by any repository the overrides file does not colour in. */
 const DEFAULT_THEME = { primary: '#3a4a5a', accent: '#e9edf1' } as const;
+
+/** The world a repository nobody has styled yet leads to: neutral, and it flatters a screenshot. */
+const DEFAULT_ENVIRONMENT: EnvironmentId = 'showroom';
 
 /**
  * The last resort for a repository with no language and no topics — GitHub gives every repository
@@ -119,6 +122,7 @@ export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined):
       : {}),
     demo: override?.demo ?? { kind: 'none' },
     landmark,
+    environment: override?.environment ?? DEFAULT_ENVIRONMENT,
     theme: override?.theme ?? DEFAULT_THEME,
   };
 }

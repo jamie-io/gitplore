@@ -17,6 +17,7 @@ const baseProject: Project = {
   repoUrl: 'https://github.com/jamie-io/test-project',
   demo: { kind: 'none' },
   landmark: { kind: 'portal' },
+  environment: 'showroom',
   theme: { primary: '#333333', accent: '#eeeeee' },
 };
 

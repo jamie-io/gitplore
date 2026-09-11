@@ -208,4 +208,12 @@ describe('mergeRepo', () => {
 
     expect(mergeRepo(repo(), { demo }).demo).toEqual(demo);
   });
+
+  it('sends an un-styled repository to the showroom, the neutral default', () => {
+    expect(mergeRepo(repo(), undefined).environment).toBe('showroom');
+  });
+
+  it('lets an override choose the world behind the portal', () => {
+    expect(mergeRepo(repo(), { environment: 'jungle' }).environment).toBe('jungle');
+  });
 });
