@@ -80,12 +80,7 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
     tags: ['JavaScript', 'Chrome Extension', 'MV3'],
     year: 2026,
     demo: { kind: 'custom', mode: 'in-world' },
-    landmark: {
-      kind: 'deslopify',
-      position: [0, 0, -20],
-      rotationY: 0,
-      model: 'assets/models/arch.glb',
-    },
+    landmark: { position: [0, 0, -20], rotationY: 0, model: 'assets/models/arch.glb' },
     environment: 'jungle',
     theme: { primary: '#8f2f2f', accent: '#f6eaea' },
   },

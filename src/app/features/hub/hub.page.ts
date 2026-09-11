@@ -229,7 +229,6 @@ export class HubPage {
         reducedMotion: () => this.capability.reducedMotion(),
         projects: this.content.projects(),
         onEnter: (project) => void this.router.navigate(['/p', project.slug]),
-        onDemo: (landmark) => this.startDemo(landmark),
         onAreaChange: (area) => this.store.setArea(area),
         textures: this.assets,
       });
