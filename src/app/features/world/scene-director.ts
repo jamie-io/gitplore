@@ -41,16 +41,27 @@ export class SceneDirector {
 
   /** Builds the world the route asks for. `null` is the start world. */
   async show(slug: string | null): Promise<void> {
-    const project = slug === null ? null : (this.content.bySlug(slug) ?? null);
-    // An unknown slug builds nothing: the start world stays and the panel explains itself (spec §6).
-    if (slug !== null && !project) {
-      return;
-    }
-
     const token = ++this.sequence;
+    // Raised synchronously, before the first `await`: a caller that does not await `show()`
+    // (the router guard, the panel's "back to the hub" handler) must see the flag flip at once.
     this.store.setSwapping(true);
 
     try {
+      // A visitor can open `/p/:slug` before the portfolio has finished loading — that deep link
+      // is the primary entry path, not an edge case — so `bySlug` must not run until content is
+      // ready. Without this, an early call sees an empty project list and treats a real slug as
+      // unknown, building nothing at all.
+      await this.content.ready;
+      if (token !== this.sequence) {
+        return;
+      }
+
+      const project = slug === null ? null : (this.content.bySlug(slug) ?? null);
+      // An unknown slug builds nothing: the start world stays and the panel explains itself (spec §6).
+      if (slug !== null && !project) {
+        return;
+      }
+
       const environment = await createEnvironment(project?.environment ?? 'clearing', {
         reducedMotion: () => this.capability.reducedMotion(),
       });
@@ -118,6 +129,9 @@ export class SceneDirector {
     this.sequence++;
     this.current = null;
     this.previousSlug = null;
+    // A build abandoned by the bump above never reaches the `finally` that would otherwise clear
+    // this, since its token no longer matches — so it has to be cleared here too.
+    this.store.setSwapping(false);
   }
 
   private hubScene(environment: Environment): HubScene {
