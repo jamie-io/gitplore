@@ -27,13 +27,14 @@ test.describe('landmarks and interaction', () => {
     await expect(page.locator('app-hud .area')).toHaveText('Deslopify');
 
     await page.keyboard.press('KeyE');
+    // Using the portal now enters Deslopify's own world, not a panel over the hub (spec §5).
     await expect(page).toHaveURL(/\/p\/deslopify$/);
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toContainText('Deslopify');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
+    await expect(page.locator('app-hud .area')).toContainText('Dschungel — Deslopify');
 
+    // Esc leaves the repo world straight for the start world — no need to find the return portal.
     await page.keyboard.press('Escape');
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('dialog')).toHaveCount(0);
     // Back in the world at the portal's exit point: the area still names the project ...
     await expect(page.locator('app-hud .area')).toHaveText('Deslopify');
     // ... and the player faces away from the portal, so no prompt.
@@ -70,11 +71,10 @@ test.describe('landmarks and interaction', () => {
 
   test('a deep link places the player at that landmark', async ({ page }) => {
     await page.goto('/p/deslopify');
-    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
 
-    await page.locator('button[data-role="close"]').click();
     await page.locator('button[data-role="start"]').click();
 
-    await expect(page.locator('app-hud .area')).toHaveText('Deslopify');
+    await expect(page.locator('app-hud .area')).toContainText('Dschungel — Deslopify');
   });
 });

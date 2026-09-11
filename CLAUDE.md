@@ -31,7 +31,7 @@ Scaffold with `npx @angular/cli@22`, **not** the globally installed CLI (which i
 | 3D | Plain Three.js wrapped by a thin Angular service layer. No angular-three, no Babylon, no `three-stdlib` |
 | Physics | None. Kinematic capsule + analytic terrain height + AABB/cylinder colliders |
 | Renderer | `WebGLRenderer` only, constructed solely in `renderer.factory.ts` |
-| Demo embedding | Angular overlay panel with an `<iframe>`; in-world screens show a static screenshot texture. No CSS3D iframes |
+| Demo embedding | Angular overlay panel with an `<iframe>`; in-world screens show a static screenshot texture. No CSS3D iframes. The in-world demo itself now stands in the project's own world, not the start world |
 | Assets | Procedural low-poly terrain/props in code; glTF only for hero landmarks |
 | Hosting | GitHub Pages first, own server (Docker + nginx) later — the switch must be config-only (`--base-href`) |
 | Language | README in German; code, comments and commits in English |
@@ -65,13 +65,18 @@ is the main thing to get right when adding files:
   import `engine` and `content` models.
 - `@content/*` — `Project` data model, content sources, README service. No Three.js.
 - `@ui/*` — components and signal stores. May import `content` and stores, **never Three directly**.
+- `features/world/` — the one place a scene and the router legitimately meet: `SceneDirector` turns
+  the open route into the world on screen, and `WorldPage` hosts the canvas and the child outlet.
+  `@ui/*` may not import `@world/*` directly, which is why this layer exists outside the four above.
 
 Key consequences of the design:
 
-- **The hub scene is never destroyed.** A project destination is an overlay panel opened by a child
-  route (`/p/:slug` under `''`); returning clears `activeProject` and re-spawns the player at
-  `landmark.spawn`. The router is the source of truth for *which* destination is open; `WorldStore`
-  owns everything else.
+- **A destination is a world, not an overlay.** Walking into a portal disposes the start world and
+  builds that repository's own (`docs/superpowers/specs/2026-09-10-repo-worlds-design.md` §2,
+  which reverses the earlier rule deliberately). `SceneDirector` owns the swap and guards it with a
+  sequence token; the router remains the source of truth for _which_ world is open, and
+  `/p/:slug/info` is the description panel on top of it. The extended memory E2E test is what keeps
+  the reversal safe.
 - **Mobile/no-WebGL2 is a redirect, not a degraded 3D path.** `simpleViewGuard` is a `CanActivateFn`
   returning a `RedirectCommand` to `/projects[/:slug]` — it must not be `canMatch`, or a
   non-matching `''` falls through to `**` and loops. This keeps the hub bundle off phones entirely.

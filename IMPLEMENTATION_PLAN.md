@@ -64,9 +64,12 @@ gitplore/
       player/   player-controller.ts  camera-rig.ts  collision.ts
       interaction/  interactable.ts  interaction.system.ts
     world/             # scene content built on engine
-      hub/  hub.scene.ts  terrain.ts  sky.ts  props.ts  placement.ts
-      environments/  plaza.ts  showroom.ts       # reusable, also for generated worlds
-      landmarks/  base/portal.landmark.ts  base/screen.landmark.ts  <slug>/<slug>.landmark.ts
+      hub/  hub.scene.ts                        # the start world's landmarks-per-project layer
+      environments/  environment.ts  create-environment.ts   # one dynamic `import()` per id (§5)
+        clearing.ts  showroom.ts  jungle.ts  plaza.ts         # + ground.ts sky.ts terrain.ts monument.ts placement.ts
+      landmarks/  base/portal.landmark.ts  base/screen.landmark.ts  base/landmark.ts  create-landmark.ts
+      project/  project.scene.ts  create-project-scene.ts  return.landmark.ts   # a repo's own world
+      projects/  <slug>/<slug>.scene.ts             # bespoke worlds; deslopify is the only one so far
     content/           # data + adapters, no Three
       project.model.ts  synced-repo.ts  repo-overrides.ts  merge-repo.ts
       content-source.ts  github-content.source.ts
@@ -75,7 +78,7 @@ gitplore/
       store/  world.store.ts  settings.store.ts
       hud/  project-panel/  project-menu/  loading-screen/  settings-dialog/  demo-frame/
     features/
-      hub/hub.page.ts                          # canvas host + HUD + child outlet (lazy)
+      world/  world.page.ts  scene-director.ts    # canvas host + HUD + child outlet; the router↔scene seam (§3)
       projects/projects-list.page.ts  project-detail.page.ts   # mobile / fallback
       explorer/                                # later phase
     shared/  device.service.ts  a11y/focus-trap.directive.ts
@@ -100,12 +103,28 @@ and stores but never Three directly.
 
 ## 3. Routing and scene model
 
-**The hub stays alive; a destination is an overlay over the paused hub, opened by a child route.**
+> **Reversed by `docs/superpowers/specs/2026-09-10-repo-worlds-design.md` §2 (Task 11 recorded
+> it here):** a project destination is **not** an overlay over a paused, permanent hub any more. A
+> destination is a world of its own. Walking through a portal disposes the start world (the
+> "Lichtung") and builds that repository's own themed world in its place; walking back disposes
+> that world and rebuilds the start world. `SceneDirector` (`features/world/scene-director.ts`)
+> owns the swap and guards it with a sequence token, so a navigation that lands while a build is
+> still in flight throws that build's result away instead of swapping in a world nobody asked for
+> any more. The extended `tests/memory.spec.ts` is what keeps this safe: resources must stay flat
+> across five world changes, not just across opening and closing an overlay.
 
 ```ts
 export const routes: Routes = [
-  { path: '', loadComponent: () => import('./features/hub/hub.page'), canActivate: [simpleViewGuard],
-    children: [{ path: 'p/:slug', loadComponent: () => import('./ui/project-panel/project-panel') }] },
+  {
+    path: '', loadComponent: () => import('./features/world/world.page'), canActivate: [simpleViewGuard],
+    children: [
+      // Componentless: it exists only to carry `:slug` down to the panel and to the
+      // `SceneDirector`. The world itself is not a routed component — `WorldPage` never changes.
+      { path: 'p/:slug', children: [
+        { path: 'info', loadComponent: () => import('./ui/project-panel/project-panel') },
+      ] },
+    ],
+  },
   { path: 'projects', loadComponent: () => import('./features/projects/projects-list.page') },
   { path: 'projects/:slug', loadComponent: () => import('./features/projects/project-detail.page') },
   { path: '**', redirectTo: '' },
@@ -114,21 +133,28 @@ export const routes: Routes = [
 
 - `simpleViewGuard` is a `CanActivateFn` that returns `true` on desktop, otherwise a
   `RedirectCommand` to `/projects` or `/projects/:slug`. It must be `canActivate` with a redirect,
-  not `canMatch`, because a non-matching `''` would fall into `**` and loop.
-- Deep link `/p/:slug`: `HubPage` mounts and starts loading the world at once; the panel renders
-  immediately from static content plus the README via `httpResource`. When the world is ready the
-  player is spawned at that landmark's exit point.
+  not `canMatch`, because a non-matching `''` would fall into `**` and loop. It needs no change for
+  the child `info` route: its `PROJECT_DEEP_LINK` regex captures the slug out of `/p/:slug/info`
+  exactly as it does out of `/p/:slug`.
+- Deep link `/p/:slug`: `WorldPage` mounts and `SceneDirector` builds that repository's own world
+  directly — the start world is never built first. The player is placed at the world's arrival
+  point (the return portal's spawn), which is also where a visitor who walked in through the portal
+  ends up.
+- Deep link `/p/:slug/info`: the same, plus the description panel opens on top of that world.
 - Entering: `PortalLandmark.onInteract()` runs a short camera dolly (skipped under reduced motion)
-  then `router.navigate(['/p', slug])`. An `effect` in `HubPage` bridges the route param to
-  `store.openProject(slug)` and sets `inputMode = 'ui'`. The engine keeps rendering the ambient hub
-  at a throttled 15 fps behind the blurred panel, or fully pauses on the `low` tier.
-- Returning: close button, `Esc`, or browser back navigates to `''`; the store clears
-  `activeProject`, the player is placed at `landmark.spawn` facing away from the portal, and
-  pointer lock is re-requested on the next click. The hub is never destroyed, so no reload.
-- The router is the source of truth for "which destination is open" (the URL is the deep link);
+  then `router.navigate(['/p', slug])`. `WorldPage`'s route-driven effect, keyed on the slug alone,
+  calls `SceneDirector.show(slug)`, which disposes the outgoing world and builds the incoming one.
+- Returning: the world's own return portal, `Esc`, or browser back navigates to `''`;
+  `SceneDirector` disposes the repo world, rebuilds the start world, and places the player at the
+  portal's exit point (`landmark.spawn`, facing away from it) — the same placement the old,
+  never-destroyed hub gave for free, now recomputed on rebuild.
+- The router is still the source of truth for "which world is open" (the URL is the deep link);
   `WorldStore` owns everything else. No resolvers, since they would delay the panel.
-- Unknown slug: the panel computes `project()` from `ContentService`; if undefined it renders a
-  "not found" card linking to the menu.
+- Unknown slug: `SceneDirector` builds nothing new — whatever world is already standing (start world
+  or a repo world) stays, and the panel explains itself on top of it. The one case that needs a
+  fallback is a cold boot straight into an unknown slug, where nothing is standing yet: there it
+  falls through and builds the start world, exactly as a `null` slug would, so the panel always has
+  a world behind it.
 
 ## 4. Content model
 

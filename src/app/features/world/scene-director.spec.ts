@@ -85,6 +85,16 @@ describe('SceneDirector', () => {
     expect(store.swapping()).toBe(false);
   });
 
+  it('builds the start world for an unknown slug on a cold boot, panel or not', async () => {
+    // A deep link straight to `/p/does-not-exist/info` has no earlier world to leave standing —
+    // unlike the case above, this is the very first `show()` call. The panel still needs a world
+    // behind it, so this must fall through and build the start world rather than nothing at all.
+    await director.show('does-not-exist');
+
+    expect(engine.world).toBeInstanceOf(HubScene);
+    expect(store.area()).toBe('Lichtung');
+  });
+
   it('builds once when two navigations overlap, and disposes the old world once', async () => {
     await director.show(null);
     const first = engine.world!;

@@ -1806,9 +1806,14 @@ export class ProjectScene implements WorldScene {
 
     // Turned to face the arriving player's back: `Landmark` then derives a spawn point a few
     // metres in front of it and a yaw pointing away, which is exactly "the exit is behind you".
+    // Subtracting `Math.PI` here, not adding it: `Landmark.spawnYaw` is `rotationY + Math.PI`, so
+    // only the minus form makes the portal's own `spawnYaw` equal `environment.spawnYaw` rather
+    // than `environment.spawnYaw + 2π` — the two place the portal identically, but only the minus
+    // form satisfies the `arrival.yaw` assertion this same plan writes below. Task 11 found this
+    // sample used `+`; the shipped code uses `-` and is the authority where the two disagree.
     const back: LandmarkPlacement = {
       position: [this.environment.spawn.x, 0, this.environment.spawn.z],
-      rotationY: this.environment.spawnYaw + Math.PI,
+      rotationY: this.environment.spawnYaw - Math.PI,
     };
     this.returnPortal = new ReturnPortal({
       project: options.project,

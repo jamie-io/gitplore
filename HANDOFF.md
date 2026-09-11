@@ -94,7 +94,11 @@ stats, `?stats=1`).
 9. **Handlers read the router-derived slug, not the store copy**, because the store trails the
    router by one change-detection pass and keys can land in that gap.
 10. **E2E is not run in CI** — the deploy workflow runs lint, typecheck, unit and script tests,
-    content checks, the build and the budget check. Adding Playwright there is a follow-up.
+    content checks, the build and the budget check. Adding a Playwright job there is a follow-up,
+    and so is running Lighthouse accessibility in it (design spec §8 asks for 1.00; there is no
+    Lighthouse run in this repository, committed or otherwise — see §6). `@axe-core/playwright`
+    now runs locally as part of `npm run e2e` (`tests/a11y.spec.ts`, added in Task 11), which is a
+    real automated a11y check but not a substitute for either of those two follow-ups.
 11. **The demo iframe sandbox omits `allow-same-origin`** (the plan's §5 lists it). Both demos
     are served from the same origin as the portfolio, so with it the sandbox would have granted
     the framed page full access to gitplore. Both demos are static sites and render fine without
@@ -124,7 +128,8 @@ example video titles in `deslopify.landmark.ts` are fictional and marked as exam
   Important findings were fixed, the rest are the minors listed here.
 - Lighthouse was run from the scratchpad with `lighthouse@12`; nothing about it is committed.
   Rerun with `npx lighthouse@12 http://localhost:4173/projects --only-categories=accessibility`
-  after `npm run build && node scripts/serve-dist.mjs`.
+  after `npm run build && node scripts/serve-dist.mjs`. This is still true after Task 11: a
+  repository-committed Lighthouse run, alongside a Playwright job, is future CI work (see §5.10).
 
 ## 7. Next steps
 
