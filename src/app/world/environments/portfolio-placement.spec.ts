@@ -4,6 +4,7 @@ import { mergeRepo } from '@content/merge-repo';
 import { REPO_OVERRIDES } from '@content/repo-overrides';
 import type { SyncedRepo } from '@content/synced-repo';
 import { HubScene } from '../hub/hub.scene';
+import { ClearingEnvironment } from './clearing';
 import { MIN_LANDMARK_SEPARATION } from './placement';
 
 /**
@@ -19,6 +20,7 @@ const projects = repos.map((repo) => mergeRepo(repo, REPO_OVERRIDES[repo.name]))
 
 describe('the committed portfolio in the hub', () => {
   const scene = new HubScene({
+    environment: new ClearingEnvironment({ reducedMotion: () => false }),
     reducedMotion: () => false,
     projects,
     onEnter: () => undefined,

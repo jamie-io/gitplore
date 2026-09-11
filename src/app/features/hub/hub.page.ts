@@ -19,6 +19,7 @@ import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { InputAction, InputService } from '@engine/input.service';
 import { ContentService } from '@content/content.service';
+import { ClearingEnvironment } from '@world/environments/clearing';
 import { HubScene } from '@world/hub/hub.scene';
 import { Landmark } from '@world/landmarks/base/landmark';
 import { Hud } from '@ui/hud/hud';
@@ -222,6 +223,9 @@ export class HubPage {
       this.engine.onNearbyChange = (nearby) => this.store.setNearby(nearby);
 
       const hub = new HubScene({
+        environment: new ClearingEnvironment({
+          reducedMotion: () => this.capability.reducedMotion(),
+        }),
         reducedMotion: () => this.capability.reducedMotion(),
         projects: this.content.projects(),
         onEnter: (project) => void this.router.navigate(['/p', project.slug]),
