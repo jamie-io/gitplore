@@ -1,7 +1,6 @@
-import { Service, computed, inject, signal } from '@angular/core';
+import { Service, computed, signal } from '@angular/core';
 import type { InputMode } from '@engine/input.service';
 import type { Interactable } from '@engine/interaction/interactable';
-import { ContentService } from '@content/content.service';
 
 export type WorldPhase = 'booting' | 'loading' | 'ready' | 'error';
 
@@ -17,8 +16,6 @@ export interface LoadProgress {
  */
 @Service()
 export class WorldStore {
-  private readonly content = inject(ContentService);
-
   readonly phase = signal<WorldPhase>('booting');
   readonly loadProgress = signal<LoadProgress>({ loaded: 0, total: 0, label: '' });
   readonly area = signal('');
@@ -37,15 +34,15 @@ export class WorldStore {
   /** Slug of the in-world demo the panel asked for; the page fulfils and clears it. */
   readonly demoRequest = signal<string | null>(null);
 
-  /** Which repo world is open — `null` is the start world. The router owns this (spec §6). */
-  readonly activeSlug = signal<string | null>(null);
-  /** The `/p/:slug/info` panel is showing on top of that world. The router owns this too. */
+  /**
+   * The `/p/:slug/info` panel is showing on top of whatever world is open. The router owns this.
+   *
+   * Which world that is, the store deliberately does not know: nothing about the UI depends on it,
+   * and `SceneDirector` reads the slug from the route itself.
+   */
   readonly panelOpen = signal(false);
   /** A scene is being built; the veil covers the swap and the loop stands still behind it. */
   readonly swapping = signal(false);
-  readonly activeProject = computed(
-    () => this.content.bySlug(this.activeSlug() ?? undefined) ?? null,
-  );
 
   readonly ready = computed(() => this.phase() === 'ready');
 
@@ -57,7 +54,7 @@ export class WorldStore {
 
   /**
    * Any overlay takes the input away from the world; a running demo takes it next. Standing in a
-   * repo world does not: it is a place, not a dialog, so `activeSlug` is deliberately absent here.
+   * repo world does not: it is a place, not a dialog, and no signal here reports being in one.
    */
   readonly inputMode = computed<InputMode>(() => {
     if (!this.started() || this.panelOpen() || this.menuOpen() || this.settingsOpen()) {
@@ -87,10 +84,6 @@ export class WorldStore {
   fail(message: string): void {
     this.phase.set('error');
     this.errorMessage.set(message);
-  }
-
-  openProject(slug: string | null): void {
-    this.activeSlug.set(slug);
   }
 
   setPanelOpen(open: boolean): void {

@@ -228,7 +228,7 @@ The panel also gives README, source link and "open in new tab" a natural home.
 | `loadProgress` | `{ loaded: number; total: number; label: string }` |
 | `area` | `string`, named region from `HubScene` triggers |
 | `nearby` | `Interactable | null` |
-| `activeProject` | `Project | null`, computed from the route slug |
+| `panelOpen`, `swapping` | booleans; the panel over the world, and a scene build in flight |
 | `inputMode`, `pointerLocked`, `paused` | see engine |
 | `menuOpen`, `settingsOpen` | booleans |
 

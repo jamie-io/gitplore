@@ -164,8 +164,7 @@ export class WorldPage {
     });
 
     effect(() => {
-      const { slug, panel } = this.routeState();
-      this.store.openProject(slug);
+      const { panel } = this.routeState();
       this.store.setPanelOpen(panel);
       // Keep the world alive but cheap behind the panel; on the weakest tier stop drawing entirely.
       this.engine.setThrottle(panel && this.capability.tier() !== 'low' ? 15 : null);
