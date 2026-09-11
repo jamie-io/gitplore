@@ -184,6 +184,35 @@ describe('SceneDirector', () => {
     expect(store.demoActive()).toBe(false);
   });
 
+  it('lets the interact key through to the world when no demo is running', async () => {
+    await director.show('novaverta');
+
+    // No demo was ever started, so the key must reach whatever the player is standing in front
+    // of — a director that swallowed it here would silently break interacting with the world.
+    expect(director.demoInteract()).toBe(false);
+  });
+
+  it('consumes the interact key for a running demo instead of the world behind it', async () => {
+    await director.show('deslopify');
+    const scene = engine.world as ProjectScene;
+    const demo = scene.demo!;
+    let interacts = 0;
+    const interact = demo.interact.bind(demo);
+    demo.interact = () => {
+      interacts++;
+      interact();
+    };
+    director.startDemo();
+
+    const consumed = director.demoInteract();
+
+    // A director that failed to consume the key here would let it also trigger the landmark
+    // behind the demo; one that consumed it without calling `interact()` would leave the demo
+    // stuck on whatever it was showing.
+    expect(interacts).toBe(1);
+    expect(consumed).toBe(true);
+  });
+
   it('drops an in-flight build on reset, so it never reaches the engine', async () => {
     const pending = director.show('novaverta');
 
