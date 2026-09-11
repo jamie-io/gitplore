@@ -126,8 +126,9 @@ describe('WorldStore', () => {
       expect(store.inputMode()).toBe('world');
     });
 
-    it('is the ui while a project is open', () => {
+    it('is the ui while the panel is open over a project', () => {
       store.openProject('novaverta');
+      store.setPanelOpen(true);
 
       expect(store.inputMode()).toBe('ui');
     });
@@ -240,5 +241,37 @@ describe('WorldStore', () => {
 
       expect(store.paused()).toBe(false);
     });
+  });
+
+  it('leaves the world in charge of the input while the visitor stands in a repo world', () => {
+    // Standing in Deslopify's jungle is not an overlay: WASD must still walk.
+    store.markStarted();
+    store.openProject('deslopify');
+
+    expect(store.inputMode()).toBe('world');
+  });
+
+  it('hands the input to the UI when the panel opens on top of a repo world', () => {
+    store.markStarted();
+    store.openProject('deslopify');
+    store.setPanelOpen(true);
+
+    expect(store.inputMode()).toBe('ui');
+  });
+
+  it('pauses the render loop while a scene is being built', () => {
+    store.setSwapping(true);
+
+    expect(store.paused()).toBe(true);
+  });
+
+  it('forgets the panel and the swap when the page goes away', () => {
+    store.setPanelOpen(true);
+    store.setSwapping(true);
+
+    store.resetTransient();
+
+    expect(store.panelOpen()).toBe(false);
+    expect(store.swapping()).toBe(false);
   });
 });
