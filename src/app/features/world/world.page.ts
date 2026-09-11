@@ -29,9 +29,9 @@ import { WorldStore } from '@ui/store/world.store';
 import { SceneDirector } from './scene-director';
 
 /**
- * Canvas host for the 3D world. The world is created once and never destroyed — a project
- * destination is an overlay rendered into the child outlet (IMPLEMENTATION_PLAN.md §3), and which
- * world stands behind it is the `SceneDirector`'s job, not this page's (spec §6).
+ * Canvas host for the 3D world. The canvas itself is created once and never destroyed; the world
+ * rendered into it is swapped by the `SceneDirector` whenever the route names a different project
+ * (spec §6), and `/p/:slug/info` renders the project's description panel into the child outlet.
  */
 @Component({
   selector: 'app-world-page',
