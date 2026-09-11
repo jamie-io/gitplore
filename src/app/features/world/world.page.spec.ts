@@ -1,24 +1,30 @@
-import { Component } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router, provideRouter } from '@angular/router';
+import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from '@ui/store/world.store';
 import { WorldPage } from './world.page';
+import { SceneDirector } from './scene-director';
 import { CAPABLE } from '@engine/testing/world-context';
 import { StubEngine } from '@engine/testing/stub-engine';
 
 /**
  * A stub for the `info` leaf: `WorldPage` only cares that the route was matched, not what it
  * renders, and the real `ProjectPanel` drags in content and README machinery this suite does not
- * need.
+ * need. It keeps a real `slug` input, though, so a test can prove params actually inherit down
+ * through the componentless `p/:slug` route (spec §6) — the single most consequential unverified
+ * thing on this branch, since a break here would silently show every project as "not found".
  */
 @Component({ template: '' })
-class StubInfoPanel {}
+class StubInfoPanel {
+  readonly slug = input<string>();
+}
 
 describe('WorldPage', () => {
   let fixture: ComponentFixture<WorldPage>;
@@ -55,9 +61,12 @@ describe('WorldPage', () => {
         // this component is created directly rather than by a root outlet, its injected
         // `ActivatedRoute` stands in for `WorldPage`'s own node, so the top-level entry here plays
         // the part its children play in `app.routes.ts`.
-        provideRouter([
-          { path: 'p/:slug', children: [{ path: 'info', component: StubInfoPanel }] },
-        ]),
+        provideRouter(
+          [{ path: 'p/:slug', children: [{ path: 'info', component: StubInfoPanel }] }],
+          // Matches `app.config.ts`: without this, no route ever fills a component `input()`,
+          // regardless of params inheritance, and the test below would pass for the wrong reason.
+          withComponentInputBinding(),
+        ),
         provideHttpClient(),
         provideHttpClientTesting(),
         { provide: DEVICE_CAPABILITIES, useValue: CAPABLE },
@@ -179,5 +188,75 @@ describe('WorldPage', () => {
     TestBed.tick();
 
     expect(fixture.nativeElement.getAttribute('data-input-mode')).toBe('world');
+  });
+
+  it('asks the director for the start world exactly once on a cold boot', async () => {
+    // The route-driven build effect used to infer "boot has claimed the scene" from
+    // `store.phase()`, and the `'booting'` → `'loading'` transition re-ran it before `boot()` had
+    // set `shown` — calling `show()` a second time on every cold boot.
+    const show = vi.spyOn(TestBed.inject(SceneDirector), 'show');
+
+    await bootWithoutManifest();
+
+    expect(show).toHaveBeenCalledTimes(1);
+  });
+
+  it('never builds a world when boot fails, since the engine was never attached', async () => {
+    TestBed.resetTestingModule();
+    const failingEngine = new StubEngine();
+    await TestBed.configureTestingModule({
+      imports: [WorldPage],
+      providers: [
+        provideRouter(
+          [{ path: 'p/:slug', children: [{ path: 'info', component: StubInfoPanel }] }],
+          withComponentInputBinding(),
+        ),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: DEVICE_CAPABILITIES, useValue: CAPABLE },
+        { provide: ENGINE, useValue: failingEngine },
+        // A source that never answers with a portfolio: `content.error()` becomes non-null and
+        // `boot()`'s own `try`/`catch` reports it via `store.fail()` before ever attaching.
+        {
+          provide: CONTENT_SOURCE,
+          useValue: { projects: () => Promise.reject(new Error('boom')) },
+        },
+      ],
+    }).compileComponents();
+    const failingStore = TestBed.inject(WorldStore);
+    const failingFixture = TestBed.createComponent(WorldPage);
+    document.body.appendChild(failingFixture.nativeElement);
+
+    TestBed.tick();
+    // Real macrotask ticks, not just microtasks: a director build crosses a genuine dynamic
+    // `import()`, so a regression that lets the build effect fire despite the failed boot needs
+    // this much room to actually reach `engine.setScene` before the assertions below would catch
+    // it — settling on microtasks alone would pass this test for the wrong reason.
+    for (let i = 0; i < 20; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      TestBed.tick();
+    }
+
+    expect(failingStore.phase()).toBe('error');
+    // The bug this guards against: a director that built a world here would call
+    // `engine.setScene` on an engine `attach()` never reached — silently, behind the error screen.
+    expect(failingEngine.attached).toBe(0);
+    expect(failingEngine.world).toBeNull();
+
+    failingFixture.nativeElement.remove();
+  });
+
+  it('inherits :slug down through the componentless p/:slug route to the info panel', async () => {
+    await bootWithoutManifest();
+    await TestBed.inject(Router).navigate(['/p', 'novaverta', 'info']);
+    TestBed.tick();
+
+    const panel = fixture.debugElement.query(By.directive(StubInfoPanel))?.componentInstance as
+      StubInfoPanel | undefined;
+
+    // If this fails, the `p/:slug` node's lack of a `component`/`loadComponent` is not enough on
+    // its own for `withComponentInputBinding()` to inherit params past it — stop and report rather
+    // than reaching for `paramsInheritanceStrategy: 'always'` unasked.
+    expect(panel?.slug()).toBe('novaverta');
   });
 });

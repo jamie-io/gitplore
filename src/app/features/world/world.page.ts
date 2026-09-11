@@ -6,6 +6,7 @@ import {
   computed,
   effect,
   inject,
+  signal,
   viewChild,
   ElementRef,
 } from '@angular/core';
@@ -109,6 +110,14 @@ export class WorldPage {
   private destroyed = false;
   /** The slug the director last showed, or `undefined` before boot has shown anything. */
   private shown: string | null | undefined = undefined;
+  /**
+   * Flips once `boot()` has attached the engine and shown its first world. Read reactively so the
+   * route-driven build effect (below) cannot race `boot()`'s own first call to `director.show()` —
+   * inferring this from `store.phase()` let the `'booting'` → `'loading'` transition re-run the
+   * effect while `shown` was still unset, calling `show()` a second time on every cold boot, and,
+   * on a failed boot, let it build a world for an engine that was never attached.
+   */
+  private readonly booted = signal(false);
 
   /**
    * The router is the source of truth for which world is open and whether the panel is on top of
@@ -169,7 +178,7 @@ export class WorldPage {
     // opened or the quality tier stepped down.
     effect(() => {
       const { slug } = this.routeState();
-      if (this.shown !== slug && this.store.phase() !== 'booting') {
+      if (this.booted() && this.shown !== slug) {
         this.shown = slug;
         // Unlike the boot path's `await`, nothing downstream awaits this call — so a rejection
         // must be turned into a reported failure here, or it becomes an unhandled rejection that
@@ -235,6 +244,9 @@ export class WorldPage {
       const { slug } = this.routeState();
       this.shown = slug;
       await this.director.show(slug);
+      // Only now may the route-driven build effect take over: a failed boot below never reaches
+      // this line, so it never claims the scene and never builds one for a never-attached engine.
+      this.booted.set(true);
 
       this.store.reportProgress(1);
       this.store.markReady();
@@ -274,8 +286,11 @@ export class WorldPage {
         }
         break;
       case 'menu':
-        // Not before the start gate: two modal dialogs at once, and no projects loaded yet.
-        if (!this.store.panelOpen() && this.store.started()) {
+        // `routeState().panel` rather than `store.panelOpen()`: the store copy trails the router
+        // by one change-detection pass, and a key can land inside that gap and open the project
+        // menu on top of the just-activated panel — two `aria-modal` dialogs at once. Also not
+        // before the start gate: two modal dialogs at once, and no projects loaded yet.
+        if (!this.routeState().panel && this.store.started()) {
           this.store.toggleMenu();
         }
         break;
