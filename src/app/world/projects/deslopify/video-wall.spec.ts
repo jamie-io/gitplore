@@ -16,6 +16,16 @@ function options(overrides: Partial<VideoWallOptions> = {}): VideoWallOptions {
 }
 
 describe('VideoWall', () => {
+  it('asks the page to start the demo when its interactable is used', () => {
+    const started: number[] = [];
+    const target = new VideoWall(options({ onDemo: () => started.push(1) }));
+
+    const demo = target.interactables.find((interactable) => interactable.id.endsWith(':demo'))!;
+    demo.onInteract();
+
+    expect(started).toEqual([1]);
+  });
+
   it('parks the visitor in front of the wall, facing it, on enter', () => {
     const target = new VideoWall(options());
     const player = new PlayerController();
