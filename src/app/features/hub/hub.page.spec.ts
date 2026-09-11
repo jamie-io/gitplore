@@ -3,55 +3,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { DEVICE_CAPABILITIES } from '@engine/capability.service';
-import { EMPTY_ENGINE_STATS, ENGINE, EngineService } from '@engine/engine.service';
-import { InputService } from '@engine/input.service';
-import { PlayerController } from '@engine/player/player-controller';
-import { WorldScene } from '@engine/world-object';
+import { ENGINE } from '@engine/engine.service';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from '@ui/store/world.store';
 import { HubPage } from './hub.page';
 import { CAPABLE } from '@engine/testing/world-context';
-
-/** The engine without a renderer: the page's lifecycle and bridging are what is under test. */
-class StubEngine {
-  attached = 0;
-  detached = 0;
-  world: WorldScene | null = null;
-  readonly player = new PlayerController();
-  onNearbyChange: EngineService['onNearbyChange'] = null;
-  readonly nearby = null;
-
-  stats() {
-    return EMPTY_ENGINE_STATS;
-  }
-  private detachInput: (() => void) | null = null;
-
-  attach(canvas: HTMLCanvasElement): void {
-    this.attached++;
-    this.detachInput = TestBed.inject(InputService).attach(canvas);
-  }
-  detach(): void {
-    this.detached++;
-    this.detachInput?.();
-  }
-  resize(): void {
-    // no renderer
-  }
-  refreshQuality(): void {
-    // no renderer
-  }
-  setScene(world: WorldScene): void {
-    // Landmarks are built in the scene's constructor; there is no renderer to init them for.
-    this.world = world;
-  }
-  setThrottle(): void {
-    // no renderer
-  }
-  setPaused(): void {
-    // no renderer
-  }
-}
+import { StubEngine } from '@engine/testing/stub-engine';
 
 describe('HubPage', () => {
   let fixture: ComponentFixture<HubPage>;
