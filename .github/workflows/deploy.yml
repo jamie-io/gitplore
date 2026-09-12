@@ -42,8 +42,34 @@ jobs:
         with:
           path: dist/gitplore/browser
 
+  # The browser gates. Kept out of `build` so a Playwright failure is legible on its own, and
+  # required by `deploy` so neither can be skipped on the way to production.
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Builds and serves the production bundle itself (playwright.config.ts `webServer`).
+      - run: npm run e2e
+      # Lighthouse needs the build standing on its own; `webServer` has torn its copy down by now.
+      # Google Chrome is preinstalled on the runner image, which is what chrome-launcher finds.
+      - run: npm run build
+      - name: Lighthouse accessibility
+        run: |
+          node scripts/serve-dist.mjs &
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:4173/projects && break
+            sleep 1
+          done
+          npm run a11y:check
+
   deploy:
-    needs: build
+    needs: [build, e2e]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
