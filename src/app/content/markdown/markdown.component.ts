@@ -6,6 +6,10 @@ import { Marked, type Tokens } from 'marked';
 /** The deepest heading HTML has. */
 const MAX_HEADING_LEVEL = 6;
 
+/** Accessible names for a GFM task list box, in the page's language. */
+const TASK_DONE_LABEL = 'Erledigt';
+const TASK_OPEN_LABEL = 'Offen';
+
 /**
  * A sanitiser of this module's own rather than the shared default instance: the link policy below
  * is a README rule, and a hook on the singleton would apply to every DOMPurify caller in the app.
@@ -40,6 +44,13 @@ function markedWithHeadingsFrom(topLevel: number): Marked {
       heading({ tokens, depth }: Tokens.Heading): string {
         const level = Math.min(depth + topLevel - 1, MAX_HEADING_LEVEL);
         return `<h${level}>${this.parser.parseInline(tokens)}</h${level}>\n`;
+      },
+      checkbox({ checked }: Tokens.Checkbox): string {
+        // `marked` emits a bare disabled checkbox, which is a form control without an accessible
+        // name. The box carries the only rendering of the task's state, so it is named rather than
+        // hidden: axe's `label` rule flagged all eleven of them in Deslopify's README.
+        const name = checked ? TASK_DONE_LABEL : TASK_OPEN_LABEL;
+        return `<input${checked ? ' checked=""' : ''} disabled="" type="checkbox" aria-label="${name}">`;
       },
     },
   });

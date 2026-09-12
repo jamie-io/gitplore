@@ -122,3 +122,41 @@ describe('MarkdownComponent heading levels', () => {
     expect(host.querySelector('h2 em')?.textContent).toBe('world');
   });
 });
+
+describe('MarkdownComponent task lists', () => {
+  let fixture: ComponentFixture<MarkdownComponent>;
+
+  beforeEach(async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({ imports: [MarkdownComponent] }).compileComponents();
+    fixture = TestBed.createComponent(MarkdownComponent);
+  });
+
+  const render = async (markdown: string) => {
+    fixture.componentRef.setInput('markdown', markdown);
+    await fixture.whenStable();
+    return fixture.nativeElement as HTMLElement;
+  };
+
+  it('names a ticked task box so a screen reader can announce it', async () => {
+    const host = await render('- [x] Titel zurücksetzen');
+
+    const box = host.querySelector('input[type="checkbox"]');
+    expect(box?.getAttribute('aria-label')).toBe('Erledigt');
+    expect(box?.hasAttribute('checked')).toBe(true);
+  });
+
+  it('names an open task box too', async () => {
+    const host = await render('- [ ] Audiospur ersetzen');
+
+    const box = host.querySelector('input[type="checkbox"]');
+    expect(box?.getAttribute('aria-label')).toBe('Offen');
+    expect(box?.hasAttribute('checked')).toBe(false);
+  });
+
+  it('keeps task boxes non-interactive', async () => {
+    const host = await render('- [x] Titel zurücksetzen');
+
+    expect(host.querySelector('input[type="checkbox"]')?.hasAttribute('disabled')).toBe(true);
+  });
+});
