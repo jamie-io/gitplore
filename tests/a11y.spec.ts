@@ -29,4 +29,29 @@ test.describe('accessibility', () => {
 
     expect(results.violations).toEqual([]);
   });
+
+  test("a README's task lists survive the same pass", async ({ page }) => {
+    // Deslopify is the only README with GFM task lists, and `marked` renders those as bare
+    // disabled checkboxes — form controls with no accessible name. Scanning only novaverta hid
+    // eleven `label` violations from this suite until a Lighthouse run found them.
+    await page.goto('/p/deslopify/info');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.locator('.markdown input[type="checkbox"]').first()).toBeVisible();
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .exclude('iframe')
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+  });
+
+  test('the document declares the language it is actually written in', async ({ page }) => {
+    // WCAG 3.1.1. The interface is German throughout, so an `en` document made every screen
+    // reader pronounce it with an English voice. axe cannot detect a wrong language, only a
+    // missing one, which is why this is asserted rather than scanned.
+    await page.goto('/projects');
+
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+  });
 });
