@@ -85,7 +85,6 @@ export class CatalogueBays implements SceneObject {
   private readonly options: CatalogueBaysOptions;
   private readonly cardMaterials: MeshBasicMaterial[] = [];
   private chosen = 0;
-  private desk: Mesh | null = null;
   private deskMaterial: MeshStandardMaterial | null = null;
   private card: Mesh | null = null;
 
@@ -142,8 +141,7 @@ export class CatalogueBays implements SceneObject {
 
     BAYS.forEach((bay, index) => {
       const x = this.offsetX(index);
-      const piece =
-        index === CONFIGURABLE ? this.buildDesk(accent) : this.buildPiece(index, accent);
+      const piece = index === CONFIGURABLE ? this.buildDesk() : this.buildPiece(index, accent);
       piece.position.set(x, piece.userData['centreY'] as number, 0);
       piece.castShadow = shadows;
       this.group.add(piece);
@@ -190,20 +188,18 @@ export class CatalogueBays implements SceneObject {
       material.dispose();
     });
     this.cardMaterials.length = 0;
-    this.desk = null;
     this.deskMaterial = null;
     this.card = null;
     disposeObject3D(this.group);
     this.group.clear();
   }
 
-  private buildDesk(accent: Color): Mesh {
+  /** The desk carries the configurable finish, so it keeps its material rather than sharing one. */
+  private buildDesk(): Mesh {
     this.deskMaterial = new MeshStandardMaterial({ color: this.material.color, roughness: 0.6 });
-    void accent;
     const desk = new Mesh(new BoxGeometry(2.4, 0.12, 1.1), this.deskMaterial);
     desk.name = 'bay:desk';
     desk.userData['centreY'] = 0.74;
-    this.desk = desk;
     return desk;
   }
 
