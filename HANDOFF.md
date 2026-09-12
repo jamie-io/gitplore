@@ -25,6 +25,7 @@ what happened, what was decided on Jamie's behalf, and what is left.
 | M6 Release                   | Done, `28a0b6f` + review fixes `85d8607`, `1712b03`, `d9c9927` — merged and deployed |
 | Repo worlds (spec §5–§7)     | Done, `580f23a`..`597639e` + store tidy-up `38433c0` — merged and deployed           |
 | A11y fixes and CI gates      | Done, `7a5af46`..`6e8a1a0` — merged and deployed                                     |
+| Nordwerk's furnished world   | Done, `d7aaf23` — merged and deployed                                                |
 
 `feat/m2-m6` was fast-forwarded into `main` and pushed at Jamie's request; the deploy workflow
 succeeded and the live site was smoke-tested from a browser (start gate, walking to the portal,
@@ -252,10 +253,13 @@ defect a visitor can see; all are cheap.
    reads.** The German `summary`/`tags` in `content/repo-overrides.ts` are the first session's
    wording, and the video titles in `world/projects/deslopify/video-wall.ts` are invented examples.
    Nobody but Jamie should be writing the copy that describes Jamie's projects.
-3. **The environments are placeholders for their themes, not finished art.** Each is a few dozen
-   lines of procedural geometry. Giving a repository a world that actually says something about it
-   is the obvious next creative step, and `world/projects/<slug>/` plus `createProjectScene` is
-   the hook — `DeslopifyScene` is the worked example.
+3. **Three of the five worlds are still the bare default hall.** Nordwerk's is done and is the
+   pattern to copy: keep `environment: 'showroom'`, add a bespoke scene under
+   `world/projects/<slug>/`, register one line in `createProjectScene`. Phönix (NOVA VERTA paint
+   booths) and Pötzsch (Objektservice, and a README that boasts of having no external connections)
+   are the two left; `gitplore` has plaza to itself and needs character rather than
+   differentiation. The rule that made Nordwerk work: build the thing the repository _does_, not
+   the thing it sells — the article cards say more than the furniture does.
 4. §6's deferred minors. Two are worth more than their label: **a failed scene build is terminal**
    (a lazy-chunk 404 right after a redeploy strands the visitor with no retry), and **"Hinreisen"
    and "Öffnen" do the same nothing** for the project you are already standing in — on the dialog
