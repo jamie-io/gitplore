@@ -31,8 +31,16 @@ describe('createProjectScene', () => {
     expect(scene.constructor.name).toBe('WebkatalogScene');
   });
 
+  it('gives Phönix its spray booth', async () => {
+    const project = { ...PROJECT_FIXTURES[0], slug: 'novaverta' };
+
+    const scene = await createProjectScene(options(project));
+
+    expect(scene.constructor.name).toBe('NovavertaScene');
+  });
+
   it('gives every other slug the generic scene', async () => {
-    const project = PROJECT_FIXTURES.find((candidate) => candidate.slug === 'novaverta')!;
+    const project = PROJECT_FIXTURES.find((candidate) => candidate.slug === 'poetzscher')!;
 
     const scene = await createProjectScene(options(project));
 
