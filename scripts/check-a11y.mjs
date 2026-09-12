@@ -13,7 +13,7 @@ import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { A11Y_ROUTES, auditUrl, failureReports } from './lib/a11y-audit.mjs';
+import { A11Y_ROUTES, auditUrl, failureReports, landedElsewhere } from './lib/a11y-audit.mjs';
 
 const BASE = process.env['A11Y_BASE_URL'] ?? 'http://localhost:4173';
 const LIGHTHOUSE = join('node_modules', '.bin', 'lighthouse');
@@ -88,9 +88,7 @@ function run(command, args) {
 const reports = [];
 for (const route of A11Y_ROUTES) {
   const report = await audit(route);
-  const landed = report.landedOn.startsWith(report.url.split('?')[0])
-    ? ''
-    : ` → ${report.landedOn}`;
+  const landed = landedElsewhere(report.url, report.landedOn) ? ` → ${report.landedOn}` : '';
   console.log(`  ${route.path.padEnd(34)} ${String(report.score)}${landed}`);
   reports.push(report);
 }
