@@ -25,12 +25,25 @@ export function auditUrl(base, path) {
   return `${base.replace(/\/$/, '')}${path}`;
 }
 
+/** Whether the browser ended up somewhere other than the route we asked it to audit. */
+export function landedElsewhere(requested, landed) {
+  const path = (url) => new URL(url).pathname.replace(/\/$/, '') || '/';
+  return path(requested) !== path(landed);
+}
+
 /**
- * One message per route that did not reach `REQUIRED_SCORE`, naming the audits that failed.
- * An empty array means every route is perfect.
+ * One message per route that did not reach `REQUIRED_SCORE` or was not the page we meant to audit,
+ * naming the audits that failed. An empty array means every route is perfect.
+ *
+ * A redirect counts as a failure even at 1.00: `simpleViewGuard` answers a phone by sending it to
+ * `/projects`, so a world route that quietly lands there would score perfectly while auditing the
+ * wrong page — which is the failure this whole route list exists to prevent.
  */
 export function failureReports(reports) {
   return reports.flatMap((report) => {
+    if (report.landedOn && landedElsewhere(report.url, report.landedOn)) {
+      return [`${report.url}: redirected to ${report.landedOn} — the wrong page was audited`];
+    }
     if (typeof report.score !== 'number') {
       return [`${report.url}: no score (the audit did not complete)`];
     }

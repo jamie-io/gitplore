@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { A11Y_ROUTES, auditUrl, failureReports } from './a11y-audit.mjs';
+import { A11Y_ROUTES, auditUrl, failureReports, landedElsewhere } from './a11y-audit.mjs';
 
 test('a perfect report produces no failures', () => {
   const reports = [{ url: '/projects', score: 1, failedAudits: [] }];
@@ -48,4 +48,42 @@ test('the simple view is audited too, as the screen-reader path', () => {
   const simple = A11Y_ROUTES.filter((route) => !route.world);
 
   assert.ok(simple.some((route) => route.path.startsWith('/projects')));
+});
+
+test('a route that was redirected away is a failure, however well it scored', () => {
+  // The whole point of the desktop preset and `?force3d=1`: if either stops working the world
+  // routes quietly become /projects, which scores a perfect 1.00 and proves nothing.
+  const failures = failureReports([
+    {
+      url: 'http://localhost:4173/?force3d=1',
+      landedOn: 'http://localhost:4173/projects',
+      score: 1,
+      failedAudits: [],
+    },
+  ]);
+
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /redirected/);
+  assert.match(failures[0], /\/projects/);
+});
+
+test('landedElsewhere compares the path, not the query string', () => {
+  assert.equal(
+    landedElsewhere(
+      'http://localhost:4173/p/deslopify/info?force3d=1',
+      'http://localhost:4173/p/deslopify/info',
+    ),
+    false,
+  );
+  assert.equal(
+    landedElsewhere('http://localhost:4173/?force3d=1', 'http://localhost:4173/projects'),
+    true,
+  );
+});
+
+test('a trailing slash is not a redirect', () => {
+  assert.equal(
+    landedElsewhere('http://localhost:4173/projects', 'http://localhost:4173/projects/'),
+    false,
+  );
 });
