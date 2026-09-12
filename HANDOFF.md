@@ -1,10 +1,12 @@
 # Handoff — gitplore
 
-This file spans two sessions. The first took the repository from a deployed M1 plus an
+This file spans three sessions. The first took the repository from a deployed M1 plus an
 uncommitted M2 to a complete M6. The second — 11 September 2026 — implemented §5–§7 of
 `docs/superpowers/specs/2026-09-10-repo-worlds-design.md`: **walking into a portal is now a real
 scene change into that repository's own themed world**, and the README panel moved from
-`/p/:slug` down to `/p/:slug/info`.
+`/p/:slug` down to `/p/:slug/info`. The third — 12 September 2026 — ran the verification the
+second one deferred. It found two accessibility defects that were live on the site, fixed them,
+and closed the gap that let them ship: **the browser suites now gate the deploy**.
 
 `CLAUDE.md`, `PLAN.md` and `IMPLEMENTATION_PLAN.md` remain the source of truth; this file records
 what happened, what was decided on Jamie's behalf, and what is left.
@@ -22,6 +24,7 @@ what happened, what was decided on Jamie's behalf, and what is left.
 | M5 Assets and polish         | Done, `2a3ea02`                                                                      |
 | M6 Release                   | Done, `28a0b6f` + review fixes `85d8607`, `1712b03`, `d9c9927` — merged and deployed |
 | Repo worlds (spec §5–§7)     | Done, `580f23a`..`597639e` + store tidy-up `38433c0` — merged and deployed           |
+| A11y fixes and CI gates      | Done, `7a5af46`..`6e8a1a0` — merged and deployed                                     |
 
 `feat/m2-m6` was fast-forwarded into `main` and pushed at Jamie's request; the deploy workflow
 succeeded and the live site was smoke-tested from a browser (start gate, walking to the portal,
@@ -47,22 +50,29 @@ Node `24.21.0` via nvm, pinned in `.nvmrc`; every shell needs
 Docker Desktop was started during the session for the M6 container test and is probably still
 running.
 
-## 3. Verification status at `38433c0`
+## 3. Verification status at `6e8a1a0`
 
 ```
-npm run verify        → lint clean, typecheck clean, 53 files / 478 unit tests, 28 node script
+npm run verify        → lint clean, typecheck clean, 53 files / 481 unit tests, 34 node script
                         tests, build, then `budget:check` (initial scripts gzipped ≤ 350 kB;
-                        ~80 kB now)
-npm run e2e           → 36 passed, 4 skipped (project-specific), stable across repeats
-tests/a11y.spec.ts    → axe (wcag2a/2aa/21a/21aa) clean on a repo world and on the panel over it
-Lighthouse a11y       → 1.00, but measured in the M6 session at `d9c9927` and never re-run since;
-                        treat it as stale rather than as a current result (see §6)
+                        ~90 kB now)
+npm run e2e           → 38 passed, 4 skipped (project-specific), stable across repeats
+tests/a11y.spec.ts    → axe (wcag2a/2aa/21a/21aa) clean on a repo world, on the panel over it,
+                        and on the one README with GFM task lists
+npm run a11y:check    → Lighthouse 1.00 on all four audited routes, and committed this time:
+                        the route list lives in `scripts/lib/a11y-audit.mjs`
+CI                    → `build` and `e2e` both gate `deploy`; the browser suites are no longer
+                        developer-machine-only
 docker build/run      → verified at `d9c9927`, untouched since
 ```
 
-Both gates were run on the exact commit `main` now points at, and the earlier `597639e` merge was
-additionally verified on `main` after merging. The four environments are confirmed lazy: none of
-`Lichtung`, `Showroom`, `Dschungel` or `Plaza` appears in `main-*.js`.
+Both gates were run on the exact commit `main` now points at. The four environments are confirmed
+lazy: none of `Lichtung`, `Showroom`, `Dschungel` or `Plaza` appears in `main-*.js`.
+
+The deployed build was walked from a browser afterwards: the start gate, a cold deep link to
+`/p/deslopify` building Dschungel directly, fast travel from the menu swapping Dschungel for
+Showroom, and the live DOM confirming eleven task list boxes with `aria-label` and
+`documentElement.lang === 'de'`.
 
 E2E runs against the production build served by `scripts/serve-dist.mjs` on port 4173, not
 `ng serve`. The previous session's e2e flakiness was two separate things, both fixed: a real bug
@@ -93,6 +103,25 @@ stats, `?stats=1`).
 - **M6** — German README, `Dockerfile`, `nginx.conf`, `.dockerignore`.
 
 ## 5. Decisions taken on Jamie's behalf (review these)
+
+### Accessibility and CI session (12 September 2026)
+
+i. **Task boxes are named after their state** — `Erledigt` / `Offen` — rather than after the
+control. A screen reader then says "Erledigt, Kontrollkästchen, aktiviert", which is mildly
+redundant but coherent either way round; naming the control instead ("Aufgabe") would be terser
+and is a one-line change in `markdown.component.ts`.
+ii. **The document is German, full stop.** `lang="de"` covers the interface and three of the five
+READMEs. Deslopify's and novaverta's READMEs are English and are now inside a German document
+(WCAG 3.1.2). Marking the language of parts needs a per-project README language on the content
+model, which is feature work rather than a fix — deliberately not invented here.
+iii. **Lighthouse is a committed script, not a CI incantation.** `scripts/lib/a11y-audit.mjs` holds
+the route list and `scripts/check-a11y.mjs` drives it, so the routes that get measured are
+reviewable and testable. `lighthouse` is pinned at `12.8.2` as a devDependency rather than run
+through `npx`, so CI does not re-download it per run.
+iv. **The browser suites are their own job**, not extra steps on `build`, so a Playwright failure
+reads as a Playwright failure. `deploy` needs both.
+v. **`settle()` stays local to `world.page.spec.ts`.** It has one caller; a shared testing helper
+can wait until a second one exists.
 
 ### Repo-worlds session (September 2026)
 
@@ -171,9 +200,8 @@ defect a visitor can see; all are cheap.
   nothing asserts `VideoWall.init()` builds one card per `EXAMPLE_VIDEOS` entry, and that loop's
   position maths is changed code, not part of the verbatim move; the veil's reduced-motion test
   asserts the host class, not that the CSS transition is gone (jsdom cannot read it from a
-  component `styles` block); `world.page.spec.ts` has two tests asserting the same boot outcome;
-  `bootWithoutManifest`'s bounded wait falls through silently, so a future hang would surface as a
-  confusing assertion rather than "boot never completed".
+  component `styles` block); `world.page.spec.ts` has two tests asserting the same boot outcome.
+  (`bootWithoutManifest`'s silent fall-through is fixed — it cost a spurious failure first.)
 - **`scene as HubScene` in `SceneDirector.place()`** is an unchecked cast, correct only while
   `show()` builds exactly two scene types. `instanceof HubScene` is a two-token change.
 - **`ProjectScene.add()`'s "subclass constructor only" contract** is a comment, not a type.
@@ -191,8 +219,6 @@ defect a visitor can see; all are cheap.
 - **`tests/a11y.spec.ts` excludes `iframe`** from the axe scan. Only the cross-origin demo frame
   matches today, so nothing of gitplore's own markup is silenced — but the exclusion also drops
   `frame-title` from the gate.
-- **`CLAUDE.md`'s single-e2e-test example names `tests/hub.spec.ts`**, which does not exist. It
-  pre-dates this work.
 - **`'clearing'` is selectable as a repo world** and would put that world's return portal at the
   origin, where the `Monument` stands with its collider. Nothing selects it; the comment on
   `EnvironmentId` now warns about it.
@@ -214,23 +240,29 @@ defect a visitor can see; all are cheap.
   released) — intentional, but the refcount then no longer reads as "live consumers".
 - Three review rounds were run by subagents (M2+M3, M4+M5, whole branch); all Critical and
   Important findings were fixed, the rest are the minors listed here.
-- Lighthouse was run from the scratchpad with `lighthouse@12`; nothing about it is committed.
-  Rerun with `npx lighthouse@12 http://localhost:4173/projects --only-categories=accessibility`
-  after `npm run build && node scripts/serve-dist.mjs`. This is still true after Task 11: a
-  repository-committed Lighthouse run, alongside a Playwright job, is future CI work (see §5.10).
+- Lighthouse and Playwright are both committed and both run in CI now (§5.iii, §5.iv). The
+  scratchpad-only Lighthouse run this bullet used to describe is what let a 0.96 be reported as a
+  1.00 for a whole session.
 
 ## 7. Next steps
 
-1. **Look at the live site first.** The world swap, the veil and the arrival announcement have been
-   verified by tests and locally, but nobody has walked the deployed build since this change.
-2. Review §5 — every ruling there is reversible, and §5's repo-worlds list is the short one.
-3. **Re-run Lighthouse.** The 1.00 in §3 is from the M6 session and predates four new worlds, a
-   veil and a reshaped route tree. `npm run build && node scripts/serve-dist.mjs`, then
-   `npx lighthouse@12 http://localhost:4173/projects --only-categories=accessibility`.
-4. Optional: add a Playwright job to `deploy.yml` (§5.10), and work through §6's deferred minors.
-5. **The environments are placeholders for their themes, not finished art.** Each is a few dozen
+1. Review §5's new subsection. Five rulings, all reversible; the label wording (§5.i) and the
+   decision not to invent a per-README language (§5.ii) are the two worth an opinion.
+2. **The content is still placeholder in places, and it is the part a hiring reader actually
+   reads.** The German `summary`/`tags` in `content/repo-overrides.ts` are the first session's
+   wording, and the video titles in `world/projects/deslopify/video-wall.ts` are invented examples.
+   Nobody but Jamie should be writing the copy that describes Jamie's projects.
+3. **The environments are placeholders for their themes, not finished art.** Each is a few dozen
    lines of procedural geometry. Giving a repository a world that actually says something about it
    is the obvious next creative step, and `world/projects/<slug>/` plus `createProjectScene` is
    the hook — `DeslopifyScene` is the worked example.
-6. `GithubContentSource` and `environments/plaza` already exist; the remaining explorer-phase step
+4. §6's deferred minors. Two are worth more than their label: **a failed scene build is terminal**
+   (a lazy-chunk 404 right after a redeploy strands the visitor with no retry), and **"Hinreisen"
+   and "Öffnen" do the same nothing** for the project you are already standing in — on the dialog
+   that is also the screen-reader path into travel.
+5. `GithubContentSource` and `environments/plaza` already exist; the remaining explorer-phase step
    is `features/explorer` itself, and landmarks already build from `Project` data alone.
+
+A note for whoever picks this up: the two defects this session fixed had both been live for a
+while, and both were invisible to the suite as it stood. The lesson that generalises is in §5.iii —
+a verification whose inputs are not committed is a verification nobody can repeat.
