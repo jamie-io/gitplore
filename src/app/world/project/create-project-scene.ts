@@ -12,6 +12,8 @@ const BESPOKE: Readonly<
   webkatalog_demoshop: () =>
     import('../projects/webkatalog/webkatalog.scene').then((m) => m.WebkatalogScene),
   novaverta: () => import('../projects/novaverta/novaverta.scene').then((m) => m.NovavertaScene),
+  poetzscher: () =>
+    import('../projects/poetzscher/poetzscher.scene').then((m) => m.PoetzscherScene),
 };
 
 export async function createProjectScene(options: ProjectSceneOptions): Promise<ProjectScene> {
