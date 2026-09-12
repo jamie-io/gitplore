@@ -23,6 +23,14 @@ describe('createProjectScene', () => {
     expect(scene.constructor.name).toBe('DeslopifyScene');
   });
 
+  it('gives the demoshop its furnished showroom', async () => {
+    const project = { ...PROJECT_FIXTURES[0], slug: 'webkatalog_demoshop' };
+
+    const scene = await createProjectScene(options(project));
+
+    expect(scene.constructor.name).toBe('WebkatalogScene');
+  });
+
   it('gives every other slug the generic scene', async () => {
     const project = PROJECT_FIXTURES.find((candidate) => candidate.slug === 'novaverta')!;
 

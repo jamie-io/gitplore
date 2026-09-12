@@ -9,6 +9,8 @@ const BESPOKE: Readonly<
   Record<string, () => Promise<new (o: ProjectSceneOptions) => ProjectScene>>
 > = {
   deslopify: () => import('../projects/deslopify/deslopify.scene').then((m) => m.DeslopifyScene),
+  webkatalog_demoshop: () =>
+    import('../projects/webkatalog/webkatalog.scene').then((m) => m.WebkatalogScene),
 };
 
 export async function createProjectScene(options: ProjectSceneOptions): Promise<ProjectScene> {
