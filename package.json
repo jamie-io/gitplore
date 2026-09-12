@@ -19,7 +19,8 @@
     "test:scripts": "node --test 'scripts/**/*.test.mjs'",
     "assets:author": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/author-models.mjs",
     "assets:optimize": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/optimize-assets.mjs",
-    "budget:check": "node scripts/check-budget.mjs"
+    "budget:check": "node scripts/check-budget.mjs",
+    "a11y:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-a11y.mjs"
   },
   "private": true,
   "packageManager": "npm@11.19.0",
@@ -50,6 +51,7 @@
     "eslint": "^10.9.1",
     "husky": "^9.1.7",
     "jsdom": "^28.0.0",
+    "lighthouse": "12.8.2",
     "lint-staged": "^17.5.0",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2",

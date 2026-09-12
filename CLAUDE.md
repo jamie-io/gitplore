@@ -47,10 +47,11 @@ npm run verify          # lint + typecheck + ng test + ng build + budget check â
 ng test                 # vitest via the Angular builder
 ng test --include='**/world.store.spec.ts'   # single unit test file
 npm run e2e             # Playwright; Chromium needs --use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader
-npx playwright test tests/hub.spec.ts -g 'deep link'   # single e2e test
+npx playwright test tests/worlds.spec.ts -g 'deep link'   # single e2e test
 npm run content:sync    # fetch READMEs into public/content/readme/<slug>.md (committed; never a prebuild hook)
 npm run content:check   # HEAD-requests every demo URL, fails if `embeddable: true` is a lie
 npm run assets:optimize # @gltf-transform: meshopt compression + webp textures + manifest.json
+npm run a11y:check      # Lighthouse accessibility over every route; needs a build on :4173
 ```
 
 ## Architecture
