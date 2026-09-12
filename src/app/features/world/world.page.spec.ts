@@ -40,13 +40,32 @@ describe('WorldPage', () => {
     http
       .match('assets/manifest.json')
       .forEach((r) => r.flush('', { status: 404, statusText: 'Not Found' }));
-    // The director's build crosses a genuine dynamic `import()` for the environment chunk, so a
-    // fixed number of microtask ticks is no longer enough — settle until boot has moved on.
-    for (let i = 0; i < 20 && store.phase() === 'loading'; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+    // The director's build crosses a genuine dynamic `import()` for the environment chunk, so no
+    // fixed number of ticks is enough: under a loaded machine that chunk can outlast any count we
+    // would pick, and this suite ran green for weeks before it did. Wait on the condition itself,
+    // with a deadline that says what went wrong — a loop that merely falls through reports the
+    // give-up as `expected 'loading' to be 'ready'`, which reads like a product bug.
+    await settle(() => store.phase() !== 'loading', 'the world to finish booting');
+    TestBed.tick();
+  }
+
+  /**
+   * Ticks change detection until `done()` holds, or fails saying what never happened. Polls on
+   * macrotasks because the awaited work crosses a real `import()`, which no microtask drain covers.
+   */
+  async function settle(
+    done: () => boolean,
+    description: string,
+    timeoutMs = 5_000,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (!done()) {
+      if (Date.now() > deadline) {
+        throw new Error(`Timed out after ${timeoutMs}ms waiting for ${description}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
       TestBed.tick();
     }
-    TestBed.tick();
   }
 
   const press = (code: string) => document.dispatchEvent(new KeyboardEvent('keydown', { code }));
