@@ -1,9 +1,13 @@
 # Handoff — gitplore
 
-Written at the end of the session that took the repository from a deployed M1 plus an uncommitted
-M2 to a complete M6 on the branch `feat/m2-m6`. `CLAUDE.md`, `PLAN.md` and
-`IMPLEMENTATION_PLAN.md` remain the source of truth; this file records what happened, what was
-decided on Jamie's behalf, and what is left.
+This file spans two sessions. The first took the repository from a deployed M1 plus an
+uncommitted M2 to a complete M6. The second — 11 September 2026 — implemented §5–§7 of
+`docs/superpowers/specs/2026-09-10-repo-worlds-design.md`: **walking into a portal is now a real
+scene change into that repository's own themed world**, and the README panel moved from
+`/p/:slug` down to `/p/:slug/info`.
+
+`CLAUDE.md`, `PLAN.md` and `IMPLEMENTATION_PLAN.md` remain the source of truth; this file records
+what happened, what was decided on Jamie's behalf, and what is left.
 
 ---
 
@@ -17,11 +21,22 @@ decided on Jamie's behalf, and what is left.
 | M4 Demos                     | Done, `cac4df7`                                                                      |
 | M5 Assets and polish         | Done, `2a3ea02`                                                                      |
 | M6 Release                   | Done, `28a0b6f` + review fixes `85d8607`, `1712b03`, `d9c9927` — merged and deployed |
+| Repo worlds (spec §5–§7)     | Done, `580f23a`..`597639e` + store tidy-up `38433c0` — merged and deployed           |
 
 `feat/m2-m6` was fast-forwarded into `main` and pushed at Jamie's request; the deploy workflow
 succeeded and the live site was smoke-tested from a browser (start gate, walking to the portal,
 `E` opening `/p/deslopify`, the `/p/novaverta` deep link through the 404 trick with README and
 demo iframe, `assets/manifest.json`, and the phone redirect to `/projects`).
+
+`repo-worlds` (19 commits, one per task plus six review-fix rounds) and `tidy-world-store` were
+both fast-forwarded into `main` and pushed at Jamie's request, each triggering the Pages deploy.
+
+What changed for a visitor: a portal now disposes the start world and builds the repository's
+own — `Lichtung` (start), `Showroom`, `Dschungel`, `Plaza`, one lazy chunk each. Inside, an
+exhibit board opens the description at `/p/:slug/info` and a return portal leads back, placing the
+visitor in front of the portal they walked into. Deslopify's video wall moved out of the start
+world into its own. A non-modal veil covers each swap, and the HUD's `aria-live` region announces
+the arrival ("Dschungel — Deslopify").
 
 Live: <https://jamie-io.github.io/gitplore/> · Repo: <https://github.com/jamie-io/gitplore>
 
@@ -32,17 +47,22 @@ Node `24.21.0` via nvm, pinned in `.nvmrc`; every shell needs
 Docker Desktop was started during the session for the M6 container test and is probably still
 running.
 
-## 3. Verification status at `d9c9927`
+## 3. Verification status at `38433c0`
 
 ```
-npm run verify        → lint clean, typecheck clean, 346 unit tests, 11 node script tests,
-                        build, then `budget:check` (initial scripts gzipped ≤ 350 kB; ~80 kB now)
-npx playwright test   → 28 passed, 3 skipped (project-specific), stable across repeats
-Lighthouse a11y       → 1.00 on /projects and 1.00 on / with the start gate open
-                        (production build, lighthouse@12, no failing audits)
-docker build/run      → routes, deep links, MIME types, 404 for missing assets, gzip, cache
-                        headers, no Cross-Origin-* headers — all as intended
+npm run verify        → lint clean, typecheck clean, 53 files / 478 unit tests, 28 node script
+                        tests, build, then `budget:check` (initial scripts gzipped ≤ 350 kB;
+                        ~80 kB now)
+npm run e2e           → 36 passed, 4 skipped (project-specific), stable across repeats
+tests/a11y.spec.ts    → axe (wcag2a/2aa/21a/21aa) clean on a repo world and on the panel over it
+Lighthouse a11y       → 1.00, but measured in the M6 session at `d9c9927` and never re-run since;
+                        treat it as stale rather than as a current result (see §6)
+docker build/run      → verified at `d9c9927`, untouched since
 ```
+
+Both gates were run on the exact commit `main` now points at, and the earlier `597639e` merge was
+additionally verified on `main` after merging. The four environments are confirmed lazy: none of
+`Lichtung`, `Showroom`, `Dschungel` or `Plaza` appears in `main-*.js`.
 
 E2E runs against the production build served by `scripts/serve-dist.mjs` on port 4173, not
 `ng serve`. The previous session's e2e flakiness was two separate things, both fixed: a real bug
@@ -73,6 +93,36 @@ stats, `?stats=1`).
 - **M6** — German README, `Dockerfile`, `nginx.conf`, `.dockerignore`.
 
 ## 5. Decisions taken on Jamie's behalf (review these)
+
+### Repo-worlds session (September 2026)
+
+Sixteen rulings were recorded while executing the plan; these are the ones with consequences worth
+re-reading. All are reversible.
+
+a. **Environment assignment**: `gitplore` → Plaza, `webkatalog_demoshop`/`novaverta`/`poetzscher`
+→ Showroom, `deslopify` → Dschungel. The spec left this open. One line per repository in
+`content/repo-overrides.ts`; `showroom` is the default for anything unstyled.
+b. **The scene-swap veil is its own component, not `LoadingScreen`.** The spec asks for both in
+different sections, and they conflict: `LoadingScreen` is an `aria-modal` dialog with a focus
+trap, and trapping focus for the length of a build would strand a keyboard user mid-walk.
+c. **`ProjectDestination` is a componentless route, not a component.** It carries `:slug` for
+`SceneDirector` and hands it to the panel through Angular's param inheritance — which
+`world.page.spec.ts` now pins with a real test, because if it ever stopped working every
+project would render "Projekt nicht gefunden".
+d. **The director awaits content readiness itself** rather than trusting callers to do it. Without
+that, a cold deep link to `/p/:slug` could build no world at all — and that link is the primary
+entry path for this portfolio.
+e. **No per-environment asset preloading.** Every environment is procedural and the only two glTF
+models are in the `core` group, already preloaded at boot. The spec's step for it would have
+been a hook for assets that do not exist.
+f. **Arc layouts were deduplicated** into `arcAnchors` in `world/environments/placement.ts`,
+against the plan's own text, which had jungle and plaza carrying identical bodies.
+g. **`WorldStore` lost `activeSlug`, `activeProject` and `openProject`** after the plan landed
+(`38433c0`): nothing read them once `inputMode` stopped consulting them. Which world is open is
+a routing fact and `SceneDirector` reads it from the route. This also removed the store's last
+dependency on `ContentService`.
+
+### M2–M6 session
 
 1. **Deslopify's portal moved from (0,0,−34) to (0,0,−20)** so the e2e walk is short under
    software rendering. Positions are arbitrary anyway.
@@ -112,6 +162,43 @@ marked as examples.
 
 ## 6. Known gaps and follow-ups
 
+### Left open by the repo-worlds session
+
+Every one of these was raised by a review, judged Minor, and deliberately deferred. None is a
+defect a visitor can see; all are cheap.
+
+- **Test strength.** `anchors(1)` asserts only `.length === 1`, so a NaN position would pass;
+  nothing asserts `VideoWall.init()` builds one card per `EXAMPLE_VIDEOS` entry, and that loop's
+  position maths is changed code, not part of the verbatim move; the veil's reduced-motion test
+  asserts the host class, not that the CSS transition is gone (jsdom cannot read it from a
+  component `styles` block); `world.page.spec.ts` has two tests asserting the same boot outcome;
+  `bootWithoutManifest`'s bounded wait falls through silently, so a future hang would surface as a
+  confusing assertion rather than "boot never completed".
+- **`scene as HubScene` in `SceneDirector.place()`** is an unchecked cast, correct only while
+  `show()` builds exactly two scene types. `instanceof HubScene` is a two-token change.
+- **`ProjectScene.add()`'s "subclass constructor only" contract** is a comment, not a type.
+- **In the project menu, "Hinreisen" and "Öffnen" do the same thing inside a repo world**, and for
+  the project you are already standing in both do nothing — Angular's default
+  `onSameUrlNavigation` drops the navigation. That dialog is also the screen-reader path into
+  travel, so two differently-labelled controls doing one thing is worth a look.
+- **The arrival announcement is suppressed on a cold deep link to `/p/:slug/info`**, because the
+  HUD is `[inert]` while the panel owns input. The panel names the project, so only the _place_ is
+  lost.
+- **A failed scene build is terminal.** `store.fail()` sets `phase: 'error'` with no way back, so
+  a transient lazy-chunk 404 right after a redeploy strands the visitor with no retry.
+- **The veil's live region is created together with its text**, which screen readers announce
+  inconsistently; rendering the `<p>` always and toggling its content is the robust form.
+- **`tests/a11y.spec.ts` excludes `iframe`** from the axe scan. Only the cross-origin demo frame
+  matches today, so nothing of gitplore's own markup is silenced — but the exclusion also drops
+  `frame-title` from the gate.
+- **`CLAUDE.md`'s single-e2e-test example names `tests/hub.spec.ts`**, which does not exist. It
+  pre-dates this work.
+- **`'clearing'` is selectable as a repo world** and would put that world's return portal at the
+  origin, where the `Monument` stands with its collider. Nothing selects it; the comment on
+  `EnvironmentId` now warns about it.
+
+### Earlier
+
 - Minor review findings deliberately left: query params are dropped on `navigate('/')`; the
   camera trails the portal dolly by one frame and walking input is not frozen during it;
   `tests/panel.spec.ts` "walking keys do not move the player" compares pixels under the backdrop;
@@ -134,8 +221,16 @@ marked as examples.
 
 ## 7. Next steps
 
-1. Review §5 — every ruling there is reversible.
-2. Optional: add a Playwright job to `deploy.yml`; revisit the deferred minors above.
-3. `GithubContentSource` and `environments/plaza` (one of gitplore's own worlds) already exist;
-   the remaining explorer-phase step is `features/explorer` itself, and landmarks already build
-   from `Project` data alone.
+1. **Look at the live site first.** The world swap, the veil and the arrival announcement have been
+   verified by tests and locally, but nobody has walked the deployed build since this change.
+2. Review §5 — every ruling there is reversible, and §5's repo-worlds list is the short one.
+3. **Re-run Lighthouse.** The 1.00 in §3 is from the M6 session and predates four new worlds, a
+   veil and a reshaped route tree. `npm run build && node scripts/serve-dist.mjs`, then
+   `npx lighthouse@12 http://localhost:4173/projects --only-categories=accessibility`.
+4. Optional: add a Playwright job to `deploy.yml` (§5.10), and work through §6's deferred minors.
+5. **The environments are placeholders for their themes, not finished art.** Each is a few dozen
+   lines of procedural geometry. Giving a repository a world that actually says something about it
+   is the obvious next creative step, and `world/projects/<slug>/` plus `createProjectScene` is
+   the hook — `DeslopifyScene` is the worked example.
+6. `GithubContentSource` and `environments/plaza` already exist; the remaining explorer-phase step
+   is `features/explorer` itself, and landmarks already build from `Project` data alone.
