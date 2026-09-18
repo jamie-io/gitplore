@@ -18,6 +18,7 @@ import { Anchor, Environment } from './environment';
 import { ProceduralGround } from './ground';
 import { arcAnchors, Position } from './placement';
 import type { EnvironmentOptions } from './create-environment';
+import { seededRandom } from './random';
 
 const SIZE = 160;
 const TRUNK_RADIUS = 0.55;
@@ -36,18 +37,6 @@ const FOG = 0x28402c;
 /** Gentle, non-repeating relief; shallow enough that nothing is ever hidden behind a hill. */
 export function jungleHeightAt(x: number, z: number): number {
   return 1.4 * Math.sin(x * 0.09) * Math.cos(z * 0.07) + 0.55 * Math.sin((x - z) * 0.21);
-}
-
-/**
- * Deterministic pseudo-random numbers. The world is rebuilt every time the visitor returns, so a
- * tree that moved between visits would read as a bug — the same reasoning as `ringPlacements`.
- */
-function* noise(seed: number): Generator<number> {
-  let state = seed;
-  for (;;) {
-    state = (state * 1664525 + 1013904223) % 4294967296;
-    yield state / 4294967296;
-  }
 }
 
 /** Dense, close, humid: the world behind a portal that should feel like undergrowth. */
@@ -71,14 +60,14 @@ export class JungleEnvironment implements Environment {
 
   constructor(options: EnvironmentOptions) {
     void options;
-    const random = noise(20260911);
+    const random = seededRandom(20260911);
     this.trees = Array.from({ length: TREE_COUNT }, () => {
-      const angle = random.next().value * Math.PI * 2;
-      const radius = GLADE_RADIUS + random.next().value * (TREE_MAX_RADIUS - GLADE_RADIUS);
+      const angle = random() * Math.PI * 2;
+      const radius = GLADE_RADIUS + random() * (TREE_MAX_RADIUS - GLADE_RADIUS);
       return {
         x: Math.sin(angle) * radius,
         z: Math.cos(angle) * radius,
-        height: 6 + random.next().value * 5,
+        height: 6 + random() * 5,
       };
     });
     this.colliders = this.trees.map((tree) => ({
