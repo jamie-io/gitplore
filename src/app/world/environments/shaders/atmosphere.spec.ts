@@ -5,7 +5,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import { LICHTUNG } from '../mood';
-import { withAtmosphere } from './atmosphere';
+import { ATMOSPHERE_FOG_GLSL, withAtmosphere } from './atmosphere';
 import { SharedUniforms } from './shared-uniforms';
 
 function compile(material: MeshStandardMaterial): WebGLProgramParametersWithUniforms {
@@ -27,6 +27,17 @@ describe('withAtmosphere', () => {
     expect(shader.fragmentShader).not.toContain('#include <fog_fragment>');
     expect(shader.fragmentShader).toContain('uniform vec3 atmosSunDirection;');
     expect(shader.fragmentShader).toContain('atmosHeightFog');
+  });
+
+  it('fogs through the one exported function, declared after the fog uniforms it reads', () => {
+    const shader = compile(
+      withAtmosphere(new MeshStandardMaterial(), new SharedUniforms(LICHTUNG)),
+    );
+
+    const source = shader.fragmentShader;
+    const declared = source.indexOf(ATMOSPHERE_FOG_GLSL);
+    expect(declared).toBeGreaterThan(source.indexOf('#include <fog_pars_fragment>'));
+    expect(source.indexOf('gl_FragColor.rgb = atmosphereFog(')).toBeGreaterThan(declared);
   });
 
   it('carries the world position from the vertex shader', () => {

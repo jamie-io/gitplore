@@ -7,11 +7,11 @@ import {
   UniformsLib,
   UniformsUtils,
 } from 'three';
-import { QualitySettings } from '@engine/capability.service';
 import { disposeObject3D } from '@engine/dispose';
 import { HeightField } from '@engine/player/collision';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import { Mood } from './mood';
+import { ATMOSPHERE_FOG_GLSL } from './shaders/atmosphere';
 import { NOISE_GLSL } from './shaders/noise.glsl';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
@@ -54,7 +54,7 @@ export class Water implements WorldObject {
   constructor(private readonly options: WaterOptions) {}
 
   init(ctx: WorldContext): void {
-    const detail = shaderDetailOf(ctx.quality);
+    const detail = ctx.quality.shaderDetail;
     const geometry = discGeometry(this.options.radius, SEGMENTS[detail], RINGS[detail]);
     this.bakeDepth(geometry);
 
@@ -90,18 +90,6 @@ export class Water implements WorldObject {
     }
     geometry.setAttribute('aDepth', new Float32BufferAttribute(depth, 1));
   }
-}
-
-/**
- * T2's `shaderDetail` once it is merged; until then the tier is read off `propDensity`, whose
- * values (0.25 / 0.6 / 1) already tell the three tiers apart for the ground.
- */
-function shaderDetailOf(quality: QualitySettings): 0 | 1 | 2 {
-  const detail = (quality as { readonly shaderDetail?: 0 | 1 | 2 }).shaderDetail;
-  if (detail !== undefined) {
-    return detail;
-  }
-  return quality.propDensity < 0.5 ? 0 : quality.propDensity < 1 ? 1 : 2;
 }
 
 /**
@@ -152,9 +140,9 @@ void main() {
 }
 `;
 
-// The fog block is the same maths as `withAtmosphere`, written out here because a ShaderMaterial
-// has no chunk to patch: the water must fog exactly like the bank beside it or the pond reads as
-// a hole in the haze.
+// A ShaderMaterial has no fog chunk for `withAtmosphere` to patch, so the water declares Three's
+// fog uniforms itself and calls the atmosphere's own fog function: it must fog exactly like the
+// bank beside it or the pond reads as a hole in the haze.
 const FRAGMENT_SHADER = /* glsl */ `
 ${NOISE_GLSL}
 
@@ -182,6 +170,8 @@ uniform vec3 foamColor;
 
 varying float vDepth;
 varying vec3 vWorld;
+
+${ATMOSPHERE_FOG_GLSL}
 
 // Scrolling value noise summed into a height field: a broad swell alone on the low tier, with
 // two finer, faster layers crossing it on the others.
@@ -258,26 +248,7 @@ void main() {
   alpha = mix(alpha, 1.0, foam);
   alpha *= smoothstep(0.0, ${EDGE_FADE_DEPTH.toFixed(2)}, vDepth);
 
-  #ifdef USE_FOG
-  {
-    vec3 dir = -viewDir;
-    #ifdef FOG_EXP2
-      float linearFog = 1.0 - exp(-fogDensity * fogDensity * camDist * camDist);
-    #else
-      float linearFog = smoothstep(fogNear, fogFar, camDist);
-    #endif
-    float k = heightFog.y;
-    float dy = vWorld.y - cameraPosition.y;
-    float along = (k > 1e-4 && abs(dy) > 1e-3)
-      ? (exp(-k * cameraPosition.y) - exp(-k * vWorld.y)) / (k * dy)
-      : exp(-k * cameraPosition.y);
-    float fogAmount = 1.0 - exp(-heightFog.x * camDist * along);
-    float amount = clamp(max(linearFog, fogAmount), 0.0, 1.0);
-    float sunward = pow(max(dot(dir, sunDirection), 0.0), 8.0);
-    vec3 tint = mix(fogColor, sunColor, sunward * heightFog.z);
-    colour = mix(colour, tint, amount);
-  }
-  #endif
+  colour = atmosphereFog(colour, vWorld, sunDirection, sunColor, heightFog);
 
   gl_FragColor = vec4(colour, alpha);
   #include <tonemapping_fragment>
