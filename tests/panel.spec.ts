@@ -1,5 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { startWorld } from './helpers';
+import { framesRendered, startWorld } from './helpers';
+
+const PANEL_POLICIES = [
+  { tier: 'low', rendersBehindPanel: false },
+  { tier: 'medium', rendersBehindPanel: true },
+  { tier: 'high', rendersBehindPanel: true },
+] as const;
 
 test.describe('project destination', () => {
   test('a deep link opens the panel with the README over that world', async ({ page }) => {
@@ -54,20 +60,49 @@ test.describe('project destination', () => {
     await expect(page.locator('app-hud .area')).toContainText('Lichtung');
   });
 
-  test('opening and closing panel preserves active-world navigation', async ({ page }) => {
-    await startWorld(page, '/p/novaverta?stats=1');
-    await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
+  for (const policy of PANEL_POLICIES) {
+    test(`opening and closing panel preserves ${policy.tier}-tier frame policy and navigation`, async ({
+      page,
+    }) => {
+      await page.addInitScript((qualityOverride) => {
+        localStorage.setItem(
+          'gitplore.settings',
+          JSON.stringify({ qualityOverride, sensitivity: 1, reducedMotionOverride: true }),
+        );
+      }, policy.tier);
 
-    await page.keyboard.down('KeyW');
-    await expect(page.locator('app-hud .prompt')).toContainText('ansehen', { timeout: 20_000 });
-    await page.keyboard.up('KeyW');
-    await page.keyboard.press('KeyE');
+      await startWorld(page, '/p/novaverta?stats=1');
+      await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
 
-    await expect(page).toHaveURL(/\/p\/novaverta\/info$/);
-    await expect(page.getByRole('dialog')).toBeVisible();
+      const running = await framesRendered(page);
+      expect(running).toBeGreaterThan(0);
 
-    await page.locator('button[data-role="close"]').click();
-    await expect(page).toHaveURL(/\/p\/novaverta$/);
-    await expect(page.locator('app-hud .area')).toContainText('Showroom');
-  });
+      await page.keyboard.down('KeyW');
+      await expect(page.locator('app-hud .prompt')).toContainText('ansehen', { timeout: 20_000 });
+      await page.keyboard.up('KeyW');
+      await page.keyboard.press('KeyE');
+
+      await expect(page).toHaveURL(/\/p\/novaverta\/info$/);
+      await expect(page.getByRole('dialog')).toBeVisible();
+
+      // Low pauses; medium and high keep drawing at the engine's 15 fps panel throttle.
+      await page.keyboard.down('KeyW');
+      const panelFrames = await framesRendered(page);
+      const laterPanelFrames = await framesRendered(page);
+      await page.keyboard.up('KeyW');
+
+      if (policy.rendersBehindPanel) {
+        expect(laterPanelFrames).toBeGreaterThan(panelFrames);
+      } else {
+        expect(laterPanelFrames).toBe(panelFrames);
+      }
+
+      await page.locator('button[data-role="close"]').click();
+      await expect(page).toHaveURL(/\/p\/novaverta$/);
+      await expect(page.locator('app-hud .area')).toContainText('Showroom');
+      // Panel-owned input must not move player; same nearby screen remains usable after close.
+      await expect(page.locator('app-hud .prompt')).toContainText('ansehen');
+      await expect.poll(() => framesRendered(page)).toBeGreaterThan(laterPanelFrames);
+    });
+  }
 });
