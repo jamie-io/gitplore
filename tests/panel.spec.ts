@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { framesRendered } from './helpers';
 
 test.describe('project destination', () => {
   test('a deep link opens the panel with the README over that world', async ({ page }) => {
@@ -54,15 +55,14 @@ test.describe('project destination', () => {
   });
 
   test('walking keys do not move the player while the panel is open', async ({ page }) => {
-    await page.goto('/p/novaverta/info');
+    await page.goto('/p/novaverta/info?stats=1');
     await expect(page.getByRole('dialog')).toBeVisible();
-    const canvas = page.locator('app-world-page canvas');
 
-    const before = await canvas.screenshot();
+    const before = await framesRendered(page);
     await page.keyboard.down('KeyW');
     await page.waitForTimeout(700);
     await page.keyboard.up('KeyW');
 
-    expect((await canvas.screenshot()).equals(before)).toBe(true);
+    expect(await framesRendered(page)).toBe(before);
   });
 });
