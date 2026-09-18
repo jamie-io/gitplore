@@ -209,6 +209,27 @@ describe('WorldPage', () => {
     expect(fixture.nativeElement.getAttribute('data-input-mode')).toBe('world');
   });
 
+  it('pauses the world while the panel is open and restores rendering when it closes', async () => {
+    await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+    await bootWithoutManifest();
+    const setPaused = vi.spyOn(engine, 'setPaused');
+    const setThrottle = vi.spyOn(engine, 'setThrottle');
+    setPaused.mockClear();
+    setThrottle.mockClear();
+
+    await TestBed.inject(Router).navigate(['/p', 'novaverta', 'info']);
+    TestBed.tick();
+
+    expect(setPaused).toHaveBeenLastCalledWith(true);
+    expect(setThrottle).toHaveBeenLastCalledWith(15);
+
+    await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+    TestBed.tick();
+
+    expect(setPaused).toHaveBeenLastCalledWith(false);
+    expect(setThrottle).toHaveBeenLastCalledWith(null);
+  });
+
   it('asks the director for the start world exactly once on a cold boot', async () => {
     // The route-driven build effect used to infer "boot has claimed the scene" from
     // `store.phase()`, and the `'booting'` → `'loading'` transition re-ran it before `boot()` had

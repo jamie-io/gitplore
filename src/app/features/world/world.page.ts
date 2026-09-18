@@ -166,9 +166,9 @@ export class WorldPage {
     effect(() => {
       const { panel } = this.routeState();
       this.store.setPanelOpen(panel);
-      // Keep the world alive but cheap behind the panel; on the weakest tier stop drawing entirely.
+      // Keep the world alive behind the panel, but freeze rendering at every tier.
       this.engine.setThrottle(panel && this.capability.tier() !== 'low' ? 15 : null);
-      this.engine.setPaused(this.store.paused() || (panel && this.capability.tier() === 'low'));
+      this.engine.setPaused(this.store.paused() || panel);
       // Opening the panel ends a running demo; the panel is a different place.
       if (panel) {
         this.director.endDemo();
