@@ -202,7 +202,7 @@ export class Motes implements WorldObject {
 
 /** The low tier draws half as many: additive overdraw is what SwiftShader feels most. */
 function pointCount(count: number, quality: QualitySettings): number {
-  const lowTier = !quality.shadows;
+  const lowTier = quality.shaderDetail === 0;
   return Math.max(0, Math.round(count * quality.propDensity * (lowTier ? 0.5 : 1)));
 }
 

@@ -81,6 +81,16 @@ describe('Sun', () => {
     expect(sunOf(ctx).castShadow).toBe(false);
   });
 
+  it('casts a 1024-texel shadow on the medium tier', () => {
+    const ctx = context('medium');
+
+    sun().init(ctx);
+
+    expect(sunOf(ctx).castShadow).toBe(true);
+    expect(sunOf(ctx).shadow.mapSize.x).toBe(1024);
+    expect(sunOf(ctx).shadow.mapSize.y).toBe(1024);
+  });
+
   it('casts a 2048-texel shadow on the high tier', () => {
     const ctx = context('high');
 
