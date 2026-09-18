@@ -70,6 +70,7 @@ test.describe('project destination', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
 
     const paused = await framesRendered(page);
+    await page.waitForTimeout(700);
     expect(await framesRendered(page)).toBe(paused);
 
     await page.locator('button[data-role="close"]').click();
