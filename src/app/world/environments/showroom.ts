@@ -59,7 +59,7 @@ function spotTilt(row: number): number {
 /** Pilasters, skirting, rails and spot bodies: every dark or off-white fitting, one mesh. */
 function trimGeometry(): BufferGeometry {
   const parts: BufferGeometry[] = [];
-  const inner = HALF - PILASTER_DEPTH / 2;
+  const inner = HALF - WALL_THICKNESS / 2 - PILASTER_DEPTH / 2;
 
   for (let along = -HALF + PILASTER_SPACING / 2; along < HALF; along += PILASTER_SPACING) {
     parts.push(

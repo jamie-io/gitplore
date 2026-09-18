@@ -38,6 +38,45 @@ describe('ShowroomEnvironment', () => {
     environment.dispose();
   });
 
+  it('places pilasters on the hall-facing side of all four walls', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+    environment.init(ctx);
+
+    const trim = ctx.scene.getObjectByName('trim');
+    expect(trim).toBeInstanceOf(Mesh);
+    if (!(trim instanceof Mesh)) {
+      environment.dispose();
+      return;
+    }
+
+    const position = trim.geometry.getAttribute('position');
+    const vertices = Array.from({ length: position.count }, (_, index) =>
+      new Vector3().fromBufferAttribute(position, index),
+    );
+    const wallFace = HALF - 0.4;
+    const pilasterDepth = 0.12;
+    const isOnHallSide = (coordinate: number, side: -1 | 1) => {
+      const face = side * wallFace;
+      return side === 1
+        ? coordinate >= face - pilasterDepth - 1e-6 && coordinate <= face + 1e-6
+        : coordinate >= face - 1e-6 && coordinate <= face + pilasterDepth + 1e-6;
+    };
+
+    for (const [axis, side] of [
+      ['x', -1],
+      ['x', 1],
+      ['z', -1],
+      ['z', 1],
+    ] as const) {
+      expect(
+        vertices.some((vertex) => isOnHallSide(axis === 'x' ? vertex.x : vertex.z, side as -1 | 1)),
+      ).toBe(true);
+    }
+
+    environment.dispose();
+  });
+
   it('closes the hall with a ceiling', () => {
     const ctx = stubContext();
     const environment = showroom();
