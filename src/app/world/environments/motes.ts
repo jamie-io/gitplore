@@ -13,6 +13,7 @@ import {
 import { QualitySettings } from '@engine/capability.service';
 import { disposeObject3D } from '@engine/dispose';
 import { WorldContext, WorldObject } from '@engine/world-object';
+import { between, seededRandom } from './random';
 import { NOISE_GLSL } from './shaders/noise.glsl';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
@@ -218,34 +219,19 @@ function layout(
   for (let i = 0; i < count; i++) {
     if (followCamera) {
       // Relative to the camera: a box in x/z, the height band as given.
-      positions[i * 3] = (random() * 2 - 1) * area.radius;
-      positions[i * 3 + 2] = (random() * 2 - 1) * area.radius;
+      positions[i * 3] = between(random, -area.radius, area.radius);
+      positions[i * 3 + 2] = between(random, -area.radius, area.radius);
     } else {
       // Uniform over the disc: the square root keeps the centre from crowding.
       const r = Math.sqrt(random()) * area.radius;
-      const angle = random() * Math.PI * 2;
+      const angle = between(random, 0, Math.PI * 2);
       positions[i * 3] = area.x + Math.cos(angle) * r;
       positions[i * 3 + 2] = area.z + Math.sin(angle) * r;
     }
-    positions[i * 3 + 1] = area.minY + random() * (area.maxY - area.minY);
+    positions[i * 3 + 1] = between(random, area.minY, area.maxY);
     seeds[i * 2] = random();
-    seeds[i * 2 + 1] = 0.6 + random() * 0.8;
+    seeds[i * 2 + 1] = between(random, 0.6, 1.4);
   }
 
   return { positions, seeds };
-}
-
-/**
- * mulberry32, uniform in [0, 1). Stands in for `seededRandom` from `random.ts` (Task 1), which is
- * not on this branch yet; private on purpose, so swapping it later touches only this layout.
- */
-function seededRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
