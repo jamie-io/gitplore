@@ -11,8 +11,11 @@ import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import { Anchor, Environment } from './environment';
 import { ProceduralGround } from './ground';
+import { PLAZA, applyMood, clearMood } from './mood';
 import { arcAnchors, Position } from './placement';
+import { SharedUniforms } from './shaders/shared-uniforms';
 import { Sky } from './sky';
+import { Sun } from './sun';
 import type { EnvironmentOptions } from './create-environment';
 
 const SIZE = 90;
@@ -22,7 +25,7 @@ const KERB_HEIGHT = 0.5;
 const EXHIBIT_RADIUS = 20;
 const EXHIBIT_ARC = Math.PI * 1.1;
 
-/** Open, bright and built: paving, a fountain, and the same sky the clearing has. */
+/** Open, bright and built: paving, a fountain, and a noon sky of its own. */
 export class PlazaEnvironment implements Environment {
   readonly id = 'plaza' as const;
   readonly name = 'Plaza';
@@ -31,6 +34,8 @@ export class PlazaEnvironment implements Environment {
   readonly colliders: readonly Collider[] = [
     { kind: 'cylinder', x: 0, z: 0, radius: FOUNTAIN_RADIUS + 0.4 },
   ];
+  /** Every shader in this world reads these; public so a test can watch time stand still. */
+  readonly shared = new SharedUniforms(PLAZA);
 
   private readonly floor = new ProceduralGround({
     id: 'plaza-floor',
@@ -39,12 +44,12 @@ export class PlazaEnvironment implements Environment {
     segments: 1,
     heightAt: () => 0,
   });
-  private readonly sky: Sky;
+  private readonly sky = new Sky({ mood: PLAZA, shared: this.shared });
+  private readonly sun = new Sun({ mood: PLAZA, shared: this.shared });
   private readonly added: Object3D[] = [];
+  private scene: WorldContext['scene'] | null = null;
 
-  constructor(options: EnvironmentOptions) {
-    this.sky = new Sky(options);
-  }
+  constructor(private readonly options: EnvironmentOptions) {}
 
   get ground() {
     return this.floor;
@@ -56,8 +61,11 @@ export class PlazaEnvironment implements Environment {
   }
 
   init(ctx: WorldContext): void {
+    this.scene = ctx.scene;
+    applyMood(ctx.scene, PLAZA);
     this.floor.init(ctx);
     this.sky.init(ctx);
+    this.sun.init(ctx);
 
     const stone = new MeshStandardMaterial({ color: 0x9a9184, roughness: 0.9, flatShading: true });
     const water = new MeshStandardMaterial({ color: 0x3f7bb8, roughness: 0.2, metalness: 0.1 });
@@ -83,14 +91,21 @@ export class PlazaEnvironment implements Environment {
     this.added.forEach((object) => ctx.scene.add(object));
   }
 
-  update(dt: number): void {
-    this.sky.update(dt);
+  update(dt: number, ctx: WorldContext): void {
+    this.shared.update(dt, ctx.player.position, this.options.reducedMotion());
+    this.sky.update(dt, ctx);
+    this.sun.update(dt, ctx);
   }
 
   dispose(): void {
     this.added.forEach(disposeObject3D);
     this.added.length = 0;
+    this.sun.dispose();
     this.sky.dispose();
     this.floor.dispose();
+    if (this.scene) {
+      clearMood(this.scene);
+      this.scene = null;
+    }
   }
 }
