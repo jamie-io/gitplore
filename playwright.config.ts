@@ -25,7 +25,8 @@ export default defineConfig({
       // pinning one engine keeps CI to a single browser download.
       name: 'iphone',
       // The phone is redirected away from the hub, so the world suite does not apply here.
-      testIgnore: /(world|worlds|panel|interaction|demo|memory|a11y)\.spec\.ts/,
+      testIgnore:
+        /(world|worlds|panel|interaction|demo|memory|a11y|shaders|perf|capture)\.spec\.ts/,
       use: { ...devices['iPhone 14'], browserName: 'chromium' },
     },
   ],
