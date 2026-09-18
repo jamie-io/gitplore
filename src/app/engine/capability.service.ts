@@ -8,12 +8,48 @@ export interface QualitySettings {
   readonly antialias: boolean;
   readonly fogFar: number;
   readonly propDensity: number;
+  /**
+   * How much work shaders may do per pixel: 0 on the weakest tier — the one SwiftShader and the
+   * browser suite run on — and 2 on the strongest. Environments read it for octave and sample counts.
+   */
+  readonly shaderDetail: 0 | 1 | 2;
+  /** Edge length of the sun's shadow map in texels; 0 whenever `shadows` is off. */
+  readonly shadowMapSize: number;
+  /** Ambient occlusion, bloom and colour grading. Costly, so the strongest tier only. */
+  readonly postProcessing: boolean;
 }
 
 const SETTINGS: Record<QualityTier, QualitySettings> = {
-  low: { pixelRatioCap: 1, shadows: false, antialias: false, fogFar: 120, propDensity: 0.25 },
-  medium: { pixelRatioCap: 1.5, shadows: true, antialias: true, fogFar: 220, propDensity: 0.6 },
-  high: { pixelRatioCap: 2, shadows: true, antialias: true, fogFar: 320, propDensity: 1 },
+  low: {
+    pixelRatioCap: 1,
+    shadows: false,
+    antialias: false,
+    fogFar: 120,
+    propDensity: 0.25,
+    shaderDetail: 0,
+    shadowMapSize: 0,
+    postProcessing: false,
+  },
+  medium: {
+    pixelRatioCap: 1.5,
+    shadows: true,
+    antialias: true,
+    fogFar: 220,
+    propDensity: 0.6,
+    shaderDetail: 1,
+    shadowMapSize: 1024,
+    postProcessing: false,
+  },
+  high: {
+    pixelRatioCap: 2,
+    shadows: true,
+    antialias: true,
+    fogFar: 320,
+    propDensity: 1,
+    shaderDetail: 2,
+    shadowMapSize: 2048,
+    postProcessing: true,
+  },
 };
 
 export function qualitySettings(tier: QualityTier): QualitySettings {

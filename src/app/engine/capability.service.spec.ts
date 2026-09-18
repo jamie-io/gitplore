@@ -97,6 +97,27 @@ describe('qualitySettings', () => {
   });
 });
 
+describe('qualitySettings', () => {
+  it('turns post-processing on for the high tier only', () => {
+    expect(qualitySettings('high').postProcessing).toBe(true);
+    expect(qualitySettings('medium').postProcessing).toBe(false);
+    expect(qualitySettings('low').postProcessing).toBe(false);
+  });
+
+  it('gives the shadow map a size exactly when shadows are on', () => {
+    for (const tier of ['low', 'medium', 'high'] as const) {
+      const settings = qualitySettings(tier);
+      expect(settings.shadowMapSize > 0).toBe(settings.shadows);
+    }
+  });
+
+  it('raises shader detail with the tier', () => {
+    expect(qualitySettings('low').shaderDetail).toBe(0);
+    expect(qualitySettings('medium').shaderDetail).toBe(1);
+    expect(qualitySettings('high').shaderDetail).toBe(2);
+  });
+});
+
 describe('CapabilityService reduced motion', () => {
   it('follows the system preference by default', () => {
     expect(serviceWith({ reducedMotion: true }).reducedMotion()).toBe(true);
