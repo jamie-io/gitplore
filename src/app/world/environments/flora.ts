@@ -239,3 +239,213 @@ export function lilyPad(seed: number): BufferGeometry {
   }
   return assemble(parts);
 }
+
+/** A leaf blade: a flattened cone lying along +X from the origin, tilted by `pitch` (up is positive). */
+function blade(length: number, width: number, pitch: number, yaw: number): BufferGeometry {
+  return new ConeGeometry(width, length, 4)
+    .scale(0.15, 1, 1)
+    .translate(0, length / 2, 0)
+    .rotateZ(-(Math.PI / 2 - pitch))
+    .rotateY(yaw);
+}
+
+/** A rainforest giant: buttressed trunk and an umbrella canopy high overhead, about 15–17 m. */
+export function kapokTree(seed: number): BufferGeometry {
+  const random = seededRandom(seed);
+  const height = between(random, 12, 14);
+  const parts = [
+    paint(
+      jitter(new CylinderGeometry(0.45, 0.8, height, 7).translate(0, height / 2, 0), 0.06, random),
+      0x6e5a45,
+    ),
+  ];
+  for (let i = 0; i < 5; i++) {
+    const angle = (i / 5) * Math.PI * 2 + random() * 0.4;
+    const fin = new ConeGeometry(1.2, 2.6, 4)
+      .scale(0.12, 1, 1)
+      .translate(0, 1.3, 0.9)
+      .rotateY(angle);
+    parts.push(paint(fin, 0x655241));
+  }
+  const canopy: readonly (readonly [number, number, number, number, number])[] = [
+    [0, 0.6, 0, 4.2, 0x2f6b3a],
+    [2.4, 0.2, 1.2, 3.4, 0x3d7d45],
+    [-2.2, 0.4, -1.6, 3.0, 0x2a5f35],
+    [0.6, 1.4, -0.4, 2.6, 0x4f8f4a],
+  ];
+  for (const [x, y, z, radius, colour] of canopy) {
+    const blob = jitter(new IcosahedronGeometry(radius, 1), radius * 0.1, random).scale(1, 0.38, 1);
+    parts.push(paint(blob.translate(x, height + y, z), colour));
+  }
+  return assemble(parts);
+}
+
+/** A leaning palm: six trunk segments bending one way, a crown of drooping fronds, coconuts. */
+export function palmTree(seed: number): BufferGeometry {
+  const random = seededRandom(seed);
+  const bend = between(random, 0.04, 0.1);
+  const parts: BufferGeometry[] = [];
+  let x = 0;
+  let y = 0;
+  for (let i = 0; i < 6; i++) {
+    const tilt = bend * i;
+    const radius = 0.22 - i * 0.015;
+    const segment = new CylinderGeometry(radius - 0.015, radius, 1.2, 6)
+      .translate(0, 0.6, 0)
+      .rotateZ(-tilt)
+      .translate(x, y, 0);
+    parts.push(paint(segment, i % 2 ? 0x8a7355 : 0x7a6449));
+    x += 1.2 * Math.sin(tilt);
+    y += 1.2 * Math.cos(tilt);
+  }
+  for (let i = 0; i < 8; i++) {
+    const frond = blade(
+      3.2,
+      0.35,
+      -between(random, 0.2, 0.45),
+      (i / 8) * Math.PI * 2 + random() * 0.3,
+    );
+    parts.push(paint(frond.translate(x, y, 0), i % 2 ? 0x4f8f3a : 0x5c9c42));
+  }
+  for (let i = 0; i < 3; i++) {
+    const angle = (i / 3) * Math.PI * 2;
+    parts.push(
+      paint(
+        new IcosahedronGeometry(0.16, 0).translate(
+          x + Math.sin(angle) * 0.25,
+          y - 0.25,
+          Math.cos(angle) * 0.25,
+        ),
+        0x5a4a2a,
+      ),
+    );
+  }
+  return assemble(parts);
+}
+
+/** A tree fern: a short shaggy trunk and a rosette of arching fronds. */
+export function treeFern(seed: number): BufferGeometry {
+  const random = seededRandom(seed);
+  const height = between(random, 2, 2.8);
+  const parts = [
+    paint(
+      jitter(new CylinderGeometry(0.16, 0.24, height, 6).translate(0, height / 2, 0), 0.03, random),
+      0x5a4632,
+    ),
+  ];
+  for (let i = 0; i < 9; i++) {
+    const frond = blade(2.2, 0.3, 0.5 - random() * 0.2, (i / 9) * Math.PI * 2 + random() * 0.3);
+    parts.push(paint(frond.translate(0, height, 0), i % 2 ? 0x3f7f3a : 0x4c8f44));
+  }
+  return assemble(parts);
+}
+
+/** Banana-like broad leaves on short stalks: the jungle's mid-height undergrowth. */
+export function bigLeafPlant(seed: number): BufferGeometry {
+  const random = seededRandom(seed);
+  const parts: BufferGeometry[] = [];
+  for (let i = 0; i < 6; i++) {
+    const stalk = between(random, 0.9, 1.3);
+    const yaw = (i / 6) * Math.PI * 2 + random() * 0.5;
+    parts.push(
+      paint(new CylinderGeometry(0.035, 0.05, stalk, 5).translate(0, stalk / 2, 0), 0x4f7f35),
+    );
+    const leaf = new IcosahedronGeometry(0.5, 0)
+      .scale(1.6, 0.12, 0.7)
+      .translate(0.8, 0, 0)
+      .rotateZ(0.35)
+      .rotateY(yaw)
+      .translate(0, stalk, 0);
+    parts.push(paint(leaf, i % 2 ? 0x2f7a3a : 0x3c8c44));
+  }
+  return assemble(parts);
+}
+
+/** A low fern for the forest floor. */
+export function groundFern(seed: number): BufferGeometry {
+  const random = seededRandom(seed);
+  const parts: BufferGeometry[] = [];
+  for (let i = 0; i < 7; i++) {
+    parts.push(
+      paint(
+        blade(0.9, 0.12, 0.6 - random() * 0.2, (i / 7) * Math.PI * 2 + random() * 0.4),
+        i % 2 ? 0x4c8f3f : 0x3f7a35,
+      ),
+    );
+  }
+  return assemble(parts);
+}
+
+/** A boulder with a cushion of moss on top. */
+export function mossyBoulder(seed: number): BufferGeometry {
+  const random = seededRandom(seed);
+  const rock = jitter(new DodecahedronGeometry(1, 0), 0.22, random)
+    .scale(1.3, 0.75, 1.1)
+    .translate(0, 0.3, 0);
+  const moss = jitter(new IcosahedronGeometry(1, 0), 0.08, random)
+    .scale(1.15, 0.32, 0.95)
+    .translate(0, 0.8, 0);
+  return assemble([paint(rock, 0x6f6a5f), paint(moss, 0x4f7f3a)]);
+}
+
+/** A vine hanging from its origin — the point where it is tied to a branch — 4 to 7 m down. */
+export function liana(seed: number): BufferGeometry {
+  const random = seededRandom(seed);
+  const parts: BufferGeometry[] = [];
+  const segments = 4;
+  const length = between(random, 1.1, 1.7);
+  let x = 0;
+  let z = 0;
+  for (let i = 0; i < segments; i++) {
+    const dx = between(random, -0.25, 0.25);
+    const dz = between(random, -0.25, 0.25);
+    const top = -i * length;
+    const segment = new CylinderGeometry(0.035, 0.035, length, 4)
+      .translate(0, -length / 2, 0)
+      .rotateZ(Math.atan2(dx, length))
+      .rotateX(-Math.atan2(dz, length))
+      .translate(x, top, z);
+    parts.push(paint(segment, 0x5a4a32));
+    x += dx;
+    z += dz;
+    parts.push(
+      paint(new OctahedronGeometry(0.14, 0).translate(x, top - length * 0.6, z), 0x3b6b2f),
+    );
+  }
+  return assemble(parts);
+}
+
+/** Fraction of a cliff's height where the lip of its waterfall notch sits. */
+export const CLIFF_LIP = 0.85;
+
+/**
+ * A rock face `width` metres wide and up to `height` tall, facing +Z, with its foot sunk 2 m into the
+ * ground and a lower notch where a waterfall pours over. Its origin is the foot of the face, centred.
+ */
+export function cliffWall(
+  seed: number,
+  width: number,
+  height: number,
+  notch: { readonly x: number; readonly width: number },
+): BufferGeometry {
+  const random = seededRandom(seed);
+  const rocks = [0x6f6a5f, 0x7d776a, 0x5f5a50] as const;
+  const columns = Math.max(1, Math.round(width / 3));
+  const step = width / columns;
+  const parts: BufferGeometry[] = [];
+
+  for (let i = 0; i < columns; i++) {
+    const x = -width / 2 + step * (i + 0.5);
+    const inNotch = Math.abs(x - notch.x) < notch.width / 2;
+    const top = inNotch ? height * CLIFF_LIP : height * between(random, 0.75, 1);
+    const depth = between(random, 3.5, 5);
+    const setBack = between(random, 0, 1.2);
+    const column = new BoxGeometry(step * 1.15, top + 2, depth).translate(x, top / 2 - 1, -setBack);
+    parts.push(paint(jitter(column, 0.35, random), rocks[i % rocks.length]));
+    if (!inNotch) {
+      const moss = jitter(new IcosahedronGeometry(step * 0.6, 0), 0.15, random).scale(1, 0.3, 0.9);
+      parts.push(paint(moss.translate(x, top + 0.1, -setBack), 0x3f6f35));
+    }
+  }
+  return assemble(parts);
+}

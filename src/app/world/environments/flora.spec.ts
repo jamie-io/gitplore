@@ -1,13 +1,22 @@
 import { BufferGeometry } from 'three';
 import {
+  bigLeafPlant,
   birchTree,
   boulder,
   broadleafTree,
   bush,
+  cliffWall,
   flowerTuft,
+  groundFern,
+  kapokTree,
   lilyPad,
+  liana,
+  mossyBoulder,
+  palmTree,
   pineTree,
   reeds,
+  treeFern,
+  CLIFF_LIP,
 } from './flora';
 
 /** Where each prop's lowest and highest vertex may fall, in metres at scale 1. */
@@ -30,6 +39,12 @@ const CASES: readonly {
   },
   { name: 'reeds', build: reeds, base: [-0.03, 0.01], top: [1.0, 1.9] },
   { name: 'lilyPad', build: lilyPad, base: [-0.01, 0.01], top: [0.015, 0.13] },
+  { name: 'kapokTree', build: kapokTree, base: [-0.08, 0.08], top: [13.5, 17.5] },
+  { name: 'palmTree', build: palmTree, base: [-0.01, 0.01], top: [6.4, 7.9] },
+  { name: 'treeFern', build: treeFern, base: [-0.02, 0.01], top: [2.9, 4.1] },
+  { name: 'bigLeafPlant', build: bigLeafPlant, base: [-0.02, 0.01], top: [1.2, 2.3] },
+  { name: 'groundFern', build: groundFern, base: [-0.06, 0.01], top: [0.35, 0.75] },
+  { name: 'mossyBoulder', build: mossyBoulder, base: [-0.7, -0.15], top: [0.95, 1.4] },
 ];
 
 describe.each(CASES)('$name', ({ build, base, top }) => {
@@ -64,5 +79,45 @@ describe.each(CASES)('$name', ({ build, base, top }) => {
 
     expect(a).toEqual(b);
     expect(a).not.toEqual(c);
+  });
+});
+
+describe('liana', () => {
+  it('hangs down from its origin, which is where it is tied to a branch', () => {
+    const geometry = liana(1);
+    geometry.computeBoundingBox();
+
+    expect(geometry.boundingBox?.max.y).toBeLessThanOrEqual(0.2);
+    expect(geometry.boundingBox?.min.y).toBeGreaterThanOrEqual(-7.5);
+    expect(geometry.boundingBox?.min.y).toBeLessThanOrEqual(-4);
+  });
+});
+
+describe('cliffWall', () => {
+  const notch = { x: 9, width: 6 };
+  const cliff = cliffWall(1, 60, 16, notch);
+  const position = cliff.getAttribute('position');
+
+  it('spans the width it was asked for', () => {
+    cliff.computeBoundingBox();
+    expect(cliff.boundingBox?.min.x).toBeLessThanOrEqual(-29);
+    expect(cliff.boundingBox?.max.x).toBeGreaterThanOrEqual(29);
+    expect(cliff.boundingBox?.max.y).toBeLessThanOrEqual(16 + 1);
+    expect(cliff.boundingBox?.max.y).toBeGreaterThanOrEqual(16 * 0.75);
+  });
+
+  it('drops to the lip in the notch, where the waterfall pours over', () => {
+    let highest = -Infinity;
+    for (let i = 0; i < position.count; i++) {
+      if (Math.abs(position.getX(i) - notch.x) < 2) {
+        highest = Math.max(highest, position.getY(i));
+      }
+    }
+    expect(highest).toBeLessThanOrEqual(16 * CLIFF_LIP + 0.4);
+  });
+
+  it('sinks its foot below the ground, so no gap shows on uneven terrain', () => {
+    cliff.computeBoundingBox();
+    expect(cliff.boundingBox?.min.y).toBeLessThanOrEqual(-1.5);
   });
 });
