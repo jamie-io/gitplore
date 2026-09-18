@@ -56,6 +56,7 @@ class FakePost implements PostStack {
 function deferredLoader() {
   const posts: FakePost[] = [];
   let resolve: ((factory: PostStackFactory) => void) | null = null;
+  let reject: ((reason?: unknown) => void) | null = null;
   let calls = 0;
 
   return {
@@ -63,7 +64,10 @@ function deferredLoader() {
     calls: () => calls,
     loader: () => {
       calls++;
-      return new Promise<PostStackFactory>((done) => (resolve = done));
+      return new Promise<PostStackFactory>((done, fail) => {
+        resolve = done;
+        reject = fail;
+      });
     },
     async land(): Promise<void> {
       resolve?.(() => {
@@ -71,6 +75,11 @@ function deferredLoader() {
         posts.push(post);
         return post;
       });
+      await Promise.resolve();
+      await Promise.resolve();
+    },
+    async fail(): Promise<void> {
+      reject?.(new Error('post stack failed to load'));
       await Promise.resolve();
       await Promise.resolve();
     },
@@ -161,6 +170,19 @@ describe('QualityRenderer', () => {
 
     expect(load.posts).toEqual([]);
     expect(gl.renders).toBe(2);
+  });
+
+  it('retries post-processing when a stale load rejects after a tier re-upgrade', async () => {
+    const { load, renderer, scene, camera } = setup('high');
+    renderer.render(scene, camera);
+
+    renderer.setQuality(qualitySettings('medium'));
+    renderer.setQuality(qualitySettings('high'));
+    await load.fail();
+
+    renderer.render(scene, camera);
+
+    expect(load.calls()).toBe(2);
   });
 
   it('disposes the post stack together with the renderer', async () => {

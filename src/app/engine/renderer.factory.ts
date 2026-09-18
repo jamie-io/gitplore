@@ -151,7 +151,9 @@ export class QualityRenderer implements RendererLike {
         // A failed chunk download keeps the plain path. No retry every frame: a visitor on a
         // flaky connection is not hammered with requests. The next tier change tries again.
         this.loading = false;
-        this.wantsPost = false;
+        if (generation === this.generation) {
+          this.wantsPost = false;
+        }
       },
     );
   }
