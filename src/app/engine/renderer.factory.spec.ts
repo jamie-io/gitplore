@@ -185,6 +185,46 @@ describe('QualityRenderer', () => {
     expect(load.calls()).toBe(2);
   });
 
+  it('falls back to direct rendering when the post-stack factory throws', async () => {
+    const gl = new FakeGl();
+    const post = new FakePost();
+    let calls = 0;
+    const renderer = new QualityRenderer(
+      gl as unknown as WebGLRenderer,
+      qualitySettings('high'),
+      () => {
+        calls++;
+        return Promise.resolve<PostStackFactory>(
+          calls === 1
+            ? () => {
+                throw new Error('post stack factory failed');
+              }
+            : () => post,
+        );
+      },
+    );
+    const scene = new Scene();
+    const camera = new PerspectiveCamera();
+
+    renderer.render(scene, camera);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    renderer.render(scene, camera);
+    expect(gl.renders).toBe(2);
+    expect(calls).toBe(1);
+
+    renderer.setQuality(qualitySettings('high'));
+    renderer.render(scene, camera);
+    await Promise.resolve();
+    await Promise.resolve();
+    renderer.render(scene, camera);
+
+    expect(calls).toBe(2);
+    expect(gl.renders).toBe(3);
+    expect(post.renders).toBe(1);
+  });
+
   it('disposes the post stack together with the renderer', async () => {
     const { gl, load, renderer, scene, camera } = setup('high');
     renderer.render(scene, camera);

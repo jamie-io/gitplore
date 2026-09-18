@@ -143,9 +143,19 @@ export class QualityRenderer implements RendererLike {
         if (this.disposed || !this.wantsPost || generation !== this.generation) {
           return;
         }
-        this.post = create(this.gl, scene, camera);
-        this.post.setPixelRatio(this.pixelRatio);
-        this.post.setSize(this.size.width, this.size.height);
+
+        let post: PostStack | null = null;
+        try {
+          post = create(this.gl, scene, camera);
+          post.setPixelRatio(this.pixelRatio);
+          post.setSize(this.size.width, this.size.height);
+          this.post = post;
+        } catch {
+          post?.dispose();
+          if (generation === this.generation) {
+            this.wantsPost = false;
+          }
+        }
       },
       () => {
         // A failed chunk download keeps the plain path. No retry every frame: a visitor on a
