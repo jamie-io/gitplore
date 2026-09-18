@@ -1,6 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { Scene } from 'three';
-import { CapabilityService, DEVICE_CAPABILITIES } from './capability.service';
+import {
+  CapabilityService,
+  DEVICE_CAPABILITIES,
+  QualitySettings,
+  qualitySettings,
+} from './capability.service';
 import { ENGINE_MAX_FRAME_SECONDS, EngineService } from './engine.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
 import { BoxGeometry, Mesh, MeshStandardMaterial, Texture, Vector3 } from 'three';
@@ -17,7 +22,7 @@ class StubRenderer implements RendererLike {
   height = 0;
   pixelRatio = 1;
   readonly domElement = document.createElement('canvas');
-  readonly shadowMap = { enabled: false };
+  readonly qualities: QualitySettings[] = [];
   readonly info = { memory: { geometries: 0, textures: 0 } };
   renderListsDisposed = 0;
   readonly renderLists = { dispose: () => void this.renderListsDisposed++ };
@@ -31,6 +36,9 @@ class StubRenderer implements RendererLike {
   }
   setPixelRatio(ratio: number) {
     this.pixelRatio = ratio;
+  }
+  setQuality(quality: QualitySettings) {
+    this.qualities.push(quality);
   }
   render() {
     this.renders++;
@@ -201,6 +209,14 @@ describe('EngineService', () => {
 
     expect(renderer.pixelRatio).toBeLessThanOrEqual(1);
     expect(renderer.width).toBe(800);
+  });
+
+  it('hands a changed quality tier to the renderer', () => {
+    TestBed.inject(CapabilityService).override('low');
+
+    engine.refreshQuality();
+
+    expect(renderer.qualities.at(-1)).toEqual(qualitySettings('low'));
   });
 
   it('reports frame times to the capability service', () => {
