@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { framesRendered } from './helpers';
+import { framesRendered, startWorld } from './helpers';
 
 test.describe('project destination', () => {
   test('a deep link opens the panel with the README over that world', async ({ page }) => {
@@ -54,15 +54,26 @@ test.describe('project destination', () => {
     await expect(page.locator('app-hud .area')).toContainText('Lichtung');
   });
 
-  test('walking keys do not move the player while the panel is open', async ({ page }) => {
-    await page.goto('/p/novaverta/info?stats=1');
+  test('opening the panel pauses an active world', async ({ page }) => {
+    await startWorld(page, '/p/novaverta?stats=1');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
+
+    const running = await framesRendered(page);
+    expect(running).toBeGreaterThan(0);
+
+    await page.keyboard.down('KeyW');
+    await expect(page.locator('app-hud .prompt')).toContainText('ansehen', { timeout: 20_000 });
+    await page.keyboard.up('KeyW');
+    await page.keyboard.press('KeyE');
+
+    await expect(page).toHaveURL(/\/p\/novaverta\/info$/);
     await expect(page.getByRole('dialog')).toBeVisible();
 
-    const before = await framesRendered(page);
-    await page.keyboard.down('KeyW');
-    await page.waitForTimeout(700);
-    await page.keyboard.up('KeyW');
+    const paused = await framesRendered(page);
+    expect(await framesRendered(page)).toBe(paused);
 
-    expect(await framesRendered(page)).toBe(before);
+    await page.locator('button[data-role="close"]').click();
+    await expect(page).toHaveURL(/\/p\/novaverta$/);
+    await expect.poll(() => framesRendered(page)).toBeGreaterThan(paused);
   });
 });
