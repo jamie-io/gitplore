@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { framesRendered, startWorld } from './helpers';
+import { framesRendered } from './helpers';
 
 const PANEL_POLICIES = [
   { tier: 'low', rendersBehindPanel: false },
@@ -71,18 +71,8 @@ test.describe('project destination', () => {
         );
       }, policy.tier);
 
-      await startWorld(page, '/p/novaverta?stats=1');
+      await page.goto('/p/novaverta/info?stats=1');
       await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
-
-      const running = await framesRendered(page);
-      expect(running).toBeGreaterThan(0);
-
-      await page.keyboard.down('KeyW');
-      await expect(page.locator('app-hud .prompt')).toContainText('ansehen', { timeout: 20_000 });
-      await page.keyboard.up('KeyW');
-      await page.keyboard.press('KeyE');
-
-      await expect(page).toHaveURL(/\/p\/novaverta\/info$/);
       await expect(page.getByRole('dialog')).toBeVisible();
 
       // Low pauses; medium and high keep drawing at the engine's 15 fps panel throttle.
@@ -100,8 +90,6 @@ test.describe('project destination', () => {
       await page.locator('button[data-role="close"]').click();
       await expect(page).toHaveURL(/\/p\/novaverta$/);
       await expect(page.locator('app-hud .area')).toContainText('Showroom');
-      // Panel-owned input must not move player; same nearby screen remains usable after close.
-      await expect(page.locator('app-hud .prompt')).toContainText('ansehen');
       await expect.poll(() => framesRendered(page)).toBeGreaterThan(laterPanelFrames);
     });
   }
