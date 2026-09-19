@@ -60,13 +60,16 @@ gitplore/
     app.config.ts  app.routes.ts  app.ts
     engine/            # Three.js only; knows nothing about projects or Angular UI
       engine.service.ts  input.service.ts  capability.service.ts  asset.service.ts
-      renderer.factory.ts  dispose.ts  world-object.ts
+      renderer.factory.ts  post-stack.ts  color-grade.ts  dispose.ts  world-object.ts
       player/   player-controller.ts  camera-rig.ts  collision.ts
       interaction/  interactable.ts  interaction.system.ts
     world/             # scene content built on engine
       hub/  hub.scene.ts                        # the start world's landmarks-per-project layer
       environments/  environment.ts  create-environment.ts   # one dynamic `import()` per id (§5)
-        clearing.ts  showroom.ts  jungle.ts  plaza.ts         # + ground.ts sky.ts terrain.ts monument.ts placement.ts
+        clearing.ts  showroom.ts  jungle.ts  plaza.ts         # + ground.ts sky.ts sun.ts terrain.ts basin.ts monument.ts placement.ts
+        mood.ts  scatter.ts  flora.ts  architecture.ts  backdrop.ts  grass.ts  water.ts  motes.ts  butterflies.ts
+        light-shafts.ts  waterfall.ts  fountain-jets.ts  reflective-floor.ts  light-pools.ts  random.ts
+        shaders/  shared-uniforms.ts  patch.ts  noise.glsl.ts  atmosphere.ts  wind.ts  dapple.ts  tiles.ts  wall-wash.ts
       landmarks/  base/portal.landmark.ts  base/screen.landmark.ts  base/landmark.ts  create-landmark.ts
       project/  project.scene.ts  create-project-scene.ts  return.landmark.ts   # a repo's own world
       projects/  <slug>/<slug>.scene.ts             # bespoke worlds; deslopify is the only one so far
