@@ -1,4 +1,10 @@
-import { AdditiveBlending, PlaneGeometry, ShaderMaterial, Vector2 } from 'three';
+import {
+  AdditiveBlending,
+  LinearMipmapLinearFilter,
+  PlaneGeometry,
+  ShaderMaterial,
+  Vector2,
+} from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { WorldContext, WorldObject } from '@engine/world-object';
 
@@ -17,8 +23,8 @@ export interface ReflectiveFloorOptions {
 const FLOOR_Y = 0.002;
 /** The reflection renders at this fraction of the drawing buffer: it is blurred anyway. */
 const RESOLUTION = 0.5;
-/** Blur radius in reflection texels at roughness 1; a rough floor smears more up the screen. */
-const BLUR_TEXELS = 22;
+/** The mip level the reflection is read from at roughness 1: 2⁷ texels is a very soft blur. */
+const MIP_LEVELS = 7;
 /** How far from the walls the reflection fades out, in metres. */
 const EDGE_FADE = 1.6;
 
@@ -38,8 +44,8 @@ void main() {
 }`;
 
 /**
- * Three's reflector shader extended the way a polished floor needs it: seven taps on a golden-angle
- * spiral, stretched up the screen as a rough surface stretches a reflection, a Schlick fresnel so
+ * Three's reflector shader extended the way a polished floor needs it: a blur from a chosen mip level with five
+ * taps stretched up the screen as a rough surface stretches a reflection, a Schlick fresnel so
  * the floor mirrors at grazing angles and barely at the visitor's feet, and a fade before the
  * walls, where the half-resolution image and the skirting would disagree. It is drawn additively
  * over the floor's own shading: the reflection is the floor's specular part.
@@ -59,19 +65,19 @@ varying vec3 vWorld;
 void main() {
   #include <logdepthbuf_fragment>
   vec2 uv = vUv.xy / vUv.w;
-  vec2 spread = texel * (0.5 + roughness * ${BLUR_TEXELS.toFixed(1)}) * vec2(1.0, 2.2);
-  vec3 sum = texture2D(tDiffuse, uv).rgb * 1.5;
-  for (int i = 0; i < 6; i++) {
-    float a = float(i) * 2.39996 + 0.4;
-    float r = sqrt((float(i) + 0.5) / 6.0);
-    sum += texture2D(tDiffuse, uv + vec2(cos(a), sin(a)) * r * spread).rgb;
-  }
-  vec3 reflection = sum / 7.5;
+  // A chosen mip level does the broad blur, the same at every distance; five taps up and down
+  // the screen, one level-texel apart so a bright strip leaves no ghosts, stretch it the way a
+  // rough floor stretches a reflection.
+  float lod = roughness * ${MIP_LEVELS.toFixed(1)};
+  vec2 stride = texel * vec2(0.0, exp2(lod));
+  vec3 reflection = textureLod(tDiffuse, uv, lod).rgb * 0.3
+    + (textureLod(tDiffuse, uv + stride, lod).rgb + textureLod(tDiffuse, uv - stride, lod).rgb) * 0.22
+    + (textureLod(tDiffuse, uv + 2.0 * stride, lod).rgb + textureLod(tDiffuse, uv - 2.0 * stride, lod).rgb) * 0.13;
 
   vec3 toEye = normalize(cameraPosition - vWorld);
   float facing = 1.0 - clamp(toEye.y, 0.0, 1.0);
   float facing2 = facing * facing;
-  float fresnel = 0.04 + 0.96 * facing2 * facing2 * facing;
+  float fresnel = 0.02 + 0.98 * facing2 * facing2 * facing;
   float edge = halfSize - max(abs(vWorld.x), abs(vWorld.z));
   float amount = strength * fresnel * smoothstep(0.0, ${EDGE_FADE.toFixed(2)}, edge);
 
@@ -134,6 +140,9 @@ export class ReflectiveFloor implements WorldObject {
     // Follow the drawing buffer at half its size, so the reflection stays as sharp as the screen
     // allows whatever the window does, without a renderer reference at init.
     const target = reflector.getRenderTarget();
+    // Three rebuilds the chain after every render into the target; the blur samples it by bias.
+    target.texture.generateMipmaps = true;
+    target.texture.minFilter = LinearMipmapLinearFilter;
     const drawing = new Vector2();
     const render = reflector.onBeforeRender;
     reflector.onBeforeRender = (renderer, scene, camera, geometry, surface, group) => {
