@@ -233,3 +233,32 @@ function distanceToSegment(
       : Math.min(Math.max(((x - segment.ax) * dx + (z - segment.az) * dz) / lengthSq, 0), 1);
   return Math.hypot(x - (segment.ax + dx * t), z - (segment.az + dz * t));
 }
+
+/** Per-instance brightness and warmth drift, so a grove never looks copy-pasted. */
+export function foliageTint(t: number): Color {
+  return new Color(0.8 + 0.35 * t, 0.85 + 0.25 * t, 0.8 + 0.2 * t);
+}
+
+/** Per-instance brightness drift for stone. */
+export function stoneTint(t: number): Color {
+  const value = 0.85 + 0.3 * t;
+  return new Color(value, value, value);
+}
+
+/** Splits placements round-robin over a few shape variants: one instanced mesh per variant. */
+export function variants(
+  build: (seed: number) => BufferGeometry,
+  seeds: readonly number[],
+  placements: readonly Placement[],
+  material: Material,
+  options: InstancedOptions,
+): InstancedMesh[] {
+  return seeds.map((seed, index) =>
+    buildInstanced(
+      build(seed),
+      material,
+      placements.filter((_, i) => i % seeds.length === index),
+      { ...options, name: `${options.name}-${index}` },
+    ),
+  );
+}

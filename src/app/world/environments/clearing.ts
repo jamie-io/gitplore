@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, InstancedMesh, MeshStandardMaterial, Vector3 } from 'three';
+import { Color, InstancedMesh, MeshStandardMaterial, Vector3 } from 'three';
 import { Collider, HeightField } from '@engine/player/collision';
 import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
@@ -24,11 +24,13 @@ import { Position, RING_RADIUS, ringPlacements } from './placement';
 import { valueNoise } from './random';
 import {
   Exclusion,
-  InstancedOptions,
   Placement,
   buildInstanced,
   cylinderColliders,
+  foliageTint,
   scatter,
+  stoneTint,
+  variants,
 } from './scatter';
 import { withAtmosphere } from './shaders/atmosphere';
 import { SharedUniforms } from './shaders/shared-uniforms';
@@ -119,34 +121,6 @@ function pathWear(x: number, z: number): number {
   return (
     clamp01((PATH_HALF_WIDTH - distance) / PATH_HALF_WIDTH) *
     (0.75 + 0.25 * valueNoise(x * 0.4, z * 0.4, 9))
-  );
-}
-
-/** Per-instance brightness and warmth drift, so a grove never looks copy-pasted. */
-function foliageTint(t: number): Color {
-  return new Color(0.8 + 0.35 * t, 0.85 + 0.25 * t, 0.8 + 0.2 * t);
-}
-
-function stoneTint(t: number): Color {
-  const value = 0.85 + 0.3 * t;
-  return new Color(value, value, value);
-}
-
-/** Splits placements round-robin over a few shape variants: one instanced mesh per variant. */
-function variants(
-  build: (seed: number) => BufferGeometry,
-  seeds: readonly number[],
-  placements: readonly Placement[],
-  material: MeshStandardMaterial,
-  options: InstancedOptions,
-): InstancedMesh[] {
-  return seeds.map((seed, index) =>
-    buildInstanced(
-      build(seed),
-      material,
-      placements.filter((_, i) => i % seeds.length === index),
-      { ...options, name: `${options.name}-${index}` },
-    ),
   );
 }
 
