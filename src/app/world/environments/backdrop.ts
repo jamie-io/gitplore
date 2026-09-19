@@ -2,6 +2,7 @@ import { BufferAttribute, BufferGeometry, Color, Mesh, MeshStandardMaterial } fr
 import { disposeObject3D } from '@engine/dispose';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import { valueNoise } from './random';
+import { patchMaterial } from './shaders/patch';
 
 /** One ring of distant hills around the origin. */
 export interface HillRing {
@@ -19,9 +20,29 @@ export interface HillRing {
   readonly seed: number;
 }
 
-const SEGMENTS = 96;
+const SEGMENTS = 144;
 /** How far below the ground the inner foot sinks, so no gap shows at the terrain's edge. */
 const FOOT_DEPTH = 6;
+
+// The haze as airlight: a hill this far off is seen through a column of lit air, so a share of what
+// reaches the eye is the horizon colour whatever the slope's own lighting does. Baking the haze
+// into the vertex colour alone was not enough: a slope turned away from a low sun still went as
+// dark as its shaded colour, and the ring read as a wall. Blended before tone mapping, in linear
+// light, from the same per-face haze the colours were baked with.
+const VERTEX_DECLARATIONS = /* glsl */ `
+attribute float aHaze;
+varying float vBackdropHaze;
+#include <common>`;
+const VERTEX_HAZE = /* glsl */ `
+#include <begin_vertex>
+vBackdropHaze = aHaze;`;
+const FRAGMENT_DECLARATIONS = /* glsl */ `
+uniform vec3 backdropHorizon;
+varying float vBackdropHaze;
+#include <common>`;
+const FRAGMENT_AIRLIGHT = /* glsl */ `
+gl_FragColor.rgb = mix(gl_FragColor.rgb, backdropHorizon, vBackdropHaze);
+#include <tonemapping_fragment>`;
 
 /**
  * Rings of distant hills that hide where the walkable ground ends. Their haze is baked into their
@@ -40,10 +61,20 @@ export class Backdrop implements WorldObject {
   init(ctx: WorldContext): void {
     const horizon = new Color(this.horizon);
     for (const ring of this.rings) {
-      const mesh = new Mesh(
-        ringGeometry(ring, horizon),
+      const material = patchMaterial(
         new MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, fog: false }),
+        'backdrop-airlight',
+        (shader) => {
+          shader.uniforms['backdropHorizon'] = { value: horizon };
+          shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', VERTEX_DECLARATIONS)
+            .replace('#include <begin_vertex>', VERTEX_HAZE);
+          shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', FRAGMENT_DECLARATIONS)
+            .replace('#include <tonemapping_fragment>', FRAGMENT_AIRLIGHT);
+        },
       );
+      const mesh = new Mesh(ringGeometry(ring, horizon), material);
       mesh.name = 'backdrop';
       this.meshes.push(mesh);
       ctx.scene.add(mesh);
@@ -74,15 +105,29 @@ export function crestHeight(ring: HillRing, angle: number): number {
   );
 }
 
+/**
+ * Height of the shoulder row halfway up the inner slope, as a share of the crest above it. Its own
+ * noise, so the slope bellies out here and hollows there instead of being one flat ramp from the
+ * foot to the crest, which read as a fence of trapezoids rather than hills.
+ */
+function shoulderShare(ring: HillRing, angle: number): number {
+  const x = Math.cos(angle) * 5;
+  const z = Math.sin(angle) * 5;
+  return 0.3 + 0.35 * valueNoise(x, z, ring.seed + 2);
+}
+
 function ringGeometry(ring: HillRing, horizon: Color): BufferGeometry {
-  // Three rows per angle: the inner foot (sunk), the crest, the outer foot.
+  // Five rows per angle: the inner foot (sunk), a shoulder, the crest, a shoulder, the outer foot.
+  const crest = (angle: number) => crestHeight(ring, angle);
   const rows = [
     { radius: ring.radius - ring.depth / 2, height: () => -FOOT_DEPTH },
-    { radius: ring.radius, height: (angle: number) => crestHeight(ring, angle) },
     {
-      radius: ring.radius + ring.depth / 2,
-      height: (angle: number) => crestHeight(ring, angle) * 0.35,
+      radius: ring.radius - ring.depth / 4,
+      height: (angle: number) => crest(angle) * shoulderShare(ring, angle),
     },
+    { radius: ring.radius, height: crest },
+    { radius: ring.radius + ring.depth / 4, height: (angle: number) => crest(angle) * 0.6 },
+    { radius: ring.radius + ring.depth / 2, height: (angle: number) => crest(angle) * 0.35 },
   ];
   const positions: number[] = [];
   for (const row of rows) {
@@ -119,6 +164,7 @@ function ringGeometry(ring: HillRing, horizon: Color): BufferGeometry {
   const base = new Color(ring.color);
   const position = geometry.getAttribute('position');
   const colours = new Float32Array(position.count * 3);
+  const hazes = new Float32Array(position.count);
   const colour = new Color();
   for (let face = 0; face < position.count; face += 3) {
     const height = (position.getY(face) + position.getY(face + 1) + position.getY(face + 2)) / 3;
@@ -127,8 +173,10 @@ function ringGeometry(ring: HillRing, horizon: Color): BufferGeometry {
     colour.copy(base).lerp(horizon, haze);
     for (let corner = 0; corner < 3; corner++) {
       colours.set([colour.r, colour.g, colour.b], (face + corner) * 3);
+      hazes[face + corner] = haze;
     }
   }
   geometry.setAttribute('color', new BufferAttribute(colours, 3));
+  geometry.setAttribute('aHaze', new BufferAttribute(hazes, 1));
   return geometry;
 }
