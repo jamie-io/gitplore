@@ -40,18 +40,18 @@ test.describe('demos', () => {
     await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
     await page.locator('app-world-page canvas').focus();
 
-    // The exhibit board sits dead ahead of the arrival point; the wall stands beside it, off to
-    // the board's left (spec §5), so the board is reached first and the wall by side-stepping
-    // past it.
+    // The exhibit board sits dead ahead of the arrival point, facing it; the wall stands beside
+    // it, off to the board's left, which is the arriving visitor's right (spec §5). The board is
+    // reached first and the wall by side-stepping past it.
     await page.keyboard.down('KeyW');
     await expect(page.locator('app-hud .prompt')).toContainText('ansehen', { timeout: 20_000 });
     await page.keyboard.up('KeyW');
 
-    await page.keyboard.down('KeyA');
+    await page.keyboard.down('KeyD');
     await expect(page.locator('app-hud .prompt')).toContainText('ausprobieren', {
       timeout: 20_000,
     });
-    await page.keyboard.up('KeyA');
+    await page.keyboard.up('KeyD');
 
     await page.keyboard.press('KeyE');
 

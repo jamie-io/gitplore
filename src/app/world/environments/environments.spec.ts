@@ -40,6 +40,22 @@ describe.each(BUILDERS)('$id', ({ id, build }) => {
     expect(environment.anchors(2).length).toBe(2);
   });
 
+  it('turns every anchor towards the arriving player, who would otherwise meet its back', () => {
+    const environment = build();
+
+    for (const { position, rotationY } of environment.anchors(3)) {
+      const toSpawnX = environment.spawn.x - position[0];
+      const toSpawnZ = environment.spawn.z - position[2];
+      const facing =
+        (Math.sin(rotationY) * toSpawnX + Math.cos(rotationY) * toSpawnZ) /
+        Math.hypot(toSpawnX, toSpawnZ);
+
+      // Not exactly 1: a straight row, or an arc round a centre other than the spawn, turns its
+      // outer spots partly away. Anything at or below 0 shows the arriving visitor the back.
+      expect(facing).toBeGreaterThan(0);
+    }
+  });
+
   it('returns exactly one anchor when asked for one', () => {
     // The arc-based layouts special-case a single slot, since it has no second spot to
     // interpolate towards; this is what exercises that branch.

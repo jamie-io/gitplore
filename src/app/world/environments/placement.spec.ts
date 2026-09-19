@@ -1,4 +1,4 @@
-import { MIN_LANDMARK_SEPARATION, ringPlacements, RING_RADIUS } from './placement';
+import { arcAnchors, MIN_LANDMARK_SEPARATION, ringPlacements, RING_RADIUS } from './placement';
 
 describe('ringPlacements', () => {
   it('returns exactly as many spots as asked for', () => {
@@ -78,5 +78,19 @@ describe('ringPlacements', () => {
     it('is unchanged when nothing is pinned near the ring', () => {
       expect(ringPlacements(3, [[0, 0, 0]])).toEqual(ringPlacements(3));
     });
+  });
+});
+
+describe('arcAnchors', () => {
+  const RADIUS = 19;
+
+  it('turns every spot to face the spawn, so a visitor meets its front', () => {
+    for (const { position, rotationY } of arcAnchors(4, [], RADIUS, Math.PI * 0.9)) {
+      const front = [Math.sin(rotationY), Math.cos(rotationY)];
+      const towardsSpawn = [-position[0] / RADIUS, -position[2] / RADIUS];
+
+      expect(front[0]).toBeCloseTo(towardsSpawn[0], 5);
+      expect(front[1]).toBeCloseTo(towardsSpawn[1], 5);
+    }
   });
 });
