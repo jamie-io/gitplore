@@ -93,7 +93,7 @@ export function house(seed: number, options: HouseOptions): BufferGeometry {
         0.08,
         random,
       ).translate(doorX + between(random, -1.1, 1.1), between(random, 2.5, 3.3), front + 0.25);
-      parts.push(paint(bloom, i % 2 ? 0xd94f8f : 0xc2437a));
+      parts.push(paint(bloom, i % 2 ? 0xe8409a : 0xc92a78));
     }
   }
 

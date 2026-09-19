@@ -1,8 +1,10 @@
 import {
   BufferGeometry,
+  Color,
   IcosahedronGeometry,
   Matrix4,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
   Vector3,
@@ -54,9 +56,19 @@ const STREET = 5;
 /** Where cypresses and pots line the square, just in front of the houses. */
 const PLANTING = 33;
 
-const STUCCO = [0xe8c9a0, 0xf0dcc0, 0xe7b98f, 0xd9c4a8, 0xf2e6d0, 0xe3a98c] as const;
-const SHUTTERS = [0x3f7f7a, 0x6b8f3f, 0x3f5f8f, 0x8f4f3f] as const;
-const AWNINGS = [0x3f6f8f, 0xb8583a, 0x6b8f3f] as const;
+/**
+ * Pastels that stay apart in full sun: ochre, apricot, rose, cream, salmon, sage, powder blue and
+ * lemon. The first cut was six sands and creams, which read as one beige wall at noon.
+ */
+const STUCCO = [
+  0xe8c48a, 0xf0b98f, 0xeab4ae, 0xf2e4c8, 0xe39a7c, 0xc4d2b0, 0xb8cadb, 0xf0d88c,
+] as const;
+const SHUTTERS = [0x2f7f78, 0x5f8f35, 0x35609a, 0x8f4535, 0x3f8fa0] as const;
+/** Festoon bulbs: warm white, then amber, rose and turquoise; see `init`. */
+const BULB_COLOURS = [0xffe2b0, 0xffa640, 0xff6f8a, 0x5fd8d0] as const;
+/** Linear brightness of a bulb: over 1, so bloom catches it, but not a night-time glare. */
+const BULB_GLOW = 2.6;
+const AWNINGS = [0x2f6f9f, 0xc2502f, 0x5f8f35, 0xd9a02f] as const;
 
 type Side = 'north' | 'south' | 'west' | 'east';
 
@@ -201,8 +213,14 @@ function basinFloor(level: number, radius: number, depth: number): HeightField {
 export class PlazaEnvironment implements Environment {
   readonly id = 'plaza' as const;
   readonly name = 'Plaza';
-  readonly spawn = new Vector3(0, 0, 26);
-  readonly spawnYaw = 0;
+  /**
+   * Off the fountain's axis: from (0, 26) its bowl and pedestal stood exactly in front of the
+   * first exhibit at (0, −20). From here the sightline passes 3.5 m left of the centre, outside
+   * the jets, and the view is turned so the exhibit sits just left of the middle, the fountain
+   * just right of it.
+   */
+  readonly spawn = new Vector3(-8, 0, 26);
+  readonly spawnYaw = -0.22;
   /** Every shader in this world reads these; public so a test can watch time stand still. */
   readonly shared = new SharedUniforms(PLAZA);
   readonly colliders: readonly Collider[];
@@ -227,7 +245,9 @@ export class PlazaEnvironment implements Environment {
           size: 1.1,
           grout: 0.035,
           groutColour: 0x9a9080,
-          colours: [0xd9cdb5, 0xcfc1a6, 0xe2d7c1, 0xc9b99c],
+          // Travertine: close in value, so the square reads as one warm stone rather than a
+          // chequerboard; the shader adds each stone's own shade on top.
+          colours: [0xddd0b6, 0xd5c6aa, 0xe2d6bf, 0xd2c0a2],
           pattern: 'grid',
           ring: {
             x: 0,
@@ -251,7 +271,7 @@ export class PlazaEnvironment implements Environment {
     radius: FOUNTAIN.lower.radius,
     level: FOUNTAIN.lower.level,
     ground: basinFloor(FOUNTAIN.lower.level, FOUNTAIN.lower.radius, 0.5),
-    colours: { shallow: 0x8fd0d8, deep: 0x2f7f9f, foam: 0xffffff },
+    colours: { shallow: 0x6cc2cf, deep: 0x1f6f95, foam: 0xffffff },
   });
   private readonly upperPool = new Water({
     shared: this.shared,
@@ -260,7 +280,7 @@ export class PlazaEnvironment implements Environment {
     radius: FOUNTAIN.upper.radius,
     level: FOUNTAIN.upper.level,
     ground: basinFloor(FOUNTAIN.upper.level, FOUNTAIN.upper.radius, 0.25),
-    colours: { shallow: 0x8fd0d8, deep: 0x3f8faf, foam: 0xffffff },
+    colours: { shallow: 0x6cc2cf, deep: 0x2f7fa5, foam: 0xffffff },
   });
   private readonly jets = new FountainJets({
     shared: this.shared,
@@ -273,14 +293,14 @@ export class PlazaEnvironment implements Environment {
   });
   private readonly backdrop = new Backdrop(
     [
-      { radius: 140, depth: 70, height: 35, roughness: 0.4, color: 0x9aa07a, haze: 0.4, seed: 121 },
+      { radius: 140, depth: 70, height: 35, roughness: 0.4, color: 0x8f9a6a, haze: 0.3, seed: 121 },
       {
         radius: 220,
         depth: 90,
         height: 55,
         roughness: 0.6,
         color: 0x8fa3b8,
-        haze: 0.75,
+        haze: 0.6,
         seed: 122,
       },
     ],
@@ -368,24 +388,31 @@ export class PlazaEnvironment implements Environment {
     const wires = new Mesh(merged(strings.map((string) => string.wire)), solid);
     wires.name = 'festoon-wires';
 
+    // Every fourth string bulb is warm white and the others take a festival colour in turn, so
+    // the strings still read as lights at noon, when a white bulb is lost against the sky. The
+    // lamps keep a warm white. Unlit and above 1 in linear, so the strongest tier blooms them a
+    // little; the medium and low tiers draw them as flat, bright dots.
     const glowing = [
       ...strings.flatMap((string) =>
-        string.bulbs.map((bulb) => ({
+        string.bulbs.map((bulb, index) => ({
           x: bulb.x,
           y: bulb.y,
           z: bulb.z,
           scale: 1,
           rotation: 0,
-          tint: 0,
+          tint: (index % BULB_COLOURS.length) / BULB_COLOURS.length,
         })),
       ),
       ...LAMPS.map(([x, z]) => ({ x, y: LAMP_GLASS.y, z, scale: 2.3, rotation: 0, tint: 0 })),
     ];
     const bulbs = buildInstanced(
-      new IcosahedronGeometry(0.07, 0),
-      new MeshStandardMaterial({ color: 0x000000, emissive: 0xffd9a0, emissiveIntensity: 3 }),
+      new IcosahedronGeometry(0.08, 0),
+      new MeshBasicMaterial({ color: new Color(BULB_GLOW, BULB_GLOW, BULB_GLOW) }),
       glowing,
-      { name: 'bulbs' },
+      {
+        name: 'bulbs',
+        tint: (t) => new Color(BULB_COLOURS[Math.round(t * BULB_COLOURS.length)]),
+      },
     );
 
     this.added.push(

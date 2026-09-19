@@ -111,20 +111,28 @@ export const DSCHUNGEL: Mood = {
 
 /** Mediterranean noon: high sun, crisp shadows, azure sky, barely any haze. */
 export const PLAZA: Mood = {
-  sky: { zenith: 0x2f6fc4, horizon: 0xbfe0f2, sunGlow: 0xfff4d6, below: 0xd8cbb4 },
-  sun: { azimuth: -0.7, elevation: 1.0, color: 0xfff4e0, intensity: 3.2, discSize: 0.03 },
-  hemisphere: { sky: 0xbfe0f2, ground: 0xd8c7a8, intensity: 0.8 },
+  sky: { zenith: 0x2a68c8, horizon: 0xb4d8f0, sunGlow: 0xfff4d6, below: 0xd8cbb4 },
+  // To the arriving visitor's right and a little behind: the fountain, the exhibit and the north
+  // houses catch the sun, and every shadow falls to the left and slightly away across the tiles,
+  // where the eye can follow it. Straight ahead, as before, everything seen was its shaded side
+  // and every shadow fell towards the visitor, hidden behind what cast it.
+  sun: { azimuth: 2.1, elevation: 0.92, color: 0xfff2dc, intensity: 3.2, discSize: 0.03 },
+  // A cool sky bounce gives the shade the blue of a southern noon; the warm tiles bounce back up.
+  hemisphere: { sky: 0xa9c8e8, ground: 0xd8c3a0, intensity: 1.05 },
   fog: {
-    color: 0xcfe6f2,
+    color: 0xcfe4f2,
     near: 60,
     far: 320,
-    heightDensity: 0.01,
-    heightFalloff: 0.1,
+    // Clear air across the square (about 8 % at the far houses, 45 m), still enough over the
+    // hundreds of metres to the hills that they sit back in the distance.
+    heightDensity: 0.0025,
+    heightFalloff: 0.12,
     sunScatter: 0.25,
   },
-  clouds: { coverage: 0.25, softness: 0.3, speed: 0.4, color: 0xffffff, shade: 0xb8c8d8 },
+  // Just under white: at 1.0 the clouds sat on the bloom threshold and veiled the high tier.
+  clouds: { coverage: 0.22, softness: 0.3, speed: 0.4, color: 0xf2f6fa, shade: 0xb4c4d6 },
   wind: { strength: 0.4, gustScale: 0.05, direction: -0.6 },
-  grade: { saturation: 1.1, contrast: 1.06, warmth: 0.03, vignette: 0.2, bloomStrength: 0.25 },
+  grade: { saturation: 1.12, contrast: 1.05, warmth: 0.03, vignette: 0.18, bloomStrength: 0.2 },
 };
 
 /** The gallery: no sky, no wind, no haze; a soft white key light from above and a dark surround. */
