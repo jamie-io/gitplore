@@ -93,20 +93,20 @@ export const LICHTUNG: Mood = {
 
 /** Humid: a high sun through a closed canopy, dense low teal fog with a glow where the sun is. */
 export const DSCHUNGEL: Mood = {
-  sky: { zenith: 0x5f8f7c, horizon: 0x9dbb8f, sunGlow: 0xe8ffc0, below: 0x3d5a45 },
-  sun: { azimuth: -0.4, elevation: 1.05, color: 0xf2ffd0, intensity: 2.2, discSize: 0.03 },
-  hemisphere: { sky: 0x9fd08a, ground: 0x3a4a2c, intensity: 1.1 },
+  sky: { zenith: 0x4f8580, horizon: 0x86ad98, sunGlow: 0xe8ffc0, below: 0x3d5a45 },
+  sun: { azimuth: -0.4, elevation: 1.05, color: 0xf2ffd0, intensity: 2.4, discSize: 0.03 },
+  hemisphere: { sky: 0x98c6a2, ground: 0x34482a, intensity: 0.95 },
   fog: {
-    color: 0x7fa38a,
-    near: 4,
-    far: 90,
-    heightDensity: 0.12,
-    heightFalloff: 0.25,
+    color: 0x7ba592,
+    near: 10,
+    far: 140,
+    heightDensity: 0.026,
+    heightFalloff: 0.35,
     sunScatter: 0.8,
   },
   clouds: null,
   wind: { strength: 0.25, gustScale: 0.03, direction: 0.3 },
-  grade: { saturation: 1.12, contrast: 1.08, warmth: -0.02, vignette: 0.35, bloomStrength: 0.5 },
+  grade: { saturation: 1.12, contrast: 1.06, warmth: -0.02, vignette: 0.28, bloomStrength: 0.5 },
 };
 
 /** Mediterranean noon: high sun, crisp shadows, azure sky, barely any haze. */
