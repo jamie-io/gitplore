@@ -38,11 +38,24 @@ export interface MotesOptions {
   };
   /** True for a cloud of pollen around the player; false for a fixed swarm. */
   readonly followCamera: boolean;
+  /**
+   * For a fixed swarm only: the terrain under it. Given, `minY` and `maxY` are heights above the
+   * ground at each mote's own spot, so fireflies over uneven ground neither sink into a rise nor
+   * float high over a hollow.
+   */
+  readonly heightAt?: (x: number, z: number) => number;
   readonly colour: number;
   /** Diameter in metres. */
   readonly size: number;
   /** HDR multiplier; > 1 blooms on the high tier. */
   readonly glow: number;
+  /**
+   * The multiplier used instead of `glow` where the motes draw straight onto the canvas (every
+   * tier without the post stack). There each point is tone-mapped and sRGB-encoded before it adds,
+   * and an encoded speck adds roughly twice what the same light adds to the HDR buffer, so a cloud
+   * tuned to bloom on the high tier glares elsewhere. Omitted, it is `glow`.
+   */
+  readonly directGlow?: number;
   /** Metres of wander around the base position. */
   readonly drift: number;
   /** 0 steady … 1 firefly. */
@@ -153,6 +166,8 @@ export class Motes implements WorldObject {
       colour: { value: new Color(this.options.colour) },
       glow: { value: this.options.glow },
     };
+    const hdrGlow = this.options.glow;
+    const directGlow = this.options.directGlow ?? hdrGlow;
     const material = new ShaderMaterial({
       uniforms,
       vertexShader: VERTEX_SHADER,
@@ -168,21 +183,32 @@ export class Motes implements WorldObject {
       // The shader keeps the cloud around the camera, so it is never out of view.
       points.frustumCulled = false;
     } else {
-      const halfSpan = (area.maxY - area.minY) / 2;
-      geometry.boundingSphere = new Sphere(
-        new Vector3(area.x, area.minY + halfSpan, area.z),
-        Math.hypot(area.radius, halfSpan) + this.options.drift * 1.25,
-      );
+      if (this.options.heightAt) {
+        geometry.computeBoundingSphere();
+        const sphere = geometry.boundingSphere as Sphere | null;
+        if (sphere) {
+          sphere.radius += this.options.drift * 1.25;
+        }
+      } else {
+        const halfSpan = (area.maxY - area.minY) / 2;
+        geometry.boundingSphere = new Sphere(
+          new Vector3(area.x, area.minY + halfSpan, area.z),
+          Math.hypot(area.radius, halfSpan) + this.options.drift * 1.25,
+        );
+      }
     }
     // The context carries no renderer, and the size a mote should have on screen depends on the
     // drawing buffer's height. Three hands the renderer over right before each draw, so read it
-    // there and touch the uniform only when the canvas has actually changed.
+    // there and touch the uniform only when the canvas has actually changed. The same moment
+    // tells which path the frame takes: the post stack draws the scene into a render target, a
+    // tier without it straight onto the canvas.
     points.onBeforeRender = (renderer: WebGLRenderer) => {
       renderer.getSize(this.viewport);
       const scale = this.viewport.y * renderer.getPixelRatio() * 0.5;
       if (scale !== uniforms.pointScale.value) {
         uniforms.pointScale.value = scale;
       }
+      uniforms.glow.value = renderer.getRenderTarget() ? hdrGlow : directGlow;
     };
 
     this.points = points;
@@ -228,7 +254,11 @@ function layout(
       positions[i * 3] = area.x + Math.cos(angle) * r;
       positions[i * 3 + 2] = area.z + Math.sin(angle) * r;
     }
-    positions[i * 3 + 1] = between(random, area.minY, area.maxY);
+    const ground =
+      !followCamera && options.heightAt
+        ? options.heightAt(positions[i * 3], positions[i * 3 + 2])
+        : 0;
+    positions[i * 3 + 1] = ground + between(random, area.minY, area.maxY);
     seeds[i * 2] = random();
     seeds[i * 2 + 1] = between(random, 0.6, 1.4);
   }

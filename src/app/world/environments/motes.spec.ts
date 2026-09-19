@@ -155,4 +155,45 @@ describe('Motes', () => {
       motes.dispose();
     }).not.toThrow();
   });
+  it("measures a fixed swarm's height band from the ground under each mote", () => {
+    const ctx = context();
+    const area = { x: 0, z: 0, radius: 10, minY: 0.5, maxY: 1 };
+    const heightAt = (x: number, z: number) => x * 0.5 + z * 0.25;
+
+    new Motes(options({ followCamera: false, area, heightAt })).init(ctx);
+    const positions = positionsOf(pointsIn(ctx));
+
+    for (let i = 0; i < positions.length; i += 3) {
+      const above = positions[i + 1] - heightAt(positions[i], positions[i + 2]);
+      expect(above).toBeGreaterThanOrEqual(0.5 - 1e-5);
+      expect(above).toBeLessThanOrEqual(1 + 1e-5);
+    }
+  });
+
+  it("glows with directGlow on the canvas and with glow into the post stack's target", () => {
+    const ctx = context();
+    new Motes(options({ glow: 4, directGlow: 1.3 })).init(ctx);
+    const points = pointsIn(ctx);
+    const glow = (points.material as ShaderMaterial).uniforms['glow'];
+    const renderer = (target: object | null) =>
+      ({
+        getSize: (size: { set(x: number, y: number): void }) => size.set(800, 600),
+        getPixelRatio: () => 1,
+        getRenderTarget: () => target,
+      }) as unknown as Parameters<Points['onBeforeRender']>[0];
+    const draw = (target: object | null) =>
+      points.onBeforeRender(
+        renderer(target),
+        ctx.scene,
+        ctx.camera,
+        points.geometry,
+        points.material as ShaderMaterial,
+        null as never,
+      );
+
+    draw(null);
+    expect(glow.value).toBe(1.3);
+    draw({});
+    expect(glow.value).toBe(4);
+  });
 });
