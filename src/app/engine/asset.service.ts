@@ -2,7 +2,7 @@ import { InjectionToken, Service, inject } from '@angular/core';
 import { Group, LoadingManager, Texture, TextureLoader } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import { disposeObject3D, forEachResource, markManaged } from './dispose';
+import { forEachResource, markManaged } from './dispose';
 
 /** `public/assets/manifest.json`, written by `npm run assets:optimize` (IMPLEMENTATION_PLAN.md §8). */
 export interface AssetManifest {
@@ -130,7 +130,7 @@ export class AssetService implements AssetLike {
     cached.refs--;
     if (cached.refs <= 0) {
       this.models.delete(url);
-      void cached.source.then((source) => disposeObject3D(source)).catch(() => undefined);
+      void cached.source.then(disposeModelSource).catch(() => undefined);
     }
   }
 
@@ -213,6 +213,20 @@ export class AssetService implements AssetLike {
     }
     return { texture, settled };
   }
+}
+
+/**
+ * Frees a model's parsed source once no copy is out. Its resources carry the `managed` flag that
+ * keeps each consumer's `disposeObject3D` off them, so `disposeObject3D` alone would skip every one
+ * of them here too, and each re-fetch of the model would leave the previous parse on the GPU.
+ */
+function disposeModelSource(source: Group): void {
+  forEachResource(source, {
+    geometry: (geometry) => geometry.dispose(),
+    material: (material) => void material.dispose(),
+    texture: (texture) => texture.dispose(),
+  });
+  source.removeFromParent();
 }
 
 /** Flags everything a model shares between its clones, so no consumer frees it. */
