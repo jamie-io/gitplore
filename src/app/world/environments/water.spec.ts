@@ -4,6 +4,7 @@ import { PlayerController } from '@engine/player/player-controller';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
 import { LICHTUNG } from './mood';
+import { ATMOSPHERE_FOG_GLSL } from './shaders/atmosphere';
 import { SharedUniforms } from './shaders/shared-uniforms';
 import { Water, WaterOptions } from './water';
 
@@ -128,18 +129,37 @@ describe('Water', () => {
     expect(uniforms['fogFar']).toBeDefined();
   });
 
-  it('spends fewer vertices and ripple layers on the low tier', () => {
+  it("fogs through the atmosphere's own function, so it can never drift from the bank", () => {
+    const ctx = stubContext();
+
+    new Water(options()).init(ctx);
+
+    const { fragmentShader } = surface(ctx).material as ShaderMaterial;
+    expect(fragmentShader).toContain(ATMOSPHERE_FOG_GLSL);
+    expect(fragmentShader).toContain(
+      'colour = atmosphereFog(colour, vWorld, sunDirection, sunColor, heightFog);',
+    );
+  });
+
+  it('spends fewer vertices and ripple layers on the lower tiers', () => {
     const low = context('low');
+    const medium = context('medium');
     const high = context('high');
     new Water(options()).init(low);
+    new Water(options()).init(medium);
     new Water(options()).init(high);
 
     const lowMesh = surface(low);
+    const mediumMesh = surface(medium);
     const highMesh = surface(high);
     expect(lowMesh.geometry.getAttribute('position').count).toBeLessThan(
+      mediumMesh.geometry.getAttribute('position').count,
+    );
+    expect(mediumMesh.geometry.getAttribute('position').count).toBeLessThan(
       highMesh.geometry.getAttribute('position').count,
     );
     expect((lowMesh.material as ShaderMaterial).defines?.['WATER_LAYERS']).toBe(1);
+    expect((mediumMesh.material as ShaderMaterial).defines?.['WATER_LAYERS']).toBe(2);
     expect((highMesh.material as ShaderMaterial).defines?.['WATER_LAYERS']).toBe(3);
   });
 

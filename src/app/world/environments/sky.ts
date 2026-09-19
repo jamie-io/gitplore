@@ -1,5 +1,4 @@
 import { BackSide, Color, Fog, Mesh, ShaderMaterial, SphereGeometry, Vector3 } from 'three';
-import type { QualitySettings } from '@engine/capability.service';
 import { disposeObject3D } from '@engine/dispose';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import { Mood } from './mood';
@@ -40,7 +39,7 @@ export class Sky implements WorldObject {
     const radius = Math.min(quality.fogFar * 1.2, camera.far * 0.9);
     this.dome = new Mesh(
       new SphereGeometry(radius, 32, 20),
-      skyMaterial(mood, this.options.shared, shaderDetailOf(quality)),
+      skyMaterial(mood, this.options.shared, quality.shaderDetail),
     );
     this.dome.name = 'sky-dome';
     this.dome.frustumCulled = false;
@@ -68,16 +67,6 @@ export class Sky implements WorldObject {
       this.scene = null;
     }
   }
-}
-
-/**
- * T2 adds `shaderDetail` to `QualitySettings`. Until that lands here, the tier is read off the
- * fields that already exist, which draw the same three-way line (no shadows = low, the longest
- * draw distance = high).
- */
-function shaderDetailOf(quality: QualitySettings): 0 | 1 | 2 {
-  const detail = (quality as QualitySettings & { readonly shaderDetail?: 0 | 1 | 2 }).shaderDetail;
-  return detail ?? (quality.shadows ? (quality.fogFar >= 320 ? 2 : 1) : 0);
 }
 
 function skyMaterial(mood: Mood, shared: SharedUniforms, detail: 0 | 1 | 2): ShaderMaterial {

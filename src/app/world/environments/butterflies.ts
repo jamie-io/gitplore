@@ -14,6 +14,7 @@ import {
 import { disposeObject3D } from '@engine/dispose';
 import { HeightField } from '@engine/player/collision';
 import { WorldContext, WorldObject } from '@engine/world-object';
+import { between, seededRandom } from './random';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
 /** Where a flock of butterflies flutters and what it looks like. */
@@ -222,22 +223,27 @@ function layout(options: ButterfliesOptions, count: number): Flock {
 
   for (let i = 0; i < count; i++) {
     // Place the loop's centre so that the whole loop stays inside the area.
-    const halfX = LOOP_MIN + random() * (LOOP_MAX - LOOP_MIN);
-    const halfZ = LOOP_MIN + random() * (LOOP_MAX - LOOP_MIN);
+    const halfX = between(random, LOOP_MIN, LOOP_MAX);
+    const halfZ = between(random, LOOP_MIN, LOOP_MAX);
     const reach = Math.max(area.radius - Math.max(halfX, halfZ), 0);
     const r = Math.sqrt(random()) * reach;
-    const angle = random() * Math.PI * 2;
+    const angle = between(random, 0, Math.PI * 2);
     const x = area.x + Math.cos(angle) * r;
     const z = area.z + Math.sin(angle) * r;
     const y = hoverHeight(ground, x, z, halfX, halfZ) + area.height;
     heightSum += y;
     centres.set([x, y, z], i * 3);
 
-    const rate = RATE_MIN + random() * (RATE_MAX - RATE_MIN);
+    const rate = between(random, RATE_MIN, RATE_MAX);
     const ratio = RATIOS[Math.floor(random() * RATIOS.length)] ?? 1;
     loops.set([halfX, halfZ, rate, rate * ratio], i * 4);
     phases.set(
-      [random() * Math.PI * 2, random() * Math.PI * 2, random() * Math.PI * 2, 9 + random() * 6],
+      [
+        between(random, 0, Math.PI * 2),
+        between(random, 0, Math.PI * 2),
+        between(random, 0, Math.PI * 2),
+        between(random, 9, 15),
+      ],
       i * 4,
     );
 
@@ -267,19 +273,4 @@ function hoverHeight(
     }
   }
   return highest;
-}
-
-/**
- * mulberry32, uniform in [0, 1). Stands in for `seededRandom` from `random.ts` (Task 1), which is
- * not on this branch yet; private on purpose, so swapping it later touches only this layout.
- */
-function seededRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let t = state;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }

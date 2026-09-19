@@ -1,5 +1,4 @@
 import { DirectionalLight, HemisphereLight, Matrix4, Object3D, Vector3 } from 'three';
-import type { QualitySettings } from '@engine/capability.service';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import { Mood } from './mood';
 import { SharedUniforms } from './shaders/shared-uniforms';
@@ -69,7 +68,7 @@ export class Sun implements WorldObject {
 
   init(ctx: WorldContext): void {
     const { quality, scene } = ctx;
-    const size = shadowMapSizeOf(quality);
+    const size = quality.shadowMapSize;
     const { shadow } = this.light;
 
     this.light.castShadow = quality.shadows;
@@ -121,13 +120,4 @@ export class Sun implements WorldObject {
 
     this.light.position.copy(target).addScaledVector(this.direction, LIGHT_DISTANCE);
   }
-}
-
-/**
- * T2 adds `shadowMapSize` to `QualitySettings`. Until that lands here, the size is read off the
- * fields that already exist: no shadows means no map, the longest draw distance the largest one.
- */
-function shadowMapSizeOf(quality: QualitySettings): number {
-  const size = (quality as QualitySettings & { readonly shadowMapSize?: number }).shadowMapSize;
-  return size ?? (quality.shadows ? (quality.fogFar >= 320 ? 2048 : 1024) : 0);
 }
