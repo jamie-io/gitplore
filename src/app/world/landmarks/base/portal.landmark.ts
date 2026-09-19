@@ -25,6 +25,20 @@ const PILLAR_HEIGHT = 3.6;
 const HALF_WIDTH = 1.4;
 const INTERACT_RADIUS = 4;
 
+/**
+ * Height of the label's centre. The glTF arch that replaces the proxy stacks a keystone up to
+ * 4.8 m, right where the label used to hang (4.6 m), so the stone cut the middle out of the
+ * title; the 0.6 m label now clears it by 10 cm.
+ */
+const LABEL_Y = 5.2;
+
+/**
+ * The glow's emissive strength. The surface is the project's colour, which is dark on purpose so
+ * white type reads on it; at 0.8 it looked like painted glass beside the lit stone. Twice that
+ * glows on every tier without washing the colour out under tone mapping.
+ */
+const GLOW_INTENSITY = 2;
+
 /** Extra clearance so the player never clips a pillar. */
 const PILLAR_COLLIDER_RADIUS = PILLAR_RADIUS + 0.1;
 
@@ -63,7 +77,7 @@ export class PortalLandmark extends Landmark {
     const glow = new MeshStandardMaterial({
       color: new Color(this.project.theme.primary),
       emissive: new Color(this.project.theme.primary),
-      emissiveIntensity: 0.8,
+      emissiveIntensity: GLOW_INTENSITY,
       transparent: true,
       opacity: 0.75,
       side: DoubleSide,
@@ -92,7 +106,7 @@ export class PortalLandmark extends Landmark {
 
     const label = createLabel(this.project.title, this.project.theme.primary);
     if (label) {
-      label.position.set(0, PILLAR_HEIGHT + 1, 0.05);
+      label.position.set(0, LABEL_Y, 0.05);
       this.group.add(label);
     }
   }
