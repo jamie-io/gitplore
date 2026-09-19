@@ -4,7 +4,7 @@ import { By } from '@angular/platform-browser';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
-import { DEVICE_CAPABILITIES } from '@engine/capability.service';
+import { CapabilityService, DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
@@ -208,6 +208,36 @@ describe('WorldPage', () => {
 
     expect(fixture.nativeElement.getAttribute('data-input-mode')).toBe('world');
   });
+
+  for (const policy of [
+    { tier: 'low', paused: true, throttle: null },
+    { tier: 'medium', paused: false, throttle: 15 },
+    { tier: 'high', paused: false, throttle: 15 },
+  ] as const) {
+    it(`applies ${policy.tier}-tier rendering policy while the panel is open`, async () => {
+      await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+      await bootWithoutManifest();
+      TestBed.inject(CapabilityService).override(policy.tier);
+      TestBed.tick();
+
+      const setPaused = vi.spyOn(engine, 'setPaused');
+      const setThrottle = vi.spyOn(engine, 'setThrottle');
+      setPaused.mockClear();
+      setThrottle.mockClear();
+
+      await TestBed.inject(Router).navigate(['/p', 'novaverta', 'info']);
+      TestBed.tick();
+
+      expect(setPaused).toHaveBeenLastCalledWith(policy.paused);
+      expect(setThrottle).toHaveBeenLastCalledWith(policy.throttle);
+
+      await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+      TestBed.tick();
+
+      expect(setPaused).toHaveBeenLastCalledWith(false);
+      expect(setThrottle).toHaveBeenLastCalledWith(null);
+    });
+  }
 
   it('asks the director for the start world exactly once on a cold boot', async () => {
     // The route-driven build effect used to infer "boot has claimed the scene" from

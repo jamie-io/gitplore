@@ -1,4 +1,4 @@
-import { BufferGeometry, Material, Mesh, Object3D, Texture } from 'three';
+import { BufferGeometry, InstancedMesh, Material, Mesh, Object3D, Texture } from 'three';
 
 /**
  * Releases every GPU resource reachable from `root` and detaches it from the scene graph.
@@ -84,5 +84,13 @@ export function disposeObject3D(root: Object3D): void {
         texture.dispose();
       }
     },
+  });
+
+  // Instance matrices and colours live outside the geometry; only `InstancedMesh.dispose()`
+  // releases their GPU buffers.
+  root.traverse((object) => {
+    if (object instanceof InstancedMesh) {
+      object.dispose();
+    }
   });
 }

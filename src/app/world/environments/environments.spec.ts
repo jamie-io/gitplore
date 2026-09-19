@@ -1,3 +1,4 @@
+import { GRADE_KEY } from '@engine/color-grade';
 import { stubContext } from '@engine/testing/world-context';
 import { MIN_LANDMARK_SEPARATION } from './placement';
 import { ClearingEnvironment } from './clearing';
@@ -85,8 +86,11 @@ describe.each(BUILDERS)('$id', ({ id, build }) => {
 
     expect(built).toBeGreaterThan(0);
     expect(ctx.scene.children.length).toBe(0);
-    // A fog or background left behind would tint whatever scene comes next.
+    // A fog, background, environment map or colour grade left behind would tint whatever scene
+    // comes next.
     expect(ctx.scene.fog).toBe(null);
     expect(ctx.scene.background).toBe(null);
+    expect(ctx.scene.environment).toBe(null);
+    expect(GRADE_KEY in ctx.scene.userData).toBe(false);
   });
 });

@@ -21,20 +21,27 @@ test.describe('memory', () => {
 
       await page.keyboard.press('Escape');
       await expect(page).toHaveURL(/\/$/);
-      await expect(page.locator('app-hud .area')).toContainText('Deslopify');
+      // The exact text, not a substring: the jungle's own area reads "Dschungel — Deslopify", so a
+      // substring match passed while the jungle was still standing and the start world was being
+      // built behind it — and a stats read then could catch the jungle's counts, not the clearing's.
+      await expect(page.locator('app-hud .area')).toHaveText('Deslopify');
     };
 
+    // Three agreeing reads over about two seconds: the portal's glTF arch is fetched again after
+    // every return (its refcount drops to zero with the start world), and under parallel load
+    // that fetch can leave the counts still for longer than one stats interval.
+    const QUIET_READS = 3;
+
     // One cycle first, so a lazily arriving model (the portal glTF) is in place before the
-    // baseline — but `settledStats` only needs two 700 ms-apart reads to agree to call a value
-    // settled, and under heavy parallel load the model's first fetch plus its one-time
-    // meshopt-decoder wasm compile can still be in flight after a single cycle. That lets it
-    // declare the pre-model count "stable" before the model ever arrives — a false settle, not a
-    // leak, so cycling continues until two full cycles in a row agree on the count.
+    // baseline — but under heavy parallel load the model's first fetch plus its one-time
+    // meshopt-decoder wasm compile can still be in flight after a single cycle, which would let a
+    // pre-model count pass as settled — a false settle, not a leak, so cycling continues until
+    // two full cycles in a row agree on the count.
     await cycle();
-    let baseline = await settledStats(page, ['scene-geometries', 'scene-textures']);
+    let baseline = await settledStats(page, ['scene-geometries', 'scene-textures'], QUIET_READS);
     for (let warmup = 0; warmup < 5; warmup++) {
       await cycle();
-      const next = await settledStats(page, ['scene-geometries', 'scene-textures']);
+      const next = await settledStats(page, ['scene-geometries', 'scene-textures'], QUIET_READS);
       if (
         next['scene-geometries'] === baseline['scene-geometries'] &&
         next['scene-textures'] === baseline['scene-textures']
@@ -48,12 +55,11 @@ test.describe('memory', () => {
       await cycle();
     }
 
-    const after = await settledStats(page, [
-      'scene-geometries',
-      'scene-textures',
-      'geometries',
-      'textures',
-    ]);
+    const after = await settledStats(
+      page,
+      ['scene-geometries', 'scene-textures', 'geometries', 'textures'],
+      QUIET_READS,
+    );
     expect(after['scene-geometries']).toBe(baseline['scene-geometries']);
     expect(after['scene-textures']).toBe(baseline['scene-textures']);
     expect(after.geometries).toBeLessThanOrEqual(baseline['scene-geometries']);

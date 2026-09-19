@@ -1,4 +1,12 @@
-import { BoxGeometry, DataTexture, Group, Mesh, MeshStandardMaterial, Texture } from 'three';
+import {
+  BoxGeometry,
+  DataTexture,
+  Group,
+  InstancedMesh,
+  Mesh,
+  MeshStandardMaterial,
+  Texture,
+} from 'three';
 import { disposeObject3D } from './dispose';
 
 /** Three dispatches a real `dispose` event, so nothing here needs a mock. */
@@ -82,5 +90,15 @@ describe('disposeObject3D', () => {
     disposeObject3D(new Mesh(geometry, material));
 
     expect(disposed).toBe(0);
+  });
+
+  it('frees the per-instance buffers of instanced meshes', () => {
+    const mesh = new InstancedMesh(new BoxGeometry(), new MeshStandardMaterial(), 3);
+    const freed = vi.fn();
+    mesh.addEventListener('dispose', freed);
+
+    disposeObject3D(mesh);
+
+    expect(freed).toHaveBeenCalledTimes(1);
   });
 });

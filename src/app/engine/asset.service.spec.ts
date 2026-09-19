@@ -152,6 +152,37 @@ describe('AssetService', () => {
     });
   });
 
+  describe('model disposal', () => {
+    it('frees the shared geometry, material and textures once the last copy is released', async () => {
+      const copy = await assets.model('assets/models/monument.glb');
+      const mesh = copy.children[0] as Mesh<BoxGeometry, MeshStandardMaterial>;
+      const disposed: string[] = [];
+      mesh.geometry.addEventListener('dispose', () => disposed.push('geometry'));
+      mesh.material.addEventListener('dispose', () => disposed.push('material'));
+      mesh.material.map?.addEventListener('dispose', () => disposed.push('texture'));
+
+      assets.releaseModel('assets/models/monument.glb');
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(disposed.sort()).toEqual(['geometry', 'material', 'texture']);
+    });
+
+    it('keeps the shared resources while another copy is still out', async () => {
+      const copy = await assets.model('assets/models/monument.glb');
+      await assets.model('assets/models/monument.glb');
+      const mesh = copy.children[0] as Mesh<BoxGeometry, MeshStandardMaterial>;
+      let disposed = false;
+      mesh.geometry.addEventListener('dispose', () => (disposed = true));
+
+      assets.releaseModel('assets/models/monument.glb');
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(disposed).toBe(false);
+    });
+  });
+
   describe('preloading', () => {
     it('loads every asset of the requested group and reports progress', async () => {
       const progress: [number, number][] = [];

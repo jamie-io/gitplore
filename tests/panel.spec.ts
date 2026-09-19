@@ -1,4 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { framesRendered } from './helpers';
+
+const PANEL_POLICIES = [
+  { tier: 'low', rendersBehindPanel: false },
+  { tier: 'medium', rendersBehindPanel: true },
+  { tier: 'high', rendersBehindPanel: true },
+] as const;
 
 test.describe('project destination', () => {
   test('a deep link opens the panel with the README over that world', async ({ page }) => {
@@ -53,16 +60,37 @@ test.describe('project destination', () => {
     await expect(page.locator('app-hud .area')).toContainText('Lichtung');
   });
 
-  test('walking keys do not move the player while the panel is open', async ({ page }) => {
-    await page.goto('/p/novaverta/info');
-    await expect(page.getByRole('dialog')).toBeVisible();
-    const canvas = page.locator('app-world-page canvas');
+  for (const policy of PANEL_POLICIES) {
+    test(`opening and closing panel preserves ${policy.tier}-tier frame policy and navigation`, async ({
+      page,
+    }) => {
+      await page.addInitScript((qualityOverride) => {
+        localStorage.setItem(
+          'gitplore.settings',
+          JSON.stringify({ qualityOverride, sensitivity: 1, reducedMotionOverride: true }),
+        );
+      }, policy.tier);
 
-    const before = await canvas.screenshot();
-    await page.keyboard.down('KeyW');
-    await page.waitForTimeout(700);
-    await page.keyboard.up('KeyW');
+      await page.goto('/p/novaverta/info?stats=1');
+      await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
+      await expect(page.getByRole('dialog')).toBeVisible();
 
-    expect((await canvas.screenshot()).equals(before)).toBe(true);
-  });
+      // Low pauses; medium and high keep drawing at the engine's 15 fps panel throttle.
+      await page.keyboard.down('KeyW');
+      const panelFrames = await framesRendered(page);
+      const laterPanelFrames = await framesRendered(page);
+      await page.keyboard.up('KeyW');
+
+      if (policy.rendersBehindPanel) {
+        expect(laterPanelFrames).toBeGreaterThan(panelFrames);
+      } else {
+        expect(laterPanelFrames).toBe(panelFrames);
+      }
+
+      await page.locator('button[data-role="close"]').click();
+      await expect(page).toHaveURL(/\/p\/novaverta$/);
+      await expect(page.locator('app-hud .area')).toContainText('Showroom');
+      await expect.poll(() => framesRendered(page)).toBeGreaterThan(laterPanelFrames);
+    });
+  }
 });
