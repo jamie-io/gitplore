@@ -16,9 +16,13 @@ import type { EnvironmentOptions } from './create-environment';
 import { Anchor, Environment } from './environment';
 import { assemble, paint } from './flora';
 import { ProceduralGround } from './ground';
+import { LightPools, LightPoolsOptions } from './light-pools';
 import { GALERIE, applyMood, clearMood } from './mood';
 import { MIN_LANDMARK_SEPARATION, Position, clearOf } from './placement';
+import { ReflectiveFloor } from './reflective-floor';
 import { SharedUniforms } from './shaders/shared-uniforms';
+import { withTiles } from './shaders/tiles';
+import { withWallWash } from './shaders/wall-wash';
 import { Sun } from './sun';
 
 /** Half the hall's floor, in metres. */
@@ -45,6 +49,17 @@ export const TRACK_HEIGHT = WALL_HEIGHT - 0.4;
 export const INTERIOR_CEILING = 6.2;
 
 const FLOOR = 0x2b3038;
+/** Polished concrete: dark slabs close in value, so the floor reads as one surface, not a grid. */
+const SLABS = [0x2e3033, 0x2b2d30, 0x313336, 0x2c2e32] as const;
+const JOINT = 0x1b1e22;
+/** The light the fixtures give: the skylight strips, the spot lenses, the pools and the wash. */
+const FIXTURE_LIGHT = 0xfff4e4;
+/** Pools along each skylight strip: this many, this far apart, this wide. */
+const SKYLIGHT_POOLS = [-16, -8, 0, 8, 16] as const;
+const SKYLIGHT_POOL_RADIUS = 3.4;
+const SPOT_POOL_RADIUS = 1.5;
+/** How far below the rail a spot's lens sits along its own axis, as `glowGeometry` builds it. */
+const LENS_DROP = 0.33;
 const WALL = 0xe9e6e1;
 const PILASTER = 0xdedad3;
 const TRIM = 0x2b3038;
@@ -54,6 +69,31 @@ const FITTING = 0x1d2127;
 /** Spots on the rail in front of the exhibits tip back towards them, and the ones behind tip forward. */
 function spotTilt(row: number): number {
   return row > -EXHIBIT_DEPTH ? 0.6 : -0.6;
+}
+
+/** Where a spot's beam meets the floor: its lens, carried down its tilted axis to y = 0. */
+function spotFloorZ(row: number): number {
+  const tilt = spotTilt(row);
+  const lensY = TRACK_HEIGHT - LENS_DROP * Math.cos(tilt);
+  const lensZ = row - LENS_DROP * Math.sin(tilt);
+  return lensZ - Math.tan(tilt) * lensY;
+}
+
+/** A soft pool under every skylight strip, several per strip, and one where each spot lands. */
+function poolLayout(): LightPoolsOptions['pools'] {
+  const pools: { x: number; z: number; radius: number }[] = [];
+  for (const z of SKYLIGHT_ROWS) {
+    for (const x of SKYLIGHT_POOLS) {
+      pools.push({ x, z, radius: SKYLIGHT_POOL_RADIUS });
+    }
+  }
+  for (const row of TRACK_ROWS) {
+    const z = spotFloorZ(row);
+    for (const x of TRACK_SPOTS) {
+      pools.push({ x, z, radius: SPOT_POOL_RADIUS });
+    }
+  }
+  return pools;
 }
 
 /** Pilasters, skirting, rails and spot bodies: every dark or off-white fitting, one mesh. */
@@ -153,12 +193,35 @@ export class ShowroomEnvironment implements Environment {
   /** Every shader in this world reads these; public so a test can watch time stand still. */
   readonly shared = new SharedUniforms(GALERIE);
 
+  private floorDetail: 0 | 1 | 2 = 0;
   private readonly floor = new ProceduralGround({
     id: 'showroom-floor',
     size: HALF * 2,
     color: FLOOR,
     segments: 1,
     heightAt: () => 0,
+    decorate: (material) => {
+      material.roughness = 0.3;
+      withTiles(material, {
+        size: 1,
+        grout: 0.008,
+        groutColour: JOINT,
+        colours: SLABS,
+        pattern: 'slab',
+        roughness: { min: 0.25, max: 0.4 },
+        detail: this.floorDetail,
+      });
+    },
+  });
+  private readonly reflection = new ReflectiveFloor({
+    size: (HALF - WALL_THICKNESS / 2) * 2,
+    strength: 0.3,
+    roughness: 0.28,
+  });
+  private readonly pools = new LightPools({
+    pools: poolLayout(),
+    colour: FIXTURE_LIGHT,
+    intensity: 0.12,
   });
   private readonly sun = new Sun({ mood: GALERIE, shared: this.shared });
   private readonly added: Object3D[] = [];
@@ -195,10 +258,17 @@ export class ShowroomEnvironment implements Environment {
     ctx.scene.background = new Color(GALERIE.sky.horizon);
     const shadows = ctx.quality.shadows;
 
+    this.floorDetail = ctx.quality.shaderDetail;
     this.floor.init(ctx);
+    this.reflection.init(ctx);
+    this.pools.init(ctx);
     this.sun.init(ctx);
 
-    const wall = new MeshStandardMaterial({ color: WALL, roughness: 0.85, metalness: 0 });
+    const wash = { top: WALL_HEIGHT, colour: FIXTURE_LIGHT, strength: 0.35 };
+    const wall = withWallWash(
+      new MeshStandardMaterial({ color: WALL, roughness: 0.85, metalness: 0 }),
+      wash,
+    );
     const spans: readonly [number, number, number, number][] = [
       [0, -HALF, HALF * 2, WALL_THICKNESS],
       [0, HALF, HALF * 2, WALL_THICKNESS],
@@ -218,7 +288,11 @@ export class ShowroomEnvironment implements Environment {
     // shadow-casting lid would block entirely.
     const ceiling = new Mesh(
       new BoxGeometry(HALF * 2 + WALL_THICKNESS * 2, 0.4, HALF * 2 + WALL_THICKNESS * 2),
-      new MeshStandardMaterial({ color: CEILING, roughness: 0.9, metalness: 0 }),
+      // Lit from below by the strips and the washed walls, which no light in the loop models.
+      withWallWash(new MeshStandardMaterial({ color: CEILING, roughness: 0.9, metalness: 0 }), {
+        ...wash,
+        strength: 0.25,
+      }),
     );
     ceiling.name = 'ceiling';
     ceiling.position.y = WALL_HEIGHT + 0.2;
@@ -226,7 +300,10 @@ export class ShowroomEnvironment implements Environment {
 
     const trim = new Mesh(
       trimGeometry(),
-      new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.1 }),
+      withWallWash(
+        new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.1 }),
+        wash,
+      ),
     );
     trim.name = 'trim';
     trim.castShadow = shadows;
@@ -235,7 +312,11 @@ export class ShowroomEnvironment implements Environment {
 
     const glow = new Mesh(
       glowGeometry(),
-      new MeshStandardMaterial({ color: 0x000000, emissive: 0xfff6e8, emissiveIntensity: 2.2 }),
+      new MeshStandardMaterial({
+        color: 0x000000,
+        emissive: FIXTURE_LIGHT,
+        emissiveIntensity: 1.6,
+      }),
     );
     glow.name = 'fittings-glow';
     this.added.push(glow);
@@ -252,6 +333,8 @@ export class ShowroomEnvironment implements Environment {
     this.added.forEach(disposeObject3D);
     this.added.length = 0;
     this.sun.dispose();
+    this.pools.dispose();
+    this.reflection.dispose();
     this.floor.dispose();
     if (this.scene) {
       this.scene.background = null;
