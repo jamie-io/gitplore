@@ -27,9 +27,10 @@ import {
   mast,
   pottedOlive,
 } from './architecture';
-import { Backdrop } from './backdrop';
+import { Backdrop, HillRing } from './backdrop';
 import type { EnvironmentOptions } from './create-environment';
 import { Anchor, Environment } from './environment';
+import { paint } from './flora';
 import { FountainJets } from './fountain-jets';
 import { ProceduralGround } from './ground';
 import { PLAZA, applyMood, clearMood } from './mood';
@@ -64,10 +65,17 @@ const STUCCO = [
   0xe8c48a, 0xf0b98f, 0xeab4ae, 0xf2e4c8, 0xe39a7c, 0xc4d2b0, 0xb8cadb, 0xf0d88c,
 ] as const;
 const SHUTTERS = [0x2f7f78, 0x5f8f35, 0x35609a, 0x8f4535, 0x3f8fa0] as const;
+/** Render order of everything that stands on the square, ahead of the floor, hills and sky. */
+const OCCLUDERS_FIRST = -1;
 /** Festoon bulbs: warm white, then amber, rose and turquoise; see `init`. */
 const BULB_COLOURS = [0xffe2b0, 0xffa640, 0xff6f8a, 0x5fd8d0] as const;
 /** Linear brightness of a bulb: over 1, so bloom catches it, but not a night-time glare. */
 const BULB_GLOW = 2.6;
+/** The near hills, seen through every street, and the far range that shows over their crests. */
+const HILLS: readonly HillRing[] = [
+  { radius: 140, depth: 70, height: 35, roughness: 0.4, color: 0x8f9a6a, haze: 0.3, seed: 121 },
+  { radius: 220, depth: 90, height: 55, roughness: 0.6, color: 0x8fa3b8, haze: 0.6, seed: 122 },
+];
 const AWNINGS = [0x2f6f9f, 0xc2502f, 0x5f8f35, 0xd9a02f] as const;
 
 type Side = 'north' | 'south' | 'west' | 'east';
@@ -239,28 +247,32 @@ export class PlazaEnvironment implements Environment {
     color: 0xd9cdb5,
     segments: 1,
     heightAt: () => 0,
-    decorate: (material) =>
-      void withAtmosphere(
-        withTiles(material, {
-          size: 1.1,
-          grout: 0.035,
-          groutColour: 0x9a9080,
-          // Travertine: close in value, so the square reads as one warm stone rather than a
-          // chequerboard; the shader adds each stone's own shade on top.
-          colours: [0xddd0b6, 0xd5c6aa, 0xe2d6bf, 0xd2c0a2],
-          pattern: 'grid',
-          ring: {
-            x: 0,
-            z: 0,
-            inner: 5.2,
-            outer: 9.8,
-            colours: [0x3f6f8f, 0xd9cdb5, 0xb8583a, 0xe8c9a0],
-          },
-          roughness: { min: 0.55, max: 0.9 },
-          detail: this.floorDetail,
-        }),
-        this.shared,
-      ),
+    decorate: (material) => {
+      const tiled = withTiles(material, {
+        size: 1.1,
+        grout: 0.035,
+        groutColour: 0x9a9080,
+        // Travertine: close in value, so the square reads as one warm stone rather than a
+        // chequerboard; the shader adds each stone's own shade on top.
+        colours: [0xddd0b6, 0xd5c6aa, 0xe2d6bf, 0xd2c0a2],
+        pattern: 'grid',
+        ring: {
+          x: 0,
+          z: 0,
+          inner: 5.2,
+          outer: 9.8,
+          colours: [0x3f6f8f, 0xd9cdb5, 0xb8583a, 0xe8c9a0],
+        },
+        roughness: { min: 0.55, max: 0.9 },
+        detail: this.floorDetail,
+      });
+      // The lowest tier leaves the floor to the plain distance fog, which is all but clear across
+      // the square: the height-fog integral cost the software renderer about 2.5 ms a frame on
+      // the half of the screen the floor fills, for a haze of a few per cent.
+      if (this.floorDetail > 0) {
+        withAtmosphere(tiled, this.shared);
+      }
+    },
   });
   private readonly sky = new Sky({ mood: PLAZA, shared: this.shared });
   private readonly sun = new Sun({ mood: PLAZA, shared: this.shared });
@@ -291,21 +303,7 @@ export class PlazaEnvironment implements Environment {
     landing: FOUNTAIN.lower.level,
     colour: 0xe8f8ff,
   });
-  private readonly backdrop = new Backdrop(
-    [
-      { radius: 140, depth: 70, height: 35, roughness: 0.4, color: 0x8f9a6a, haze: 0.3, seed: 121 },
-      {
-        radius: 220,
-        depth: 90,
-        height: 55,
-        roughness: 0.6,
-        color: 0x8fa3b8,
-        haze: 0.6,
-        seed: 122,
-      },
-    ],
-    PLAZA.fog.color,
-  );
+  private backdrop: Backdrop | null = null;
   private readonly added: Object3D[] = [];
   private scene: WorldContext['scene'] | null = null;
 
@@ -343,6 +341,9 @@ export class PlazaEnvironment implements Environment {
     this.lowerPool.init(ctx);
     this.upperPool.init(ctx);
     this.jets.init(ctx);
+    // The far range mostly stands behind the near one, yet the software renderer behind the
+    // lowest tier still rasterises all of it: about 2.5 ms a frame. That tier keeps the near hills.
+    this.backdrop = new Backdrop(detail > 0 ? HILLS : HILLS.slice(0, 1), PLAZA.fog.color);
     this.backdrop.init(ctx);
 
     const solid = withAtmosphere(
@@ -391,29 +392,29 @@ export class PlazaEnvironment implements Environment {
     // Every fourth string bulb is warm white and the others take a festival colour in turn, so
     // the strings still read as lights at noon, when a white bulb is lost against the sky. The
     // lamps keep a warm white. Unlit and above 1 in linear, so the strongest tier blooms them a
-    // little; the medium and low tiers draw them as flat, bright dots.
-    const glowing = [
-      ...strings.flatMap((string) =>
-        string.bulbs.map((bulb, index) => ({
-          x: bulb.x,
-          y: bulb.y,
-          z: bulb.z,
-          scale: 1,
-          rotation: 0,
-          tint: (index % BULB_COLOURS.length) / BULB_COLOURS.length,
-        })),
-      ),
-      ...LAMPS.map(([x, z]) => ({ x, y: LAMP_GLASS.y, z, scale: 2.3, rotation: 0, tint: 0 })),
-    ];
-    const bulbs = buildInstanced(
-      new IcosahedronGeometry(0.08, 0),
-      new MeshBasicMaterial({ color: new Color(BULB_GLOW, BULB_GLOW, BULB_GLOW) }),
-      glowing,
-      {
-        name: 'bulbs',
-        tint: (t) => new Color(BULB_COLOURS[Math.round(t * BULB_COLOURS.length)]),
-      },
+    // little; the medium and low tiers draw them as flat, bright dots. One merged mesh rather
+    // than 200 instances: the software renderer behind the low tier paid about 3 ms a frame for
+    // the instanced draw of these specks, and a single mesh of 12 000 vertices costs next to none.
+    const bulbs = new Mesh(
+      merged([
+        ...strings.flatMap((string) =>
+          string.bulbs.map((bulb, index) =>
+            paint(
+              new IcosahedronGeometry(0.08, 0).translate(bulb.x, bulb.y, bulb.z),
+              BULB_COLOURS[index % BULB_COLOURS.length],
+            ),
+          ),
+        ),
+        ...LAMPS.map(([x, z]) =>
+          paint(new IcosahedronGeometry(0.17, 0).translate(x, LAMP_GLASS.y, z), BULB_COLOURS[0]),
+        ),
+      ]),
+      new MeshBasicMaterial({
+        vertexColors: true,
+        color: new Color(BULB_GLOW, BULB_GLOW, BULB_GLOW),
+      }),
     );
+    bulbs.name = 'bulbs';
 
     this.added.push(
       town,
@@ -465,7 +466,14 @@ export class PlazaEnvironment implements Environment {
         },
       ),
     );
-    this.added.forEach((object) => ctx.scene.add(object));
+    // Three sorts opaque meshes by material before distance, so the hills and the floor, whose
+    // materials are older, drew first and the houses then painted over most of the hill rings'
+    // shaded fragments. Drawn first, the town and its props reject those at the depth test: the
+    // software renderer behind the low tier pays for every fragment it shades.
+    this.added.forEach((object) => {
+      object.renderOrder = OCCLUDERS_FIRST;
+      ctx.scene.add(object);
+    });
   }
 
   update(dt: number, ctx: WorldContext): void {
@@ -480,7 +488,8 @@ export class PlazaEnvironment implements Environment {
   dispose(): void {
     this.added.forEach(disposeObject3D);
     this.added.length = 0;
-    this.backdrop.dispose();
+    this.backdrop?.dispose();
+    this.backdrop = null;
     this.jets.dispose();
     this.upperPool.dispose();
     this.lowerPool.dispose();

@@ -5,6 +5,7 @@ import {
   ConeGeometry,
   CylinderGeometry,
   IcosahedronGeometry,
+  PlaneGeometry,
   TorusGeometry,
   TubeGeometry,
   Vector3,
@@ -61,12 +62,16 @@ export function house(seed: number, options: HouseOptions): BufferGeometry {
         parts.push(paint(new BoxGeometry(1.2, 2.3, 0.14).translate(x, 1.15, front + 0.03), DOOR));
         continue;
       }
+      // Panes rather than boxes: a window and its shutters were 108 vertices, 92 % of a house,
+      // and the software renderer behind the low tier pays for every one. Their side faces were
+      // a few centimetres deep and never read; 2 and 4 cm off the wall is far more than the depth
+      // buffer resolves at the far side of the square, so nothing flickers.
       const y = 1.6 + floor * 3;
-      parts.push(paint(new BoxGeometry(0.9, 1.3, 0.12).translate(x, y, front + 0.02), GLASS));
+      parts.push(paint(new PlaneGeometry(0.9, 1.3).translate(x, y, front + 0.02), GLASS));
       for (const side of [-1, 1]) {
         parts.push(
           paint(
-            new BoxGeometry(0.45, 1.35, 0.06).translate(x + side * 0.7, y, front + 0.05),
+            new PlaneGeometry(0.45, 1.35).translate(x + side * 0.7, y, front + 0.04),
             options.shutters,
           ),
         );
@@ -221,7 +226,7 @@ export function festoon(
   const curve = new CatmullRomCurve3(Array.from({ length: 13 }, (_, i) => at(i / 12)));
 
   return {
-    wire: assemble([paint(new TubeGeometry(curve, 36, 0.015, 3, false), 0x222222)]),
+    wire: assemble([paint(new TubeGeometry(curve, 16, 0.015, 3, false), 0x222222)]),
     bulbs: Array.from({ length: bulbs }, (_, i) =>
       at((i + 0.5) / bulbs).add(new Vector3(0, -0.08, 0)),
     ),
