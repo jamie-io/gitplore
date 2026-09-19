@@ -20,19 +20,26 @@ type StatName = 'geometries' | 'textures' | 'scene-geometries' | 'scene-textures
  * HUD stats once they have stopped changing: models arrive asynchronously, so the first reading
  * after boot is not yet the steady state. All requested stats are read from the same sample, both
  * so they are consistent with each other and so one settle costs one wait, not one per stat.
+ *
+ * `quietReads` is how many consecutive re-reads, one stats interval apart, must agree before the
+ * value counts as settled. One is enough on an idle machine; under parallel load a model fetch or
+ * a long main-thread task can hold the counts still for more than one interval mid-change.
  */
 export async function settledStats<T extends StatName>(
   page: Page,
   names: readonly T[],
+  quietReads = 1,
 ): Promise<Record<T, number>> {
   const stats = page.locator('app-hud .stats');
   const read = async () => Promise.all(names.map((name) => stats.getAttribute(`data-${name}`)));
 
   let previous = await read();
-  for (let i = 0; i < 20; i++) {
+  let quiet = 0;
+  for (let i = 0; i < 20 + quietReads; i++) {
     await page.waitForTimeout(STATS_SETTLE_MS);
     const current = await read();
-    if (current.every((value, index) => value === previous[index])) {
+    quiet = current.every((value, index) => value === previous[index]) ? quiet + 1 : 0;
+    if (quiet >= quietReads) {
       return Object.fromEntries(
         names.map((name, index) => [name, Number(current[index])]),
       ) as Record<T, number>;
