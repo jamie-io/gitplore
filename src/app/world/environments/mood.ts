@@ -138,12 +138,14 @@ export const PLAZA: Mood = {
 /** The gallery: no sky, no wind, no haze; a soft white key light from above and a dark surround. */
 export const GALERIE: Mood = {
   sky: { zenith: 0x15181d, horizon: 0x1a1d22, sunGlow: 0x1a1d22, below: 0x101216 },
-  sun: { azimuth: 0.5, elevation: 1.2, color: 0xfff6e8, intensity: 1.6, discSize: 0 },
-  hemisphere: { sky: 0xffffff, ground: 0x3a4049, intensity: 1.2 },
+  // Soft: the skylights diffuse it, so it models the exhibits without hard wall shadows across
+  // the floor; the hemisphere does most of the lighting, as a gallery's bounce does.
+  sun: { azimuth: 0.5, elevation: 1.2, color: 0xfff6e8, intensity: 1.1, discSize: 0 },
+  hemisphere: { sky: 0xfffaf2, ground: 0x6a6d72, intensity: 1.7 },
   fog: { color: 0x1a1d22, near: 60, far: 140, heightDensity: 0, heightFalloff: 0, sunScatter: 0 },
   clouds: null,
   wind: { strength: 0, gustScale: 0, direction: 0 },
-  grade: { saturation: 1.0, contrast: 1.04, warmth: 0.02, vignette: 0.3, bloomStrength: 0.3 },
+  grade: { saturation: 1.0, contrast: 1.03, warmth: 0.0, vignette: 0.2, bloomStrength: 0.18 },
 };
 
 /**
