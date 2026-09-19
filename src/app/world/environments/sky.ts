@@ -72,6 +72,9 @@ export class Sky implements WorldObject {
 function skyMaterial(mood: Mood, shared: SharedUniforms, detail: 0 | 1 | 2): ShaderMaterial {
   const clouds = mood.clouds;
   const defines: Record<string, string | number> = {};
+  if (detail === 0) {
+    defines['VERTEX_GRADIENT'] = '';
+  }
   if (clouds && detail !== 0) {
     defines['CLOUDS'] = '';
     defines['FBM_OCTAVES'] = CLOUD_OCTAVES[detail];
@@ -106,31 +109,64 @@ function skyMaterial(mood: Mood, shared: SharedUniforms, detail: 0 | 1 | 2): Sha
   });
 }
 
+// The gradient and the warm band on the sun's side: everything in the sky that changes slowly
+// across the dome. The lowest tier evaluates it per vertex (the dome's 32 × 20 grid is fine enough
+// for curves this broad), because the software renderer charges every sky pixel for every
+// instruction; the other tiers evaluate it per pixel.
+const GRADIENT_GLSL = /* glsl */ `
+uniform vec3 sunDirection;
+uniform vec3 zenith;
+uniform vec3 horizon;
+uniform vec3 sunGlow;
+uniform vec3 below;
+
+vec3 skyGradient(vec3 dir) {
+  float altitude = dir.y;
+
+  // Below the horizon, a band of horizon colour, then a curve up to the zenith.
+  vec3 colour = mix(horizon, zenith, pow(clamp(altitude, 0.0, 1.0), 0.65));
+  colour = mix(below, colour, smoothstep(-0.16, 0.0, altitude));
+
+  // A warm band on the sun's side, hugging the horizon.
+  vec2 level = normalize(dir.xz + vec2(1e-4, 0.0));
+  vec2 sunLevel = normalize(sunDirection.xz + vec2(1e-4, 0.0));
+  float sameSide = max(dot(level, sunLevel), 0.0);
+  float band = pow(sameSide, 3.0) * exp(-max(altitude, 0.0) * 5.0) * smoothstep(-0.25, 0.0, altitude);
+  return mix(colour, sunGlow, band * 0.8);
+}
+`;
+
 // The dome only ever translates, so the local position is the view direction. Writing w into z
 // pins every fragment to the far plane: with the default LessEqual depth test the sky then loses
 // against anything the world drew, whatever the dome's radius.
 const VERTEX_SHADER = /* glsl */ `
 varying vec3 vDirection;
+#ifdef VERTEX_GRADIENT
+${GRADIENT_GLSL}
+varying vec3 vGradient;
+#endif
 void main() {
   vDirection = position;
+#ifdef VERTEX_GRADIENT
+  vGradient = skyGradient(normalize(position));
+#endif
   vec4 clip = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   gl_Position = clip.xyww;
 }
 `;
 
 const FRAGMENT_SHADER = /* glsl */ `
-uniform vec3 sunDirection;
+${GRADIENT_GLSL}
 uniform vec3 sunColor;
 uniform float time;
-uniform vec3 zenith;
-uniform vec3 horizon;
-uniform vec3 sunGlow;
-uniform vec3 below;
 uniform float discSize;
 uniform vec3 cloudColor;
 uniform vec3 cloudShade;
 uniform vec3 cloudParams;
 varying vec3 vDirection;
+#ifdef VERTEX_GRADIENT
+varying vec3 vGradient;
+#endif
 
 #ifdef CLOUDS
 ${NOISE_GLSL}
@@ -165,23 +201,26 @@ vec4 clouds(vec3 dir, float toSun) {
 void main() {
   vec3 dir = normalize(vDirection);
   float toSun = dot(dir, sunDirection);
-  float altitude = dir.y;
 
-  // Gradient: below the horizon, a band of horizon colour, then a curve up to the zenith.
-  vec3 colour = mix(horizon, zenith, pow(clamp(altitude, 0.0, 1.0), 0.65));
-  colour = mix(below, colour, smoothstep(-0.16, 0.0, altitude));
-
-  // A warm band on the sun's side, hugging the horizon.
-  vec2 level = normalize(dir.xz + vec2(1e-4, 0.0));
-  vec2 sunLevel = normalize(sunDirection.xz + vec2(1e-4, 0.0));
-  float sameSide = max(dot(level, sunLevel), 0.0);
-  float band = pow(sameSide, 3.0) * exp(-max(altitude, 0.0) * 5.0) * smoothstep(-0.25, 0.0, altitude);
-  colour = mix(colour, sunGlow, band * 0.8);
+#ifdef VERTEX_GRADIENT
+  vec3 colour = vGradient;
+#else
+  vec3 colour = skyGradient(dir);
+#endif
 
   // The disc in HDR, a tight halo and a wide one; all measured in angle so they stay round.
   if (discSize > 0.0) {
+#ifdef VERTEX_GRADIENT
+    // The same three terms without acos: the chord to the sun stands in for the angle (4 % short
+    // at a radian, where the wide halo is nearly gone), and the tight halo is written in 1 - cos,
+    // which is angle² / 2 near the sun.
+    float away = 1.0 - toSun;
+    float angle = sqrt(2.0 * away);
+    float tight = exp(-away / (4.0 * discSize * discSize));
+#else
     float angle = acos(clamp(toSun, -1.0, 1.0));
     float tight = exp(-angle * angle / (8.0 * discSize * discSize));
+#endif
     float wide = exp(-angle * 2.5);
     colour += sunGlow * wide * 0.45;
     colour += sunColor * tight * 1.2;

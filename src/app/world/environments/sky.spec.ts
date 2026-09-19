@@ -72,6 +72,17 @@ describe('Sky', () => {
     expect(dome(ctx).material.defines['CLOUDS']).toBeUndefined();
   });
 
+  it('moves the gradient into the vertex shader on the low tier only', () => {
+    const low = context('low');
+    const medium = context('medium');
+
+    sky().init(low);
+    sky().init(medium);
+
+    expect(dome(low).material.defines['VERTEX_GRADIENT']).toBeDefined();
+    expect(dome(medium).material.defines['VERTEX_GRADIENT']).toBeUndefined();
+  });
+
   it('gives the clouds more octaves on the high tier than on medium', () => {
     const medium = context('medium');
     const high = context('high');
