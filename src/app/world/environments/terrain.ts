@@ -1,4 +1,5 @@
 import { GroundOptions, ProceduralGround } from './ground';
+import { basinLevel, pressBasin } from './basin';
 
 /** Edge length of the walkable ground, in metres. */
 export const TERRAIN_SIZE = 240;
@@ -56,40 +57,14 @@ function reliefAt(x: number, z: number): number {
  * The pond's surface: 20 cm below the lowest ground on its rim, sampled densely, so the shore is
  * closed all the way round and the water never floats over dry land.
  */
-export const POND_WATER_LEVEL = waterLevel();
-
-function waterLevel(): number {
-  let lowest = Infinity;
-  for (let step = 0; step <= 8; step++) {
-    const ring = 0.9 + step * 0.05;
-    for (let i = 0; i < 96; i++) {
-      const angle = (i / 96) * Math.PI * 2;
-      lowest = Math.min(
-        lowest,
-        reliefAt(
-          POND.x + Math.sin(angle) * POND.radius * ring,
-          POND.z + Math.cos(angle) * POND.radius * ring,
-        ),
-      );
-    }
-  }
-  return lowest - 0.2;
-}
+export const POND_WATER_LEVEL = basinLevel(reliefAt, POND);
 
 /**
  * Analytic ground height: the relief plus the pond basin. Cheap, deterministic, no table to ship,
  * and the player controller samples it directly instead of raycasting (IMPLEMENTATION_PLAN.md §2).
  */
 export function terrainHeightAt(x: number, z: number): number {
-  const relief = reliefAt(x, z);
-  const distance = Math.hypot(x - POND.x, z - POND.z);
-  const inside = 1 - smoothstep(POND.radius * 0.7, POND.radius * 1.3, distance);
-  if (inside === 0) {
-    return relief;
-  }
-
-  const bed = POND_WATER_LEVEL + POND.depth * ((distance / POND.radius) ** 2 - 1);
-  return relief + (bed - relief) * inside;
+  return pressBasin(reliefAt, POND, POND_WATER_LEVEL, x, z);
 }
 
 /**
