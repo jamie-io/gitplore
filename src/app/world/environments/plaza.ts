@@ -30,7 +30,7 @@ import {
 import { Backdrop, HillRing } from './backdrop';
 import type { EnvironmentOptions } from './create-environment';
 import { Anchor, Environment } from './environment';
-import { paint } from './flora';
+import { assemble, paint } from './flora';
 import { FountainJets } from './fountain-jets';
 import { ProceduralGround } from './ground';
 import { PLAZA, applyMood, clearMood } from './mood';
@@ -395,8 +395,10 @@ export class PlazaEnvironment implements Environment {
     // little; the medium and low tiers draw them as flat, bright dots. One merged mesh rather
     // than 200 instances: the software renderer behind the low tier paid about 3 ms a frame for
     // the instanced draw of these specks, and a single mesh of 12 000 vertices costs next to none.
+    // `assemble`, not a bare merge: it restores the normals `paint` strips, which the strongest
+    // tier's ambient-occlusion pass reads; without them it blacked the bulbs out.
     const bulbs = new Mesh(
-      merged([
+      assemble([
         ...strings.flatMap((string) =>
           string.bulbs.map((bulb, index) =>
             paint(
