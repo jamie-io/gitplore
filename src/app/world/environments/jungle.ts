@@ -163,7 +163,7 @@ export class JungleEnvironment implements Environment {
     heightAt: jungleHeightAt,
     colorAt: jungleGround,
     decorate: (material) =>
-      void withDapple(withAtmosphere(material, this.shared), this.shared, 0.6),
+      void withDapple(withAtmosphere(material, this.shared), this.shared, 0.75),
   });
   private readonly cliffBase = jungleHeightAt(CLIFF.x, CLIFF.z);
   private readonly lipHeight = this.cliffBase + CLIFF.height * CLIFF_LIP;
@@ -190,7 +190,7 @@ export class JungleEnvironment implements Environment {
   private readonly shafts = new LightShafts({
     shared: this.shared,
     colour: 0xf2ffd0,
-    intensity: 1.4,
+    intensity: 2,
     shafts: [
       { x: 0, z: -8, radius: 1.6, height: 30 },
       { x: -6, z: -16, radius: 1.2, height: 30 },
@@ -210,6 +210,7 @@ export class JungleEnvironment implements Environment {
     colour: 0xe8ffd0,
     size: 0.04,
     glow: 1.2,
+    directGlow: 0.45,
     drift: 0.6,
     flicker: 0.1,
   });
@@ -217,18 +218,28 @@ export class JungleEnvironment implements Environment {
     shared: this.shared,
     seed: 402,
     count: 120,
-    area: { x: 0, z: -20, radius: 30, minY: 0.5, maxY: 3 },
+    area: { x: 0, z: -20, radius: 30, minY: 0.3, maxY: 2.2 },
     followCamera: false,
+    heightAt: jungleHeightAt,
     colour: 0xd8ff7a,
     size: 0.07,
     glow: 4,
+    directGlow: 1.3,
     drift: 1.5,
     flicker: 1,
   });
   private readonly backdrop = new Backdrop(
     [
-      { radius: 110, depth: 60, height: 30, roughness: 0.8, color: 0x2f5a3a, haze: 0.5, seed: 111 },
-      { radius: 170, depth: 80, height: 45, roughness: 0.7, color: 0x3f6a55, haze: 0.8, seed: 112 },
+      {
+        radius: 110,
+        depth: 60,
+        height: 30,
+        roughness: 0.8,
+        color: 0x2f5a3a,
+        haze: 0.35,
+        seed: 111,
+      },
+      { radius: 170, depth: 80, height: 45, roughness: 0.7, color: 0x3f6a55, haze: 0.6, seed: 112 },
     ],
     DSCHUNGEL.fog.color,
   );
