@@ -76,9 +76,9 @@ const MONUMENT_FOOT: Exclusion = { kind: 'circle', x: MONUMENT.x, z: MONUMENT.z,
 
 const FLOWER_COLOURS = [0xf4f1e8, 0xf2c94c, 0xb7a1e0, 0xd9483b] as const;
 
-const MEADOW = new Color(0x7fa64a);
-const MEADOW_SUNLIT = new Color(0xb3bf5a);
-const HOLLOW = new Color(0x4d7634);
+const MEADOW = new Color(0x6f9c42);
+const MEADOW_SUNLIT = new Color(0xa9b953);
+const HOLLOW = new Color(0x466e2e);
 const PATH = new Color(0x9c7d56);
 const SHORE = new Color(0x7a6848);
 const ROCK = new Color(0x8b8373);
@@ -184,10 +184,12 @@ export class ClearingEnvironment implements Environment {
   private readonly grass = new GrassField({
     shared: this.shared,
     heightGlsl: terrainGlsl(),
-    radius: 55,
-    blades: 60000,
-    height: 0.55,
-    colours: { root: 0x3f6a2c, tip: 0xb8c865, dry: 0xc8b46a },
+    // A smaller circle packed denser: 20 blades a square metre read as a meadow, 5 read as
+    // stubble, and past 30 m the ground's own face colours carry the grass to the horizon.
+    radius: 34,
+    blades: 90000,
+    height: 0.45,
+    colours: { root: 0x467a2c, tip: 0xb9cf5c, dry: 0xd0b565 },
     bare: [...PATHS, WATER, MONUMENT_FOOT],
   });
   private readonly backdrop = new Backdrop(
@@ -197,8 +199,8 @@ export class ClearingEnvironment implements Environment {
         depth: 90,
         height: 26,
         roughness: 0.25,
-        color: 0x6f8f55,
-        haze: 0.35,
+        color: 0x5c8a48,
+        haze: 0.22,
         seed: 101,
       },
       {
@@ -206,8 +208,8 @@ export class ClearingEnvironment implements Environment {
         depth: 110,
         height: 48,
         roughness: 0.6,
-        color: 0x7d93a6,
-        haze: 0.7,
+        color: 0x7b95ae,
+        haze: 0.5,
         seed: 102,
       },
     ],
@@ -216,12 +218,14 @@ export class ClearingEnvironment implements Environment {
   private readonly pollen = new Motes({
     shared: this.shared,
     seed: 201,
-    count: 400,
-    area: { x: 0, z: 0, radius: 30, minY: -1.2, maxY: 2.5 },
+    count: 320,
+    area: { x: 0, z: 0, radius: 24, minY: -1.2, maxY: 2.5 },
     followCamera: true,
     colour: 0xfff1c4,
-    size: 0.05,
-    glow: 1.6,
+    size: 0.03,
+    // Just over 1, so a mote catches the bloom as a spark and not as a second sun when one
+    // drifts past the lens.
+    glow: 1.2,
     drift: 1.2,
     flicker: 0.15,
   });
@@ -372,15 +376,19 @@ export class ClearingEnvironment implements Environment {
   private buildProps(ctx: WorldContext): InstancedMesh[] {
     const shadows = ctx.quality.shadows;
     const density = ctx.quality.propDensity;
-    const leafy = (height: number) =>
-      withWind(
-        withAtmosphere(
-          new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 }),
-          this.shared,
-        ),
+    // The gust field costs a handful of noise look-ups per vertex, which the software renderer
+    // on the weakest tier feels across a hundred thousand flower and leaf vertices; that tier
+    // keeps the meadow's grass swaying and holds the trees still, like its clouds are compiled out.
+    const sways = ctx.quality.shaderDetail > 0;
+    const leafy = (height: number) => {
+      const material = withAtmosphere(
+        new MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0 }),
         this.shared,
-        { amplitude: height * 0.03, height },
       );
+      return sways
+        ? withWind(material, this.shared, { amplitude: height * 0.03, height })
+        : material;
+    };
     const solid = withAtmosphere(
       new MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }),
       this.shared,
@@ -424,8 +432,11 @@ export class ClearingEnvironment implements Environment {
         scatter(
           {
             seed: 30 + index,
-            count: Math.round(420 * density),
-            area: { inner: 6, outer: 100 },
+            // Only where a blossom is still more than a speck: past 60 m they cost vertices
+            // (wind and haze run per vertex) and show nothing. Steeper than the density itself
+            // on the way down: flowers are the biggest vertex bill after the grass.
+            count: Math.round(360 * density ** 1.5),
+            area: { inner: 6, outer: 60 },
             clusters: { count: 14, radius: 6 },
             scale: [0.8, 1.3],
             exclusions: [...PATHS, WATER, MONUMENT_FOOT],

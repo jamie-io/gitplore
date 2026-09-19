@@ -8,8 +8,12 @@ export interface SunOptions {
   readonly shared: SharedUniforms;
 }
 
-/** Half the side of the orthographic shadow box, metres. */
-const SHADOW_HALF_EXTENT = 40;
+/**
+ * Half the side of the orthographic shadow box, metres. Wide enough to take in the groves beyond
+ * the portal ring: with the sun 20° up a 6 m crown throws a 16 m shadow, and a box that stopped
+ * at the ring left every tree's shadow outside it. 6 cm texels on the strongest tier.
+ */
+const SHADOW_HALF_EXTENT = 64;
 /** How far along the sun direction the light sits from the box's centre. */
 const LIGHT_DISTANCE = 120;
 const SHADOW_NEAR = 1;

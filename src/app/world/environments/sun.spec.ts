@@ -25,8 +25,8 @@ function directionOf(sun: Sun): Vector3 {
   return sun.light.position.clone().sub(sun.light.target.position).normalize();
 }
 
-/** Side of one shadow texel on the high tier: an 80 m box over a 2048 map. */
-const TEXEL = 80 / 2048;
+/** Side of one shadow texel on the high tier: a 128 m box over a 2048 map. */
+const TEXEL = 128 / 2048;
 
 describe('Sun', () => {
   it("shines from the mood's sun direction", () => {
