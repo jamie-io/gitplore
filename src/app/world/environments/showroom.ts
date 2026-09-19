@@ -288,10 +288,14 @@ export class ShowroomEnvironment implements Environment {
     // shadow-casting lid would block entirely.
     const ceiling = new Mesh(
       new BoxGeometry(HALF * 2 + WALL_THICKNESS * 2, 0.4, HALF * 2 + WALL_THICKNESS * 2),
-      // Lit from below by the strips and the washed walls, which no light in the loop models.
-      withWallWash(new MeshStandardMaterial({ color: CEILING, roughness: 0.9, metalness: 0 }), {
-        ...wash,
-        strength: 0.25,
+      // Lit from below by the strips and the washed walls, which no light in the loop models. The
+      // wash is flat at the ceiling's height, so it goes in as the plain emissive term: the same
+      // light as `withWallWash` would give, with no patch for the software renderer to run.
+      new MeshStandardMaterial({
+        color: CEILING,
+        roughness: 0.9,
+        metalness: 0,
+        emissive: new Color(CEILING).multiply(new Color(FIXTURE_LIGHT)).multiplyScalar(0.25),
       }),
     );
     ceiling.name = 'ceiling';
