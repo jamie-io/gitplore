@@ -8,7 +8,7 @@ describe('App', () => {
     localStorage.clear();
     localStorage.setItem(
       'gitplore.settings',
-      JSON.stringify({ qualityOverride: 'medium', sensitivity: 1, reducedMotionOverride: true }),
+      JSON.stringify({ qualityOverride: 'low', sensitivity: 1, reducedMotionOverride: true }),
     );
     await TestBed.configureTestingModule({
       imports: [App],
@@ -33,9 +33,13 @@ describe('App', () => {
     expect(TestBed.createComponent(App).componentInstance).toBeTruthy();
   });
 
-  it('applies persisted quality before world components start', () => {
+  it('applies persisted settings at startup, without the settings dialog', () => {
     TestBed.createComponent(App);
+    const capability = TestBed.inject(CapabilityService);
 
-    expect(TestBed.inject(CapabilityService).tier()).toBe('medium');
+    // The device would be detected as high tier with system motion enabled.
+    expect(capability.detectedTier()).toBe('high');
+    expect(capability.tier()).toBe('low');
+    expect(capability.reducedMotion()).toBe(true);
   });
 });
