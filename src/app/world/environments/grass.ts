@@ -53,11 +53,24 @@ const BORDER_METRES = 0.6;
 
 /**
  * Share of `blades` each `shaderDetail` tier draws, and how far out it draws them. The low tier
- * keeps a tenth of the blades on half the radius: fewer, wider blades near the visitor read as a
- * meadow, while a tenth spread over the full circle would read as stubble.
+ * keeps 8 % of the blades on half the radius: fewer, wider blades near the visitor read as a
+ * meadow, while the same few spread over the full circle would read as stubble.
  */
-const TIER_BLADES: readonly [number, number, number] = [0.1, 0.6, 1];
+const TIER_BLADES: readonly [number, number, number] = [0.08, 0.6, 1];
 const TIER_RADIUS: readonly [number, number, number] = [0.5, 1, 1];
+
+/**
+ * A blade is never broader than this, however sparse the grid: the low tier's cells are 35 cm and
+ * a blade a tenth of that wide read as a leaf, not grass.
+ */
+const MAX_HALF_WIDTH = 0.028;
+
+/**
+ * Where the blades start shrinking towards the edge of the field, as a share of the radius. A
+ * short fade left a visible ring; from here the blades thin over the outer half of the circle,
+ * where they are a few pixels tall anyway, and the ground's face colours take over underneath.
+ */
+const FADE_FROM = 0.5;
 
 /**
  * Blades along one side of a tuft, the unit that is instanced. One instance per blade is the
@@ -126,7 +139,7 @@ export class GrassField implements WorldObject {
       side,
       tuft,
       radius,
-      halfWidth: (tuft / TUFT_SIDE) * HALF_WIDTH_OF_CELL,
+      halfWidth: Math.min((tuft / TUFT_SIDE) * HALF_WIDTH_OF_CELL, MAX_HALF_WIDTH),
     });
 
     const mesh = new Mesh(geometry, material);
@@ -382,7 +395,7 @@ vec3 grassPosition;
   // Gone one whole tuft inside the radius: the outermost tuft is the one that wraps, and its
   // near edge comes as close as radius minus one tuft, so nothing visible ever jumps.
   float edge = grassField.z - tuftSize;
-  float reach = 1.0 - smoothstep(edge * 0.8, edge, distance(base, cameraPosition.xz));
+  float reach = 1.0 - smoothstep(edge * ${FADE_FROM.toFixed(2)}, edge, distance(base, cameraPosition.xz));
   float size = cover * reach * mix(0.7, 1.3, hSize);
   float height = grassField.w * size;
   float halfWidth = grassHalfWidth * size;

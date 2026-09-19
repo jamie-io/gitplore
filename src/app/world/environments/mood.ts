@@ -71,20 +71,24 @@ export interface Mood {
 
 /** Golden late afternoon: a low warm sun front-right of the arrival view, peach haze in the hollows. */
 export const LICHTUNG: Mood = {
-  sky: { zenith: 0x4a7fc0, horizon: 0xf3d2a8, sunGlow: 0xffb070, below: 0xb9a58a },
-  sun: { azimuth: 0.55, elevation: 0.32, color: 0xffd6a0, intensity: 2.6, discSize: 0.035 },
-  hemisphere: { sky: 0x9cc3e0, ground: 0x7a7f45, intensity: 0.9 },
+  sky: { zenith: 0x3d76c6, horizon: 0xf4dcbe, sunGlow: 0xffb474, below: 0xc9b596 },
+  sun: { azimuth: 0.55, elevation: 0.38, color: 0xffd8a6, intensity: 2.4, discSize: 0.035 },
+  // A warm, pale sky bounce: the groves face the visitor with their shaded sides, and a blue
+  // hemisphere turned their greens grey. The ground bounce is the meadow's own colour.
+  hemisphere: { sky: 0xc4d6e4, ground: 0x76803c, intensity: 0.9 },
   fog: {
-    color: 0xf0d3ae,
-    near: 40,
+    color: 0xf1dabb,
+    near: 60,
     far: 320,
-    heightDensity: 0.035,
-    heightFalloff: 0.18,
+    // Light enough that a grove 40 m off still shows its colours; the falloff is what makes the
+    // haze pool in the hollows (2.5× as dense 3 m down) instead of curtaining the whole meadow.
+    heightDensity: 0.006,
+    heightFalloff: 0.3,
     sunScatter: 0.6,
   },
-  clouds: { coverage: 0.45, softness: 0.35, speed: 0.6, color: 0xfff3e0, shade: 0xc9a7a0 },
+  clouds: { coverage: 0.32, softness: 0.4, speed: 0.6, color: 0xfff5e8, shade: 0xd8b6aa },
   wind: { strength: 0.6, gustScale: 0.04, direction: 0.9 },
-  grade: { saturation: 1.08, contrast: 1.05, warmth: 0.08, vignette: 0.25, bloomStrength: 0.35 },
+  grade: { saturation: 1.1, contrast: 1.05, warmth: 0.04, vignette: 0.22, bloomStrength: 0.35 },
 };
 
 /** Humid: a high sun through a closed canopy, dense low teal fog with a glow where the sun is. */

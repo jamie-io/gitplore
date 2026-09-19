@@ -78,7 +78,7 @@ export function assemble(parts: readonly BufferGeometry[]): BufferGeometry {
 const BARK = 0x6b4a33;
 const BIRCH_BARK = 0xe8e2d4;
 const BIRCH_MARK = 0x3a3530;
-const STEM = 0x5f8a3a;
+const STEM = 0x6f9a44;
 
 /** A round-crowned deciduous tree, about 5–6 m tall: the meadow's groves. */
 export function broadleafTree(seed: number): BufferGeometry {
@@ -185,11 +185,13 @@ export function flowerTuft(seed: number, blossom: number): BufferGeometry {
     const x = Math.sin(angle) * 0.08;
     const z = Math.cos(angle) * 0.08;
     const height = between(random, 0.28, 0.45);
-    parts.push(paint(new BoxGeometry(0.018, height, 0.018).translate(x, height / 2, z), STEM));
+    // Stems thick and light enough not to read as black sticks 20 m off, and blossoms big enough
+    // to still be a dot of colour there.
+    parts.push(paint(new BoxGeometry(0.026, height, 0.026).translate(x, height / 2, z), STEM));
     parts.push(
-      paint(new OctahedronGeometry(0.055, 0).scale(1, 0.55, 1).translate(x, height, z), blossom),
+      paint(new OctahedronGeometry(0.075, 0).scale(1, 0.55, 1).translate(x, height, z), blossom),
     );
-    parts.push(paint(new OctahedronGeometry(0.02, 0).translate(x, height + 0.03, z), 0xf2c94c));
+    parts.push(paint(new OctahedronGeometry(0.025, 0).translate(x, height + 0.035, z), 0xf2c94c));
   }
   return assemble(parts);
 }
