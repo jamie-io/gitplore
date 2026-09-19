@@ -117,8 +117,9 @@ export function arcAnchors(
     const angle = (t - 0.5) * arc;
     const x = Math.sin(angle) * radius;
     const z = -Math.cos(angle) * radius;
-    // Front direction is (sin r, cos r); facing the arrival point means pointing at the origin.
-    return { position: [x, 0, z] as const, rotationY: Math.atan2(-x, -z) + Math.PI };
+    // Front direction is (sin r, cos r); facing the arrival point means pointing at the origin,
+    // along (−x, −z). No extra half turn: that would show the arriving visitor the back.
+    return { position: [x, 0, z] as const, rotationY: Math.atan2(-x, -z) };
   });
 
   return clearOf(candidates, avoid, count);
