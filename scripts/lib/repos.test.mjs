@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   COMMIT_BUCKET_COUNT,
+  buildCommitEnrichment,
   buildCommitBuckets,
   fetchCommitPages,
   fetchJson,
@@ -154,6 +155,60 @@ test('anchors on the oldest returned commit and clamps commits outside the origi
   );
 });
 
+test('retains the committed first-commit anchor when the fetch is truncated', () => {
+  const previous = {
+    firstCommitAt: '2025-01-01T00:00:00Z',
+    commitBuckets: [4],
+  };
+  const enrichment = buildCommitEnrichment(
+    {
+      commits: [
+        { commit: { author: { date: '2025-01-05T00:00:00Z' } } },
+        { commit: { author: { date: '2025-01-04T00:00:00Z' } } },
+      ],
+      truncated: true,
+    },
+    '2025-01-02T00:00:00Z',
+    '2025-01-06T00:00:00Z',
+    previous.firstCommitAt,
+  );
+
+  const merged = withRepoData({ name: 'gitplore' }, enrichment, previous);
+
+  assert.equal(merged.firstCommitAt, previous.firstCommitAt);
+});
+
+test('records the oldest returned commit as the first-commit anchor after an untruncated fetch', () => {
+  const enrichment = buildCommitEnrichment(
+    {
+      commits: [
+        { commit: { author: { date: '2025-01-05T00:00:00Z' } } },
+        { commit: { author: { date: '2025-01-03T00:00:00Z' } } },
+      ],
+      truncated: false,
+    },
+    '2025-01-02T00:00:00Z',
+    '2025-01-06T00:00:00Z',
+  );
+
+  assert.equal(enrichment.firstCommitAt, '2025-01-03T00:00:00Z');
+});
+
+test('anchors the window at the minimum of created, committed-first, and returned-oldest dates', () => {
+  const buckets = buildCommitBuckets(
+    [
+      { commit: { author: { date: '2025-01-05T00:00:00Z' } } },
+      { commit: { author: { date: '2025-01-04T00:00:00Z' } } },
+      { commit: { author: { date: '2025-01-03T00:00:00Z' } } },
+    ],
+    '2025-01-02T00:00:00Z',
+    '2025-01-05T00:00:00Z',
+    '2025-01-01T00:00:00Z',
+  );
+
+  assert.equal(buckets[26], 1);
+});
+
 test('returns undefined when commit data cannot produce a valid window', () => {
   assert.equal(buildCommitBuckets([], 'not-a-date', '2026-01-01T00:00:00Z'), undefined);
   assert.equal(buildCommitBuckets([], '2026-01-01T00:00:00Z', '2025-01-01T00:00:00Z'), undefined);
@@ -225,7 +280,7 @@ test('fetches at most three full commit pages and stops at a short page', async 
     [{ index: 200 }],
   ];
 
-  const commits = await fetchCommitPages('https://api.example.test/commits', {
+  const result = await fetchCommitPages('https://api.example.test/commits', {
     fetchImpl: async (url) => {
       requests.push(url);
       const page = Number(new URL(url).searchParams.get('page'));
@@ -233,7 +288,8 @@ test('fetches at most three full commit pages and stops at a short page', async 
     },
   });
 
-  assert.equal(commits.length, 201);
+  assert.equal(result.commits.length, 201);
+  assert.equal(result.truncated, false);
   assert.deepEqual(
     requests.map((url) => new URL(url).searchParams.get('page')),
     ['1', '2', '3'],
@@ -243,14 +299,15 @@ test('fetches at most three full commit pages and stops at a short page', async 
 test('caps commit history at three pages when every page is full', async () => {
   const requests = [];
 
-  const commits = await fetchCommitPages('https://api.example.test/commits', {
+  const result = await fetchCommitPages('https://api.example.test/commits', {
     fetchImpl: async (url) => {
       requests.push(url);
       return new Response(JSON.stringify(Array(100).fill({})), { status: 200 });
     },
   });
 
-  assert.equal(commits.length, 300);
+  assert.equal(result.commits.length, 300);
+  assert.equal(result.truncated, true);
   assert.equal(requests.length, 3);
 });
 

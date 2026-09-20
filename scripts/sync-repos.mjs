@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
-  buildCommitBuckets,
+  buildCommitEnrichment,
   fetchCommitPages,
   fetchJson,
   indexCommittedRepos,
@@ -53,10 +53,10 @@ async function enrich(repo) {
         typeof request === 'function'
           ? await request()
           : await fetchJson(request, { headers, retryOnAccepted: true });
-      return [field, await map(value)];
+      return await map(value);
     } catch (error) {
       console.warn(`! ${repo.name.padEnd(22)} ${field} skipped: ${error.message}`);
-      return [field, undefined];
+      return undefined;
     }
   };
 
@@ -74,12 +74,21 @@ async function enrich(repo) {
     optional(
       'commitBuckets',
       () => fetchCommitPages(`${base}/commits`, { headers, retryOnAccepted: true }),
-      (value) => buildCommitBuckets(value, repo.createdAt, repo.pushedAt),
+      (value) =>
+        buildCommitEnrichment(value, repo.createdAt, repo.pushedAt, previous?.firstCommitAt),
     ),
     optional('releases', `${base}/releases?per_page=100`, toSyncedReleases),
   ]);
 
-  return withRepoData(stable, Object.fromEntries([languages, commits, releases]), previous);
+  return withRepoData(
+    stable,
+    {
+      ...(languages !== undefined ? { languages } : {}),
+      ...(commits !== undefined ? commits : {}),
+      ...(releases !== undefined ? { releases } : {}),
+    },
+    previous,
+  );
 }
 
 // Declared outside the try so the catch block can find and remove it if the run fails after the

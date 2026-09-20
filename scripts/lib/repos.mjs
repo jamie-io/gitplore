@@ -44,6 +44,7 @@ export function toSyncedRepo(apiRepo) {
 const REPO_DATA_FIELDS = [
   'languages',
   'commitBuckets',
+  'firstCommitAt',
   'createdAt',
   'license',
   'releases',
@@ -102,8 +103,8 @@ export function toSyncedReleases(releases) {
   });
 }
 
-/** Turns returned commits into the fixed lifetime ridge shape. */
-export function buildCommitBuckets(commits, createdAt, pushedAt) {
+/** Turns returned commits into the fixed lifetime ridge shape, retaining its earliest known anchor. */
+export function buildCommitBuckets(commits, createdAt, pushedAt, firstCommitAt) {
   if (!Array.isArray(commits)) {
     return undefined;
   }
@@ -123,7 +124,12 @@ export function buildCommitBuckets(commits, createdAt, pushedAt) {
     }
   }
 
-  const windowStart = Math.min(start, ...dates);
+  const persistedStart = typeof firstCommitAt === 'string' ? Date.parse(firstCommitAt) : NaN;
+  const windowStart = Math.min(
+    start,
+    ...(Number.isFinite(persistedStart) ? [persistedStart] : []),
+    ...dates,
+  );
   if (!Number.isFinite(windowStart) || end < windowStart) {
     return undefined;
   }
@@ -137,6 +143,49 @@ export function buildCommitBuckets(commits, createdAt, pushedAt) {
     buckets[index]++;
   }
   return buckets;
+}
+
+function oldestCommitAt(commits) {
+  let oldest;
+
+  for (const commit of commits) {
+    const rawDate = commit?.commit?.author?.date ?? commit?.commit?.committer?.date;
+    if (typeof rawDate !== 'string') {
+      continue;
+    }
+    const date = Date.parse(rawDate);
+    if (Number.isFinite(date) && (!oldest || date < oldest.date)) {
+      oldest = { date, value: rawDate };
+    }
+  }
+
+  return oldest?.value;
+}
+
+/** Builds commit buckets and persists the only anchor that a capped fetch cannot rediscover. */
+export function buildCommitEnrichment(
+  result,
+  createdAt,
+  pushedAt,
+  previousFirstCommitAt = undefined,
+) {
+  if (!result || !Array.isArray(result.commits)) {
+    return undefined;
+  }
+
+  const firstCommitAt =
+    result.truncated === true
+      ? previousFirstCommitAt
+      : (oldestCommitAt(result.commits) ?? previousFirstCommitAt);
+  const commitBuckets = buildCommitBuckets(result.commits, createdAt, pushedAt, firstCommitAt);
+  if (commitBuckets === undefined) {
+    return undefined;
+  }
+
+  return {
+    commitBuckets,
+    ...(typeof firstCommitAt === 'string' ? { firstCommitAt } : {}),
+  };
 }
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -169,6 +218,7 @@ export const MAX_COMMIT_PAGES = 3;
 export async function fetchCommitPages(url, options = {}) {
   const commits = [];
   const separator = url.includes('?') ? '&' : '?';
+  let truncated = true;
 
   for (let page = 1; page <= MAX_COMMIT_PAGES; page++) {
     const value = await fetchJson(
@@ -180,11 +230,12 @@ export async function fetchCommitPages(url, options = {}) {
     }
     commits.push(...value);
     if (value.length < COMMIT_PAGE_SIZE) {
+      truncated = false;
       break;
     }
   }
 
-  return commits;
+  return { commits, truncated };
 }
 
 /**
