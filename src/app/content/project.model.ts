@@ -67,6 +67,8 @@ export interface Project {
   readonly tags: readonly string[];
   readonly repoUrl: string;
   /** Optional repository data; thin or older committed records simply omit each field. */
+  readonly pushedAt?: string;
+  readonly stars?: number;
   readonly languages?: Readonly<Record<string, number>>;
   readonly commitBuckets?: readonly number[];
   readonly createdAt?: string;

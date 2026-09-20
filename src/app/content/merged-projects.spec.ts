@@ -63,6 +63,7 @@ describe('the merged portfolio', () => {
     expect('languages' in project).toBe(false);
     expect('commitBuckets' in project).toBe(false);
     expect('releases' in project).toBe(false);
+    expect(project.stars).toBe(0);
   });
 
   it('points every project at a real repository url', () => {

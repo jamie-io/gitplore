@@ -5,6 +5,10 @@ import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext, WorldObject, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import { Environment } from '../environments/environment';
+import { CommitRidge } from '../environments/data/commit-ridge';
+import { LanguagePillars } from '../environments/data/language-pillars';
+import { ReleaseMarkers } from '../environments/data/release-markers';
+import { StarLanterns } from '../environments/data/star-lanterns';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { ScreenLandmark } from '../landmarks/base/screen.landmark';
 import { ReturnPortal } from './return.landmark';
@@ -99,7 +103,43 @@ export class ProjectScene implements WorldScene {
 
     this.arrival = { position: this.returnPortal.spawn, yaw: this.returnPortal.spawnYaw };
     this.landmarks = [this.exhibit, this.returnPortal];
-    this.parts = [this.exhibit, this.returnPortal];
+    const side = new Vector3(
+      Math.cos(this.exhibit.rotationY),
+      0,
+      -Math.sin(this.exhibit.rotationY),
+    );
+    const dataOrigin = this.arrival.position
+      .clone()
+      .lerp(this.exhibit.position, 0.5)
+      .addScaledVector(side, 4);
+    this.parts = [
+      this.exhibit,
+      this.returnPortal,
+      new CommitRidge({
+        project: options.project,
+        from: this.arrival.position,
+        to: this.exhibit.position,
+        ground: this.environment.ground,
+      }),
+      new LanguagePillars({
+        project: options.project,
+        origin: dataOrigin,
+        rotationY: this.exhibit.rotationY,
+        ground: this.environment.ground,
+      }),
+      new ReleaseMarkers({
+        project: options.project,
+        from: this.arrival.position,
+        to: this.exhibit.position,
+        ground: this.environment.ground,
+      }),
+      new StarLanterns({
+        project: options.project,
+        from: this.arrival.position,
+        to: this.exhibit.position,
+        reducedMotion: options.reducedMotion,
+      }),
+    ];
   }
 
   /**

@@ -116,6 +116,8 @@ export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined):
     summary: override?.summary ?? usefulDescription(repo) ?? factualSummary(repo),
     tags: override?.tags ?? defaultTags(repo),
     repoUrl: repo.repoUrl,
+    ...(repo.pushedAt !== undefined ? { pushedAt: repo.pushedAt } : {}),
+    ...(repo.stars !== undefined ? { stars: repo.stars } : {}),
     ...(repo.languages !== undefined ? { languages: repo.languages } : {}),
     ...(repo.commitBuckets !== undefined ? { commitBuckets: repo.commitBuckets } : {}),
     ...(repo.createdAt !== undefined ? { createdAt: repo.createdAt } : {}),
