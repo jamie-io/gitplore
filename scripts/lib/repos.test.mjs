@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import {
   COMMIT_BUCKET_COUNT,
   buildCommitBuckets,
+  fetchCommitPages,
   fetchJson,
+  indexCommittedRepos,
   REPO_LIMIT,
   selectRepos,
   toSyncedRepo,
@@ -56,14 +58,16 @@ test('turns an empty description or homepage into null, never an empty string', 
 });
 
 test('maps repository metadata and enriched data without renaming API concepts', () => {
-  const repo = toSyncedRepo(
-    api('gitplore', {
-      created_at: '2025-01-01T00:00:00Z',
-      license: { spdx_id: 'MIT' },
-      forks_count: 4,
-      open_issues_count: 2,
-      size: 128,
-    }),
+  const repo = withRepoData(
+    toSyncedRepo(
+      api('gitplore', {
+        created_at: '2025-01-01T00:00:00Z',
+        license: { spdx_id: 'MIT' },
+        forks_count: 4,
+        open_issues_count: 2,
+        size: 128,
+      }),
+    ),
     {
       languages: { TypeScript: 900, HTML: 100 },
       commitBuckets: [3, 1],
@@ -92,7 +96,7 @@ test('maps repository metadata and enriched data without renaming API concepts',
 });
 
 test('keeps empty enrichment shapes instead of turning them into missing fields', () => {
-  const repo = toSyncedRepo(api('thin'), {
+  const repo = withRepoData(toSyncedRepo(api('thin')), {
     languages: {},
     commitBuckets: Array(COMMIT_BUCKET_COUNT).fill(0),
     releases: [],
@@ -101,6 +105,12 @@ test('keeps empty enrichment shapes instead of turning them into missing fields'
   assert.deepEqual(repo.languages, {});
   assert.equal(repo.commitBuckets.length, COMMIT_BUCKET_COUNT);
   assert.deepEqual(repo.releases, []);
+});
+
+test('does not accept enrichment as the second toSyncedRepo argument', () => {
+  const repo = toSyncedRepo(api('thin'), { languages: { TypeScript: 10 } });
+
+  assert.equal(repo.languages, undefined);
 });
 
 test('buckets lifetime commits into 52 deterministic bins', () => {
@@ -122,6 +132,32 @@ test('buckets lifetime commits into 52 deterministic bins', () => {
     buckets.reduce((sum, count) => sum + count, 0),
     3,
   );
+});
+
+test('anchors on the oldest returned commit and clamps commits outside the original window', () => {
+  const buckets = buildCommitBuckets(
+    [
+      { commit: { author: { date: '2024-01-01T00:00:00Z' } } },
+      { commit: { author: { date: '2025-01-01T00:00:00Z' } } },
+      { commit: { author: { date: '2027-01-01T00:00:00Z' } } },
+    ],
+    '2025-01-01T00:00:00Z',
+    '2026-01-01T00:00:00Z',
+  );
+
+  assert.equal(buckets[0], 1);
+  assert.equal(buckets[26], 1);
+  assert.equal(buckets[51], 1);
+  assert.equal(
+    buckets.reduce((sum, count) => sum + count, 0),
+    3,
+  );
+});
+
+test('returns undefined when commit data cannot produce a valid window', () => {
+  assert.equal(buildCommitBuckets([], 'not-a-date', '2026-01-01T00:00:00Z'), undefined);
+  assert.equal(buildCommitBuckets([], '2026-01-01T00:00:00Z', '2025-01-01T00:00:00Z'), undefined);
+  assert.equal(buildCommitBuckets({}, '2025-01-01T00:00:00Z', '2026-01-01T00:00:00Z'), undefined);
 });
 
 test('returns a flat lifetime shape when no commits are available', () => {
@@ -179,6 +215,53 @@ test('retries accepted stats responses and forwards authorization headers', asyn
   assert.deepEqual(result, { all: [1] });
   assert.equal(seen.length, 3);
   assert.equal(seen[0].authorization, 'Bearer build-token');
+});
+
+test('fetches at most three full commit pages and stops at a short page', async () => {
+  const requests = [];
+  const pages = [
+    Array.from({ length: 100 }, (_, index) => ({ index })),
+    Array.from({ length: 100 }, (_, index) => ({ index: index + 100 })),
+    [{ index: 200 }],
+  ];
+
+  const commits = await fetchCommitPages('https://api.example.test/commits', {
+    fetchImpl: async (url) => {
+      requests.push(url);
+      const page = Number(new URL(url).searchParams.get('page'));
+      return new Response(JSON.stringify(pages[page - 1]), { status: 200 });
+    },
+  });
+
+  assert.equal(commits.length, 201);
+  assert.deepEqual(
+    requests.map((url) => new URL(url).searchParams.get('page')),
+    ['1', '2', '3'],
+  );
+});
+
+test('caps commit history at three pages when every page is full', async () => {
+  const requests = [];
+
+  const commits = await fetchCommitPages('https://api.example.test/commits', {
+    fetchImpl: async (url) => {
+      requests.push(url);
+      return new Response(JSON.stringify(Array(100).fill({})), { status: 200 });
+    },
+  });
+
+  assert.equal(commits.length, 300);
+  assert.equal(requests.length, 3);
+});
+
+test('indexes only valid records from committed repository data', () => {
+  const oldRepo = { name: 'old', commitBuckets: [4] };
+
+  assert.deepEqual(
+    [...indexCommittedRepos([oldRepo, null, 'not-a-repo', { name: 4 }])],
+    [['old', oldRepo]],
+  );
+  assert.equal(indexCommittedRepos({ name: 'not-an-array' }).size, 0);
 });
 
 test('drops forks and archived repositories', () => {

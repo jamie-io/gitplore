@@ -11,7 +11,9 @@ import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import {
   buildCommitBuckets,
+  fetchCommitPages,
   fetchJson,
+  indexCommittedRepos,
   selectRepos,
   toSyncedReleases,
   withRepoData,
@@ -39,15 +41,19 @@ try {
 } catch {
   // A successful list response can still reconstruct the file from scratch.
 }
-const committedByName = new Map(committed.map((repo) => [repo.name, repo]));
+const committedByName = indexCommittedRepos(committed);
 
 async function enrich(repo) {
   const previous = committedByName.get(repo.name);
   const stable = withRepoData(repo, {}, previous);
   const base = `${API_ROOT}/repos/${OWNER}/${encodeURIComponent(repo.name)}`;
-  const optional = async (field, url, map) => {
+  const optional = async (field, request, map) => {
     try {
-      return [field, map(await fetchJson(url, { headers, retryOnAccepted: true }))];
+      const value =
+        typeof request === 'function'
+          ? await request()
+          : await fetchJson(request, { headers, retryOnAccepted: true });
+      return [field, await map(value)];
     } catch (error) {
       console.warn(`! ${repo.name.padEnd(22)} ${field} skipped: ${error.message}`);
       return [field, undefined];
@@ -65,8 +71,10 @@ async function enrich(repo) {
         ),
       );
     }),
-    optional('commitBuckets', `${base}/commits?per_page=100`, (value) =>
-      buildCommitBuckets(value, repo.createdAt, repo.pushedAt),
+    optional(
+      'commitBuckets',
+      () => fetchCommitPages(`${base}/commits`, { headers, retryOnAccepted: true }),
+      (value) => buildCommitBuckets(value, repo.createdAt, repo.pushedAt),
     ),
     optional('releases', `${base}/releases?per_page=100`, toSyncedReleases),
   ]);

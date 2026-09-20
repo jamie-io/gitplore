@@ -10,7 +10,7 @@ export const COMMIT_BUCKET_COUNT = 52;
 /** Empty strings are GitHub's "unset"; null says so honestly to every consumer downstream. */
 const orNull = (value) => (value ? value : null);
 
-export function toSyncedRepo(apiRepo, enrichment = {}) {
+export function toSyncedRepo(apiRepo) {
   const repo = {
     name: apiRepo.name,
     description: orNull(apiRepo.description),
@@ -38,7 +38,7 @@ export function toSyncedRepo(apiRepo, enrichment = {}) {
     repo.size = apiRepo.size;
   }
 
-  return withRepoData(repo, enrichment);
+  return repo;
 }
 
 const REPO_DATA_FIELDS = [
@@ -65,6 +65,19 @@ export function withRepoData(repo, enrichment = {}, previous = undefined) {
   return merged;
 }
 
+/** Indexes the last committed records while tolerating a malformed top-level shape or entries. */
+export function indexCommittedRepos(committed) {
+  if (!Array.isArray(committed)) {
+    return new Map();
+  }
+
+  return new Map(
+    committed
+      .filter((repo) => repo && typeof repo === 'object' && typeof repo.name === 'string')
+      .map((repo) => [repo.name, repo]),
+  );
+}
+
 /** Maps the compact release shape shipped to the browser, with tag/date fallbacks for GitHub data. */
 export function toSyncedReleases(releases) {
   if (!Array.isArray(releases)) {
@@ -89,23 +102,37 @@ export function toSyncedReleases(releases) {
   });
 }
 
-/** Turns the commits returned by GitHub's one-page endpoint into the fixed lifetime ridge shape. */
+/** Turns returned commits into the fixed lifetime ridge shape. */
 export function buildCommitBuckets(commits, createdAt, pushedAt) {
-  const buckets = Array(COMMIT_BUCKET_COUNT).fill(0);
-  const start = Date.parse(createdAt);
-  const end = Date.parse(pushedAt);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) {
-    return buckets;
+  if (!Array.isArray(commits)) {
+    return undefined;
   }
 
-  const span = end - start;
-  for (const commit of Array.isArray(commits) ? commits : []) {
+  const start = Date.parse(createdAt);
+  const end = Date.parse(pushedAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return undefined;
+  }
+
+  const dates = [];
+  for (const commit of commits) {
     const rawDate = commit?.commit?.author?.date ?? commit?.commit?.committer?.date;
     const date = Date.parse(rawDate);
-    if (!Number.isFinite(date) || date < start || date > end) {
-      continue;
+    if (Number.isFinite(date)) {
+      dates.push(date);
     }
-    const fraction = span === 0 ? 1 : (date - start) / span;
+  }
+
+  const windowStart = Math.min(start, ...dates);
+  if (!Number.isFinite(windowStart) || end < windowStart) {
+    return undefined;
+  }
+
+  const buckets = Array(COMMIT_BUCKET_COUNT).fill(0);
+  const span = end - windowStart;
+  for (const date of dates) {
+    const clampedDate = Math.min(end, Math.max(windowStart, date));
+    const fraction = span === 0 ? 1 : (clampedDate - windowStart) / span;
     const index = Math.min(COMMIT_BUCKET_COUNT - 1, Math.floor(fraction * COMMIT_BUCKET_COUNT));
     buckets[index]++;
   }
@@ -133,6 +160,31 @@ export async function fetchJson(
     }
     return response.json();
   }
+}
+
+export const COMMIT_PAGE_SIZE = 100;
+export const MAX_COMMIT_PAGES = 3;
+
+/** Fetches enough newest commit pages to expose a useful lifetime shape without exhausting GitHub. */
+export async function fetchCommitPages(url, options = {}) {
+  const commits = [];
+  const separator = url.includes('?') ? '&' : '?';
+
+  for (let page = 1; page <= MAX_COMMIT_PAGES; page++) {
+    const value = await fetchJson(
+      `${url}${separator}per_page=${COMMIT_PAGE_SIZE}&page=${page}`,
+      options,
+    );
+    if (!Array.isArray(value)) {
+      throw new Error('invalid commits response');
+    }
+    commits.push(...value);
+    if (value.length < COMMIT_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return commits;
 }
 
 /**
