@@ -103,6 +103,9 @@ export class PlayerController {
   /** Seconds of grace left in which a jump still counts, after walking off an edge. */
   private coyote = 0;
 
+  /** Temporary vertical eye adjustment for postures such as sitting; zero means standing. */
+  private eyeHeightOffset = 0;
+
   /**
    * Moves the player and defines the full orientation they arrive with. Pitch resets by default:
    * every destination wants a level horizon, and leaving it to callers only stales it.
@@ -117,6 +120,15 @@ export class PlayerController {
     this.coyote = 0;
   }
 
+  /** Sets a temporary vertical eye adjustment; callers clear it by passing zero. */
+  setEyeHeightOffset(offset: number): void {
+    this.eyeHeightOffset = offset;
+  }
+
+  get eyeHeight(): number {
+    return PLAYER_EYE_HEIGHT + this.eyeHeightOffset;
+  }
+
   update(
     dt: number,
     intent: MoveIntent,
@@ -128,10 +140,10 @@ export class PlayerController {
 
     // One footing for the whole frame, so the same surface decides both what can be stepped onto
     // and what is a wall. Taking it after gravity would lose a step of exactly `STEP_HEIGHT`.
-    const feetY = this.position.y - PLAYER_EYE_HEIGHT;
+    const feetY = this.position.y - this.eyeHeight;
 
     this.move(dt, intent, colliders, feetY);
-    this.fall(dt, intent, ground, colliders, feetY);
+    this.fall(dt, intent, ground, colliders, feetY, this.eyeHeight);
     this.advanceStride();
   }
 
@@ -218,6 +230,7 @@ export class PlayerController {
     ground: HeightField,
     colliders: readonly Collider[],
     feetY: number,
+    eyeHeight: number,
   ): void {
     if (intent.jump && (this.grounded || this.coyote > 0)) {
       this.velocity.y = JUMP_SPEED;
@@ -230,7 +243,7 @@ export class PlayerController {
     this.position.y += this.velocity.y * dt;
 
     const floor =
-      floorHeightAt(this.position.x, this.position.z, feetY, ground, colliders) + PLAYER_EYE_HEIGHT;
+      floorHeightAt(this.position.x, this.position.z, feetY, ground, colliders) + eyeHeight;
     // `this.grounded` still holds last frame's footing here, and the jump above clears it on
     // takeoff: the snap may only pull down someone the ground has slipped away from, never
     // someone who is in the air on purpose.

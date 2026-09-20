@@ -7,6 +7,7 @@ import { Router, provideRouter, withComponentInputBinding } from '@angular/route
 import { CapabilityService, DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { AudioService } from '@engine/audio/audio.service';
 import { ENGINE } from '@engine/engine.service';
+import { InputService } from '@engine/input.service';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { SettingsStore } from '@ui/store/settings.store';
@@ -225,6 +226,21 @@ describe('WorldPage', () => {
     TestBed.tick();
 
     expect(fixture.nativeElement.getAttribute('data-input-mode')).toBe('world');
+  });
+
+  it('mirrors capture transitions into the store so the HUD and page agree', async () => {
+    await bootWithoutManifest();
+    store.markStarted();
+    TestBed.tick();
+    const input = TestBed.inject(InputService);
+
+    input.capture('Aufstehen');
+    expect(store.inputMode()).toBe('captured');
+    TestBed.tick();
+    expect(fixture.nativeElement.getAttribute('data-input-mode')).toBe('captured');
+
+    input.releaseCapture();
+    expect(store.inputMode()).toBe('world');
   });
 
   for (const policy of [

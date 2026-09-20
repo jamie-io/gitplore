@@ -24,9 +24,9 @@ import { WorldContext } from '@engine/world-object';
 import type { Mood } from '../environments/mood';
 
 /*
- * Proportions, in metres. The eye is at `PLAYER_EYE_HEIGHT` and the soles are on the ground the
- * controller found, so the figure is built around those two fixed points rather than around a
- * height of its own.
+ * Proportions, in metres. The eye is at the controller's current eye height and the soles are on
+ * the ground the controller found, so the figure is built around those two points rather than
+ * around a height of its own.
  */
 
 /** Where the legs hang from. Also their length, since the soles stand on the ground. */
@@ -223,7 +223,7 @@ export class Explorer implements PlayerVisual {
 
     this.time += dt;
     const reduced = this.reducedMotion();
-    const sole = player.position.y - PLAYER_EYE_HEIGHT;
+    const sole = player.position.y - player.eyeHeight;
     if (!this.following) {
       // Placed, not eased: a figure that has never seen this player has nothing to ease from.
       this.remember(player, sole);

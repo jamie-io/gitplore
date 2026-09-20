@@ -230,3 +230,27 @@ describe('Hud during an in-world demo', () => {
     expect(hint?.textContent).toContain('Originaltitel');
   });
 });
+
+describe('Hud during captured input', () => {
+  it('names both keys that release a captured interactable', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [Hud],
+      providers: [
+        { provide: ENGINE, useValue: stubEngine },
+        { provide: ActivatedRoute, useValue: routeWithQuery({}) },
+        stubContentSource,
+      ],
+    }).compileComponents();
+    const store = TestBed.inject(WorldStore);
+    const fixture = TestBed.createComponent(Hud);
+    store.markReady();
+    store.markStarted();
+    store.setCaptured(true, 'Aufstehen');
+    await fixture.whenStable();
+
+    const prompt = (fixture.nativeElement as HTMLElement).querySelector('.prompt');
+    expect(prompt?.textContent).toContain('Esc');
+    expect(prompt?.textContent).toContain('Aufstehen');
+  });
+});

@@ -20,6 +20,8 @@ export type Collider =
       readonly maxX: number;
       readonly minZ: number;
       readonly maxZ: number;
+      /** A dynamic prop may turn its fixed footprint off without changing scene-array identity. */
+      readonly enabled?: boolean;
       /**
        * World Y of the walkable surface on top of this collider. Left out, the collider is an
        * infinite wall — exactly how every prop behaved before tops existed.
@@ -31,6 +33,8 @@ export type Collider =
       readonly x: number;
       readonly z: number;
       readonly radius: number;
+      /** A dynamic prop may turn its fixed footprint off without changing scene-array identity. */
+      readonly enabled?: boolean;
       /** World Y of the walkable surface on top; see the box variant. */
       readonly top?: number;
     };
@@ -60,6 +64,9 @@ export function resolveCollisions(
   let point: Point2 = { x, z };
 
   for (const collider of colliders) {
+    if (collider.enabled === false) {
+      continue;
+    }
     if (steppableTop(collider, feetY) !== null) {
       continue;
     }
@@ -88,6 +95,9 @@ export function floorHeightAt(
   let floor = ground.heightAt(x, z);
 
   for (const collider of colliders) {
+    if (collider.enabled === false) {
+      continue;
+    }
     const top = steppableTop(collider, feetY);
     if (top !== null && top > floor && covers(collider, x, z)) {
       floor = top;

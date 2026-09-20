@@ -215,10 +215,15 @@ export class WorldPage {
     });
 
     const offActions = this.input.addActionListener((action) => this.onAction(action));
+    const offCapture = this.input.addCaptureListener((captured, prompt) =>
+      this.store.setCaptured(captured, prompt),
+    );
     afterNextRender(() => void this.boot());
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
+      this.input.releaseCapture();
       offActions();
+      offCapture();
       this.director.reset();
       this.store.resetTransient();
       this.audio.dispose();
@@ -328,6 +333,12 @@ export class WorldPage {
         // The same signal the settings dialog writes, so the rig, the avatar and the stored
         // preference can never disagree about which view is open.
         this.settings.setViewMode(this.settings.viewMode() === 'first' ? 'third' : 'first');
+        break;
+      case 'up':
+      case 'down':
+      case 'left':
+      case 'right':
+        // Captured props subscribe to these actions; world page keeps them out of walking.
         break;
       case 'exit':
         if (this.store.menuOpen()) {
