@@ -9,6 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { AudioService } from '@engine/audio/audio.service';
 import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
 import { WorldStore } from '../store/world.store';
 
@@ -117,6 +118,8 @@ export class LoadingScreen {
 
   protected readonly store = inject(WorldStore);
 
+  private readonly audio = inject(AudioService);
+
   private readonly startButton = viewChild<ElementRef<HTMLButtonElement>>('start');
 
   constructor() {
@@ -130,6 +133,9 @@ export class LoadingScreen {
   }
 
   protected begin(): void {
+    // The gate exists to give the browser a real user gesture; an `AudioContext` needs exactly
+    // that, so this is the one honest place to build it.
+    void this.audio.resume();
     this.store.markStarted();
     this.start.emit();
   }

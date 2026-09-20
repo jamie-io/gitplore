@@ -1,5 +1,6 @@
 import { Component, DestroyRef, computed, inject, isDevMode, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AudioService } from '@engine/audio/audio.service';
 import { EMPTY_ENGINE_STATS, ENGINE, EngineStats } from '@engine/engine.service';
 import { WorldStore } from '../store/world.store';
 
@@ -141,9 +142,13 @@ const STATS_INTERVAL_MS = 500;
       opacity: 0.7;
     }
   `,
+  // Whether the world is audible, for the end-to-end suite: SwiftShader has no audio output, so
+  // the state of the context is the only thing a browser test can check.
+  host: { '[attr.data-audio]': 'audio.state()' },
 })
 export class Hud {
   protected readonly store = inject(WorldStore);
+  protected readonly audio = inject(AudioService);
 
   private readonly engine = inject(ENGINE);
 

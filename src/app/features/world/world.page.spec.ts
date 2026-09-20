@@ -5,6 +5,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { CapabilityService, DEVICE_CAPABILITIES } from '@engine/capability.service';
+import { AudioService } from '@engine/audio/audio.service';
 import { ENGINE } from '@engine/engine.service';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
@@ -255,6 +256,48 @@ describe('WorldPage', () => {
       expect(setThrottle).toHaveBeenLastCalledWith(null);
     });
   }
+
+  it('hangs the audio on the render loop rather than on change detection', async () => {
+    const frame = vi.spyOn(TestBed.inject(AudioService), 'frame');
+    await bootWithoutManifest();
+
+    engine.tickables.forEach((tickable) => tickable.update(0.016));
+
+    expect(frame).toHaveBeenCalledWith(0.016, engine.player);
+  });
+
+  it('pushes the stored volume into the engine, the way the quality tier travels', async () => {
+    const setVolume = vi.spyOn(TestBed.inject(AudioService), 'setVolume');
+    await bootWithoutManifest();
+
+    TestBed.inject(SettingsStore).setVolume(0.7);
+    TestBed.tick();
+
+    expect(setVolume).toHaveBeenLastCalledWith(0.7);
+  });
+
+  it('ducks the world while the panel is open and lets it back up afterwards', async () => {
+    const setDucked = vi.spyOn(TestBed.inject(AudioService), 'setDucked');
+    await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+    await bootWithoutManifest();
+
+    await TestBed.inject(Router).navigate(['/p', 'novaverta', 'info']);
+    TestBed.tick();
+    expect(setDucked).toHaveBeenLastCalledWith(true);
+
+    await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+    TestBed.tick();
+    expect(setDucked).toHaveBeenLastCalledWith(false);
+  });
+
+  it('lets go of the audio context when the page goes', async () => {
+    const dispose = vi.spyOn(TestBed.inject(AudioService), 'dispose');
+    await bootWithoutManifest();
+
+    fixture.destroy();
+
+    expect(dispose).toHaveBeenCalled();
+  });
 
   it('asks the director for the start world exactly once on a cold boot', async () => {
     // The route-driven build effect used to infer "boot has claimed the scene" from

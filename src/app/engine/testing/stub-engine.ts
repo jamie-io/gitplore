@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { EMPTY_ENGINE_STATS, EngineService } from '../engine.service';
 import { InputService } from '../input.service';
 import { PlayerController } from '../player/player-controller';
-import { WorldScene } from '../world-object';
+import { Tickable, WorldScene } from '../world-object';
 
 /** The engine without a renderer: a page's or director's lifecycle and bridging are what is under test. */
 export class StubEngine {
@@ -14,6 +14,8 @@ export class StubEngine {
   readonly player = new PlayerController();
   onNearbyChange: EngineService['onNearbyChange'] = null;
   readonly nearby = null;
+  /** What the page hung on the render loop; there is no loop here to drive them. */
+  readonly tickables = new Set<Tickable>();
 
   stats() {
     return EMPTY_ENGINE_STATS;
@@ -27,6 +29,13 @@ export class StubEngine {
   detach(): void {
     this.detached++;
     this.detachInput?.();
+    this.tickables.clear();
+  }
+  addTickable(tickable: Tickable): void {
+    this.tickables.add(tickable);
+  }
+  removeTickable(tickable: Tickable): void {
+    this.tickables.delete(tickable);
   }
   resize(): void {
     // no renderer

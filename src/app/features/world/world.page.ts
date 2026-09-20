@@ -16,6 +16,7 @@ import { filter, map, startWith } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { AssetManifest, AssetService } from '@engine/asset.service';
+import { AudioService } from '@engine/audio/audio.service';
 import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { InputAction, InputService } from '@engine/input.service';
@@ -102,6 +103,7 @@ export class WorldPage {
   protected readonly capability = inject(CapabilityService);
   private readonly content = inject(ContentService);
   private readonly assets = inject(AssetService);
+  private readonly audio = inject(AudioService);
   private readonly http = inject(HttpClient);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -147,6 +149,11 @@ export class WorldPage {
     // `@engine` may not reach into `@ui`, so the chosen view travels the same way the tier does.
     // Reactively, because the settings dialog and the view key both move the same signal mid-play.
     effect(() => this.engine.setViewMode(this.settings.viewMode()));
+    // The volume and the mute travel the same way, for the same reason.
+    effect(() => {
+      this.audio.setVolume(this.settings.volume());
+      this.audio.setMuted(this.settings.muted());
+    });
     // Settings and adaptive stepping change the tier at runtime; the renderer follows.
     effect(() => {
       this.capability.tier();
@@ -173,6 +180,9 @@ export class WorldPage {
       this.store.setPanelOpen(panel);
       // Keep the world alive but cheap behind the panel; on the weakest tier stop drawing entirely.
       this.engine.setThrottle(panel && this.capability.tier() !== 'low' ? 15 : null);
+      // The panel is the only place an embedded demo runs, and an iframe can make noise of its
+      // own: the world behind it drops to a murmur for as long as it is open.
+      this.audio.setDucked(panel);
       this.engine.setPaused(this.store.paused() || (panel && this.capability.tier() === 'low'));
       // Opening the panel ends a running demo; the panel is a different place.
       if (panel) {
@@ -211,6 +221,7 @@ export class WorldPage {
       offActions();
       this.director.reset();
       this.store.resetTransient();
+      this.audio.dispose();
       this.engine.detach();
     });
   }
@@ -245,7 +256,12 @@ export class WorldPage {
       }
       this.engine.attach(canvas);
       this.engine.resize(canvas.clientWidth, canvas.clientHeight);
-      this.engine.onNearbyChange = (nearby) => this.store.setNearby(nearby);
+      this.engine.onNearbyChange = (nearby) => {
+        this.store.setNearby(nearby);
+        this.audio.setNearby(nearby);
+      };
+      // Sound follows the player, so it rides the render loop rather than change detection.
+      this.engine.addTickable({ update: (dt) => this.audio.frame(dt, this.engine.player) });
 
       const { slug } = this.routeState();
       this.shown = slug;
@@ -285,12 +301,20 @@ export class WorldPage {
 
   private onAction(action: InputAction): void {
     switch (action) {
-      case 'interact':
+      case 'interact': {
         // A running demo eats the key; otherwise it goes to whatever the player is facing.
-        if (!this.director.demoInteract()) {
-          this.engine.nearby?.onInteract();
+        if (this.director.demoInteract()) {
+          this.audio.interact();
+          break;
+        }
+        const nearby = this.engine.nearby;
+        if (nearby) {
+          // Before the handler: using a portal builds another world, which retunes the audio.
+          this.audio.interact();
+          nearby.onInteract();
         }
         break;
+      }
       case 'menu':
         // `routeState().panel` rather than `store.panelOpen()`: the store copy trails the router
         // by one change-detection pass, and a key can land inside that gap and open the project

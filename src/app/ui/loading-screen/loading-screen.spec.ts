@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { AudioService } from '@engine/audio/audio.service';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { LoadingScreen } from './loading-screen';
@@ -46,6 +47,16 @@ describe('LoadingScreen', () => {
 
     expect(host().querySelector('progress')).toBeNull();
     expect(host().querySelector('button[data-role="start"]')?.textContent).toContain('Starten');
+  });
+
+  it('builds the audio context on the gate, the one real user gesture there is', async () => {
+    const resume = vi.spyOn(TestBed.inject(AudioService), 'resume');
+    store.markReady();
+    await fixture.whenStable();
+
+    host().querySelector<HTMLButtonElement>('button[data-role="start"]')?.click();
+
+    expect(resume).toHaveBeenCalledTimes(1);
   });
 
   it('dismisses itself and tells the page to start when the gate is used', async () => {

@@ -1,6 +1,7 @@
 import { Service, effect, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AssetService } from '@engine/asset.service';
+import { AudioService } from '@engine/audio/audio.service';
 import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
@@ -26,6 +27,7 @@ export class SceneDirector {
   private readonly content = inject(ContentService);
   private readonly capability = inject(CapabilityService);
   private readonly assets = inject(AssetService);
+  private readonly audio = inject(AudioService);
   private readonly store = inject(WorldStore);
   private readonly router = inject(Router);
 
@@ -92,6 +94,9 @@ export class SceneDirector {
       this.endDemo();
       // `setScene` disposes the previous world; only a scene that reaches here was ever built.
       this.engine.setScene(scene);
+      // After the scene, so the interaction reset it fires has already cleared what was nearby.
+      // The sound of a place travels with its light: both are cut from the environment's mood.
+      this.audio.setWorld(environment.mood.audio);
       this.current = scene;
       this.place(scene);
       this.store.setArea(project ? `${environment.name} — ${project.title}` : environment.name);

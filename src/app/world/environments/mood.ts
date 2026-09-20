@@ -1,4 +1,5 @@
 import { Scene, Vector3 } from 'three';
+import type { WorldAudio } from '@engine/audio/audio.service';
 import { ColorGrade, setGrade } from '@engine/color-grade';
 
 /**
@@ -72,6 +73,13 @@ export interface Mood {
    * the rest of the figure from it, so a world changes who walks through it by changing one value.
    */
   readonly accent: number;
+  /**
+   * What the place sounds like: the surface underfoot, how much air and water are in earshot, and
+   * the key its portals hum in. The shape lives in `@engine/audio` because the synth may not
+   * import `@world`; it belongs in the mood because sound is part of a place exactly as its light
+   * is, and a world that changed one without the other would not be the same world.
+   */
+  readonly audio: WorldAudio;
   readonly grade: ColorGrade;
 }
 
@@ -94,6 +102,8 @@ export const LICHTUNG: Mood = {
   },
   clouds: { coverage: 0.32, softness: 0.4, speed: 0.6, color: 0xfff5e8, shade: 0xd8b6aa },
   wind: { strength: 0.6, gustScale: 0.04, direction: 0.9 },
+  // Turf over dry soil swallows a step; the pond is far enough off to be a suggestion. A3.
+  audio: { surface: 380, ring: 1, wind: 0.6, water: 0.3, key: 220 },
   // Red-orange: the one hue the meadow's greens and the low sun's gold leave free.
   accent: 0xc2452f,
   grade: { saturation: 1.1, contrast: 1.05, warmth: 0.04, vignette: 0.22, bloomStrength: 0.35 },
@@ -114,6 +124,9 @@ export const DSCHUNGEL: Mood = {
   },
   clouds: null,
   wind: { strength: 0.25, gustScale: 0.03, direction: 0.3 },
+  // Wet leaf litter: lower and duller than the meadow, under a canopy with barely any wind and a
+  // waterfall that is never out of earshot. G3, a tone below the clearing.
+  audio: { surface: 300, ring: 0.8, wind: 0.25, water: 0.6, key: 196 },
   // Amber: warm enough to carry through the teal haze that swallows everything else at 40 m.
   accent: 0xe0a13c,
   grade: { saturation: 1.12, contrast: 1.06, warmth: -0.02, vignette: 0.28, bloomStrength: 0.5 },
@@ -142,6 +155,8 @@ export const PLAZA: Mood = {
   // Just under white: at 1.0 the clouds sat on the bloom threshold and veiled the high tier.
   clouds: { coverage: 0.22, softness: 0.3, speed: 0.4, color: 0xf2f6fa, shade: 0xb4c4d6 },
   wind: { strength: 0.4, gustScale: 0.05, direction: -0.6 },
+  // Stone tiles ring, and the fountain carries across the square. C4, the brightest of the four.
+  audio: { surface: 1150, ring: 4.5, wind: 0.4, water: 0.45, key: 262 },
   // Indigo against warm tiles: the square is all sand and lime, so blue is what stands out on it.
   accent: 0x2f5aa8,
   grade: { saturation: 1.12, contrast: 1.05, warmth: 0.03, vignette: 0.18, bloomStrength: 0.2 },
@@ -157,6 +172,9 @@ export const GALERIE: Mood = {
   fog: { color: 0x1a1d22, near: 60, far: 140, heightDensity: 0, heightFalloff: 0, sunScatter: 0 },
   clouds: null,
   wind: { strength: 0, gustScale: 0, direction: 0 },
+  // A hard polished floor indoors: every step is audible, and the only air is the room's own hum,
+  // which is what a wind of 0 leaves. D3, low and still.
+  audio: { surface: 1700, ring: 6, wind: 0, water: 0, key: 147 },
   // Bone: in a dark gallery the figure has to be the pale thing, not another shadow.
   accent: 0xd8d2c6,
   grade: { saturation: 1.0, contrast: 1.03, warmth: 0.0, vignette: 0.2, bloomStrength: 0.18 },

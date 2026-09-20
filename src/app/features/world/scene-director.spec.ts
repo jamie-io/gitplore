@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Router, provideRouter } from '@angular/router';
+import { AudioService } from '@engine/audio/audio.service';
 import { ENGINE } from '@engine/engine.service';
 import { DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { CAPABLE } from '@engine/testing/world-context';
@@ -10,6 +11,7 @@ import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from '@ui/store/world.store';
+import { GALERIE, LICHTUNG } from '@world/environments/mood';
 import { HubScene } from '@world/hub/hub.scene';
 import { ProjectScene } from '@world/project/project.scene';
 import { SceneDirector } from './scene-director';
@@ -48,6 +50,16 @@ describe('SceneDirector', () => {
 
     expect(engine.world).toBeInstanceOf(ProjectScene);
     expect(engine.world?.id).toBe('project:novaverta');
+  });
+
+  it('hands the audio the sound of the place it just built', async () => {
+    const setWorld = vi.spyOn(TestBed.inject(AudioService), 'setWorld');
+
+    await director.show(null);
+    expect(setWorld).toHaveBeenLastCalledWith(LICHTUNG.audio);
+
+    await director.show('novaverta');
+    expect(setWorld).toHaveBeenLastCalledWith(GALERIE.audio);
   });
 
   it('stands the player in the repo world it just built', async () => {
