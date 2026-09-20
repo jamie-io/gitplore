@@ -28,8 +28,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # Fresh READMEs on every deploy; the committed copies are the offline fallback (§4).
-      - run: npm run content:sync
+      # Fresh repository data and READMEs on every deploy; committed copies are the offline
+      # fallback (§4). The token exists only in this build step and is never shipped.
+      - name: Sync content
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run content:sync
       # Fails the build if an `embeddable: true` no longer matches the demo's live headers (§5).
       - run: npm run content:check
       - run: npm run lint
