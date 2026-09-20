@@ -71,6 +71,12 @@ export class ThirdPersonRig implements CameraRig {
     camera.rotation.order = 'YXZ';
   }
 
+  reset(): void {
+    // `followHead` reads "never seen the player" as a teleport, which snaps the anchor and the
+    // boom's length together — exactly what switching back into this view should look like.
+    this.following = false;
+  }
+
   sync(player: PlayerController, frame: RigFrame): void {
     const teleported = this.followHead(player, frame);
 
@@ -115,9 +121,16 @@ export class ThirdPersonRig implements CameraRig {
   /**
    * Marches outwards from the anchor to the furthest sample still clear of every prop, and puts
    * the camera there. No raycast: colliders are XZ footprints and the ground is analytic, so
-   * walking the boom is both cheaper and exactly as truthful as tracing it would be. Nothing can
-   * hide between two samples, so every point short of the furthest clear one is clear as well —
-   * which is what lets the boom sit part of the way out while it eases.
+   * walking the boom is both cheaper and exactly as truthful as tracing it would be.
+   *
+   * Every point short of the furthest clear sample is clear as well, which is what lets the boom
+   * sit part of the way out while it eases. Two things make that true, and it is worth being
+   * precise about them. In XZ, samples 0.6 m apart each keep the camera's own 0.3 m width clear,
+   * so nothing solid fits between two of them. In Y, each sample is judged at the lower end of the
+   * span behind it rather than at its own height: whether a collider is skipped depends on where
+   * its `top` lies relative to the camera, and the boom's height slides by `|sin(pitch)|` per
+   * metre, so a sample high enough to pass over a crate says nothing about the stretch of boom
+   * leading up to it.
    */
   private extendBoom(player: PlayerController, frame: RigFrame, teleported: boolean): void {
     const level = Math.cos(player.pitch);
@@ -146,15 +159,18 @@ export class ThirdPersonRig implements CameraRig {
     // anchor — first person in all but name, and the only honest answer when there is no room
     // behind the player at all.
     let clear = 0;
+    /** Where the boom stood at the end of the last span, so this one can be judged at its lowest. */
+    let behind = y;
     for (let step = 1; step <= BOOM_STEPS; step++) {
       const distance = (BOOM_LENGTH * step) / BOOM_STEPS;
       const sampleX = x + backX * distance;
       const sampleZ = z + backZ * distance;
       const sampleY = liftedOverGround(sampleX, y + backY * distance, sampleZ, frame.ground);
 
-      if (!isClear(sampleX, sampleY, sampleZ, frame.colliders)) {
+      if (!isClear(sampleX, Math.min(sampleY, behind), sampleZ, frame.colliders)) {
         break;
       }
+      behind = sampleY;
       clear = distance;
     }
 

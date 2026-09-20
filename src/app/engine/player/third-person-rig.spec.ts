@@ -5,6 +5,7 @@ import { PLAYER_EYE_HEIGHT, PlayerController } from './player-controller';
 import {
   BOOM_HEIGHT,
   BOOM_LENGTH,
+  BOOM_RADIUS,
   GROUND_CLEARANCE,
   MAX_RISE_LAG,
   ThirdPersonRig,
@@ -26,6 +27,14 @@ function standing(at = new Vector3(0, PLAYER_EYE_HEIGHT, 0)): PlayerController {
 /** A wall from `z` to `z + depth`, straight behind a player facing yaw 0. */
 function wall(z: number, depth: number, top?: number): Collider {
   return { kind: 'aabb', minX: -5, maxX: 5, minZ: z, maxZ: z + depth, top };
+}
+
+/** How far the camera ended up from the head, flat: the boom's reach with the pitch taken out. */
+function reachOf(camera: PerspectiveCamera, player: PlayerController): number {
+  return Math.hypot(
+    camera.position.x - player.position.x,
+    camera.position.z - player.position.z,
+  );
 }
 
 describe('ThirdPersonRig', () => {
@@ -142,6 +151,22 @@ describe('ThirdPersonRig', () => {
 
       expect(camera.position.z).toBeCloseTo(1.2, 6);
     });
+
+    it('stops short of a crate the boom clears at a sample but dips into on the way there', () => {
+      const camera = new PerspectiveCamera();
+      const player = standing();
+      // Looking down lifts the boom as it extends, so a sample can stand above a crate's top
+      // while the stretch of boom leading out to it is still below it.
+      player.pitch = -0.5;
+      // The crate's near face is just past the first sample, and its top stands above the boom
+      // there and below it by the second sample: the band a per-sample height test walks into.
+      const crate = wall(0.9, 4.1, 2.5);
+
+      new ThirdPersonRig(camera).sync(player, frame({ colliders: [crate] }));
+
+      expect(camera.position.z).toBeLessThan(0.9 - BOOM_RADIUS);
+      expect(reachOf(camera, player)).toBeLessThan(BOOM_LENGTH);
+    });
   });
 
   describe('the boom coming back out', () => {
@@ -245,6 +270,20 @@ describe('ThirdPersonRig', () => {
       rig.sync(player, frame());
 
       expect(camera.position.x).toBeCloseTo(0.3, 6);
+    });
+
+    it('places the camera rather than easing to it after a reset', () => {
+      const camera = new PerspectiveCamera();
+      const player = standing();
+      const rig = new ThirdPersonRig(camera);
+      rig.sync(player, frame({ reducedMotion: false }));
+      // A stride's worth of walking the rig did not watch, because the other view was on screen.
+      player.position.x = 1;
+
+      rig.reset();
+      rig.sync(player, frame({ reducedMotion: false }));
+
+      expect(camera.position.x).toBeCloseTo(1, 6);
     });
 
     it('snaps rather than flying across the map when the player is teleported', () => {

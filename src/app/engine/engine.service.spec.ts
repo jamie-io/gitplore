@@ -388,6 +388,21 @@ describe('EngineService', () => {
       expect(engine.camera.position.z).toBeCloseTo(BOOM_LENGTH, 6);
     });
 
+    it('places the boom on a switch back instead of easing it in from where it last stood', () => {
+      tick(0);
+      tick(16);
+
+      engine.setViewMode('first');
+      // A stride walked in first person, well under the distance the rig reads as a teleport.
+      engine.player.position.z -= 1;
+      tick(32);
+
+      engine.setViewMode('third');
+      tick(48);
+
+      expect(engine.camera.position.z).toBeCloseTo(engine.player.position.z + BOOM_LENGTH, 6);
+    });
+
     it('hands the rig the world the player walks through, so the boom clears it', () => {
       // A wall straight behind the spawn: the boom has to stop short of it.
       engine.setScene(

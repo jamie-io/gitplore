@@ -22,6 +22,13 @@ export interface RigFrame {
  */
 export interface CameraRig {
   sync(player: PlayerController, frame: RigFrame): void;
+
+  /**
+   * Forgets whatever the rig carries between frames. The engine calls it on the rig being switched
+   * in, which has not watched the player since it was last on screen: without it the camera eases
+   * in from wherever that rig left off instead of being placed where the player is now.
+   */
+  reset(): void;
 }
 
 /**
@@ -39,5 +46,9 @@ export class FirstPersonRig implements CameraRig {
     this.camera.rotation.y = player.yaw;
     this.camera.rotation.x = player.pitch;
     this.camera.rotation.z = 0;
+  }
+
+  reset(): void {
+    // Nothing is carried from one frame to the next: the camera is the head, every frame.
   }
 }

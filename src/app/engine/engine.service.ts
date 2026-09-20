@@ -178,7 +178,14 @@ export class EngineService {
    * engine may not reach into, so the world page pushes it here the way the quality tier travels.
    */
   setViewMode(mode: ViewMode): void {
+    if (this.rigs[mode] === this.rig) {
+      return;
+    }
+
     this.rig = this.rigs[mode];
+    // The rig coming in last watched the player wherever the view was switched away from it. On a
+    // key press that would be one visible swing of the camera, so it is placed rather than eased.
+    this.rig.reset();
   }
 
   /** Re-applies the current quality settings to the renderer, e.g. after a tier change. */
