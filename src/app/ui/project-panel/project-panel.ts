@@ -40,7 +40,7 @@ import { WorldStore } from '../store/world.store';
             </ul>
           </header>
 
-          <app-repository-data [project]="project" />
+          <app-repository-data [project]="project" [topLevel]="3" />
 
           @if (project.demo.kind === 'iframe') {
             <section class="demo" aria-label="Demo">

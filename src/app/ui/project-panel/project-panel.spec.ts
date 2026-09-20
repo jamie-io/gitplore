@@ -89,7 +89,11 @@ describe('ProjectPanel', () => {
     await open('novaverta');
 
     expect(host().querySelector('app-repository-data')).not.toBeNull();
-    expect(text()).toContain('Keine Veröffentlichungen.');
+    expect(host().querySelector('app-repository-data h3#repository-data-title')).not.toBeNull();
+    expect(host().querySelector('app-repository-data h2#repository-data-title')).toBeNull();
+    expect(host().querySelector('app-repository-data h4#languages-title')).not.toBeNull();
+    expect(host().querySelector('app-repository-data h3#languages-title')).toBeNull();
+    expect(text()).not.toContain('Keine Veröffentlichungen.');
   });
 
   it('renders the bundled README', async () => {

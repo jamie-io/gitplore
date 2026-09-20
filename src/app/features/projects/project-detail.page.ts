@@ -28,7 +28,7 @@ import { RepositoryData } from '@ui/repository-data/repository-data';
           </a>
         </nav>
 
-        <app-repository-data [project]="project" />
+        <app-repository-data [project]="project" [topLevel]="2" />
 
         @if (project.readme) {
           @if (readme.isLoading()) {

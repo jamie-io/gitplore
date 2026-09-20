@@ -37,11 +37,19 @@ interface ReleaseRow {
   template: `
     @if (hasData()) {
       <section class="repository-data" aria-labelledby="repository-data-title">
-        <h2 id="repository-data-title">Repositorydaten</h2>
+        @if (topLevel() === 2) {
+          <h2 class="repository-data-title" id="repository-data-title">Repositorydaten</h2>
+        } @else {
+          <h3 class="repository-data-title" id="repository-data-title">Repositorydaten</h3>
+        }
 
         @if (project().languages !== undefined) {
           <section aria-labelledby="languages-title">
-            <h3 id="languages-title">Sprachen</h3>
+            @if (topLevel() === 2) {
+              <h3 id="languages-title">Sprachen</h3>
+            } @else {
+              <h4 id="languages-title">Sprachen</h4>
+            }
             @if (languages().length > 0) {
               <ul>
                 @for (language of languages(); track language.name) {
@@ -61,7 +69,11 @@ interface ReleaseRow {
 
         @if (project().commitBuckets !== undefined) {
           <section aria-labelledby="commits-title">
-            <h3 id="commits-title">Commit-Aktivität</h3>
+            @if (topLevel() === 2) {
+              <h3 id="commits-title">Commit-Aktivität</h3>
+            } @else {
+              <h4 id="commits-title">Commit-Aktivität</h4>
+            }
             @if (commitActivity(); as activity) {
               @if (activity.total === 0) {
                 <p>Keine Commits im erfassten Zeitraum.</p>
@@ -97,40 +109,40 @@ interface ReleaseRow {
           </section>
         }
 
-        @if (project().releases !== undefined) {
+        @if (releases().length > 0) {
           <section aria-labelledby="releases-title">
-            <h3 id="releases-title">Veröffentlichungen</h3>
-            @if (releases().length > 0) {
-              <ul>
-                @for (release of releases(); track release.name + release.date) {
-                  <li>
-                    {{ release.name }}
-                    @if (release.date) {
-                      <span> · {{ release.date }}</span>
-                    }
-                  </li>
-                }
-              </ul>
+            @if (topLevel() === 2) {
+              <h3 id="releases-title">Veröffentlichungen</h3>
             } @else {
-              <p>Keine Veröffentlichungen.</p>
+              <h4 id="releases-title">Veröffentlichungen</h4>
             }
+            <ul>
+              @for (release of releases(); track release.name + release.date) {
+                <li>
+                  {{ release.name }}
+                  @if (release.date) {
+                    <span> · {{ release.date }}</span>
+                  }
+                </li>
+              }
+            </ul>
           </section>
         }
 
         <dl class="metrics">
-          @if (project().stars !== undefined) {
+          @if ((project().stars ?? 0) > 0) {
             <div>
               <dt>Sterne</dt>
               <dd>{{ formatInteger(project().stars ?? 0) }}</dd>
             </div>
           }
-          @if (project().forks !== undefined) {
+          @if ((project().forks ?? 0) > 0) {
             <div>
               <dt>Forks</dt>
               <dd>{{ formatInteger(project().forks ?? 0) }}</dd>
             </div>
           }
-          @if (project().openIssues !== undefined) {
+          @if ((project().openIssues ?? 0) > 0) {
             <div>
               <dt>Offene Issues</dt>
               <dd>{{ formatInteger(project().openIssues ?? 0) }}</dd>
@@ -159,11 +171,20 @@ interface ReleaseRow {
       border-block-start: 1px solid rgb(0 0 0 / 15%);
     }
     h2,
-    h3 {
+    h3,
+    h4 {
       margin-block: 0 0.45rem;
+      color: inherit;
+      line-height: 1.25;
+    }
+    h2 {
+      font-size: 1.35rem;
     }
     h3 {
       font-size: 1rem;
+    }
+    h4 {
+      font-size: 0.95rem;
     }
     section + section {
       margin-block-start: 1rem;
@@ -196,6 +217,8 @@ interface ReleaseRow {
 })
 export class RepositoryData {
   readonly project = input.required<Project>();
+  /** Heading level where this component starts; child headings are one level deeper. */
+  readonly topLevel = input(2);
 
   protected readonly languages = computed<readonly LanguageRow[]>(() => {
     const entries = Object.entries(this.project().languages ?? {})

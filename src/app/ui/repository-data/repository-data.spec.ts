@@ -41,9 +41,12 @@ describe('RepositoryData', () => {
     return definition?.querySelector('dd')?.textContent?.trim();
   };
 
-  function render(project: Project): void {
+  function render(project: Project, topLevel?: number): void {
     fixture = TestBed.createComponent(RepositoryData);
     fixture.componentRef.setInput('project', project);
+    if (topLevel !== undefined) {
+      fixture.componentRef.setInput('topLevel', topLevel);
+    }
     fixture.detectChanges();
   }
 
@@ -55,6 +58,8 @@ describe('RepositoryData', () => {
     render(PROJECT);
 
     expect(text()).toContain('Repositorydaten');
+    expect(host().querySelector('h2#repository-data-title')).not.toBeNull();
+    expect(host().querySelector('h3#languages-title')).not.toBeNull();
     expect(text()).toContain('TypeScript: 900 Bytes (90,0 %)');
     expect(text()).toContain('JavaScript: 100 Bytes (10,0 %)');
     expect(text()).toContain('5 Commits im Zeitraum vom 1. Januar 2026 bis 10. Januar 2026.');
@@ -76,27 +81,34 @@ describe('RepositoryData', () => {
       commitBuckets: Array(52).fill(0),
       releases: [],
       stars: 0,
-      forks: undefined,
-      openIssues: undefined,
+      forks: 0,
+      openIssues: 0,
       license: null,
     });
 
     expect(text()).toContain('Keine Sprachdaten vorhanden.');
     expect(text()).toContain('Keine Commits im erfassten Zeitraum.');
     expect(text()).not.toContain('Verteilt auf');
-    expect(text()).toContain('Keine Veröffentlichungen.');
-    expect(metric('Sterne')).toBe('0');
+    expect(host().querySelector('section[aria-labelledby="releases-title"]')).toBeNull();
+    expect(metric('Sterne')).toBeUndefined();
+    expect(metric('Forks')).toBeUndefined();
+    expect(metric('Offene Issues')).toBeUndefined();
     expect(metric('Lizenz')).toBe('Keine Lizenz angegeben');
-    expect(text()).not.toContain('Forks');
-    expect(text()).not.toContain('Offene Issues');
+  });
+
+  it('derives title and subheading levels from topLevel', () => {
+    render(PROJECT, 3);
+
+    expect(host().querySelector('h3#repository-data-title')).not.toBeNull();
+    expect(host().querySelector('h2#repository-data-title')).toBeNull();
+    expect(host().querySelector('h4#languages-title')).not.toBeNull();
+    expect(host().querySelector('h3#languages-title')).toBeNull();
   });
 
   it('uses the retained first-commit anchor when creation date is unavailable', () => {
     render({ ...PROJECT, createdAt: undefined });
 
-    expect(text()).toContain(
-      '5 Commits im Zeitraum vom 2. Januar 2026 bis 10. Januar 2026.',
-    );
+    expect(text()).toContain('5 Commits im Zeitraum vom 2. Januar 2026 bis 10. Januar 2026.');
   });
 
   it('renders nothing when every repository-data field is absent', () => {
@@ -115,23 +127,24 @@ describe('RepositoryData', () => {
     expect(text()).toBe('');
   });
 
-  it('keeps current repository empty states visible for every committed project', () => {
+  it('keeps empty repository data quiet for every committed project', () => {
     const projects = mergedProjects();
-
-    expect(projects.map((project) => project.slug)).toEqual([
-      'gitplore',
-      'webkatalog_demoshop',
-      'novaverta',
-      'poetzscher',
-      'deslopify',
-    ]);
 
     for (const project of projects) {
       render(project);
 
       expect(text()).toContain('Repositorydaten');
-      expect(text()).toContain('Keine Veröffentlichungen.');
-      expect(metric('Sterne')).toBe('0');
+      expect(host().querySelector('section[aria-labelledby="releases-title"]')).toBeNull();
+      expect(metric('Sterne')).toBe(
+        project.stars && project.stars > 0 ? String(project.stars) : undefined,
+      );
+      expect(metric('Forks')).toBe(
+        project.forks && project.forks > 0 ? String(project.forks) : undefined,
+      );
+      expect(metric('Offene Issues')).toBe(
+        project.openIssues && project.openIssues > 0 ? String(project.openIssues) : undefined,
+      );
+      expect(metric('Lizenz')).toBe(project.license ?? 'Keine Lizenz angegeben');
     }
   });
 });

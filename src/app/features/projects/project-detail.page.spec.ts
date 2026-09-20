@@ -68,7 +68,9 @@ describe('ProjectDetailPage', () => {
     await open('novaverta');
 
     expect(host().querySelector('app-repository-data')).not.toBeNull();
-    expect(host().textContent).toContain('Keine Veröffentlichungen.');
+    expect(host().querySelector('app-repository-data h2#repository-data-title')).not.toBeNull();
+    expect(host().querySelector('app-repository-data h3#languages-title')).not.toBeNull();
+    expect(host().textContent).not.toContain('Keine Veröffentlichungen.');
   });
 
   it('renders the README', async () => {
