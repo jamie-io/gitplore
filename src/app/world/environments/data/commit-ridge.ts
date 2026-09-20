@@ -14,6 +14,11 @@ const BASE_HEIGHT = 0.06;
 const MAX_HEIGHT = 2.8;
 const SLAB_DEPTH = 0.9;
 const SLAB_GAP = 0.3;
+const RIDGE_PATH_GAP = 0.5;
+
+/** The ridge's lateral footprint, used by the release cairns to line up beyond it. */
+export const RIDGE_HALF_DEPTH = SLAB_DEPTH / 2;
+export const RIDGE_OFFSET = RIDGE_HALF_DEPTH + RIDGE_PATH_GAP;
 
 export interface CommitRidgeOptions {
   readonly project: Project;
@@ -54,9 +59,13 @@ export class CommitRidge implements WorldObject {
     const text = ridgeLabel(this.options.project);
     const label = createLabel(text, this.options.project.theme.primary);
     if (label) {
-      const midpoint = this.options.from.clone().lerp(this.options.to, 0.5);
+      const midpoint = offsetPoint(this.options.from, this.options.to, -RIDGE_OFFSET);
       label.name = 'commit-ridge-label';
-      label.position.set(midpoint.x, midpoint.y + labelHeight(this.options.project), midpoint.z);
+      label.position.set(
+        midpoint.x,
+        this.options.ground.heightAt(midpoint.x, midpoint.z) + labelHeight(this.options.project),
+        midpoint.z,
+      );
       label.rotation.y = facingYaw(this.options.from, this.options.to);
       this.label = label;
       ctx.scene.add(label);
@@ -85,6 +94,7 @@ function buildGeometry(options: CommitRidgeOptions) {
   const direction = to.clone().sub(from);
   const distance = direction.length();
   const axis = distance > 0 ? direction.clone().normalize() : new Vector3(0, 0, -1);
+  const side = new Vector3(-axis.z, 0, axis.x);
   const angle = Math.atan2(-axis.z, axis.x);
   const inset = Math.min(PATH_INSET, distance / 4);
   const usable = Math.max(distance - inset * 2, 0);
@@ -105,7 +115,8 @@ function buildGeometry(options: CommitRidgeOptions) {
     const height = BASE_HEIGHT + share * MAX_HEIGHT;
     const point = from
       .clone()
-      .addScaledVector(axis, inset + ((index + 0.5) / RIDGE_SLAB_COUNT) * usable);
+      .addScaledVector(axis, inset + ((index + 0.5) / RIDGE_SLAB_COUNT) * usable)
+      .addScaledVector(side, -RIDGE_OFFSET);
     const slab = new BoxGeometry(width, height, SLAB_DEPTH)
       .rotateY(angle)
       .translate(point.x, options.ground.heightAt(point.x, point.z) + height / 2, point.z);
@@ -120,6 +131,13 @@ function buildGeometry(options: CommitRidgeOptions) {
   merged.computeBoundingBox();
   merged.computeBoundingSphere();
   return merged;
+}
+
+function offsetPoint(from: Vector3, to: Vector3, offset: number): Vector3 {
+  const direction = to.clone().sub(from);
+  const axis = direction.length() > 0 ? direction.normalize() : new Vector3(0, 0, -1);
+  const side = new Vector3(-axis.z, 0, axis.x);
+  return from.clone().lerp(to, 0.5).addScaledVector(side, offset);
 }
 
 function ridgeLabel(project: Project): string {

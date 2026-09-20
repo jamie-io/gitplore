@@ -23,6 +23,18 @@ function meshFor(project: Project): {
 }
 
 describe('CommitRidge', () => {
+  it('keeps the ridge beside the walking line', () => {
+    const { ctx, mesh, ridge } = meshFor({
+      ...PROJECT,
+      commitBuckets: Array.from({ length: 52 }, (_, index) => (index === 25 ? 7 : 0)),
+    });
+
+    expect(mesh.geometry.boundingBox?.max.x).toBeLessThan(0);
+
+    ridge.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
   it('merges all 52 slabs into one mesh and scales height from activity', () => {
     const project: Project = {
       ...PROJECT,

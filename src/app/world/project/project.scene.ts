@@ -6,7 +6,7 @@ import { WorldContext, WorldObject, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import { Environment } from '../environments/environment';
 import { CommitRidge } from '../environments/data/commit-ridge';
-import { LanguagePillars } from '../environments/data/language-pillars';
+import { LanguagePillars, languageSideOffset } from '../environments/data/language-pillars';
 import { ReleaseMarkers } from '../environments/data/release-markers';
 import { StarLanterns } from '../environments/data/star-lanterns';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
@@ -111,7 +111,7 @@ export class ProjectScene implements WorldScene {
     const dataOrigin = this.arrival.position
       .clone()
       .lerp(this.exhibit.position, 0.5)
-      .addScaledVector(side, 4);
+      .addScaledVector(side, languageSideOffset(options.project));
     this.parts = [
       this.exhibit,
       this.returnPortal,

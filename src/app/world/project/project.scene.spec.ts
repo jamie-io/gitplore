@@ -1,4 +1,4 @@
-import { Texture } from 'three';
+import { Mesh, Texture } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
@@ -116,6 +116,29 @@ describe('ProjectScene', () => {
     expect(ctx.scene.getObjectByName('star-lanterns')).toBeDefined();
 
     target.dispose();
+  });
+
+  it('keeps a capped language row on its side of the walk', () => {
+    const project: Project = {
+      ...PROJECT,
+      languages: Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [
+          `Language ${index.toString().padStart(2, '0')}`,
+          1,
+        ]),
+      ),
+    };
+    const ctx = stubContext();
+    const target = scene({ project });
+
+    target.init(ctx);
+
+    const pillars = ctx.scene.getObjectByName('language-pillars');
+    expect(pillars).toBeInstanceOf(Mesh);
+    expect((pillars as Mesh).geometry.boundingBox?.min.x).toBeGreaterThan(0);
+
+    target.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
   });
 
   it.each([

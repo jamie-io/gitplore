@@ -5,9 +5,17 @@ import { WorldContext, WorldObject } from '@engine/world-object';
 import type { HeightField } from '@engine/player/collision';
 import { createLabel } from '../../landmarks/base/label';
 import { assemble, paint } from '../flora';
+import { RIDGE_HALF_DEPTH, RIDGE_OFFSET } from './commit-ridge';
 
-const MARKER_OFFSET = 1.7;
 const MARKER_COLOUR = 0x8c7762;
+const RELEASE_PATH_GAP = 0.5;
+const CAIRN_SCALES = [0.4, 0.32, 0.24] as const;
+const CAIRN_MAX_SCALE = CAIRN_SCALES[0] * 1.16;
+const CAIRN_HALF_DEPTH = CAIRN_MAX_SCALE * Math.hypot(1.2, 0.9);
+
+/** Keep release markers beyond the ridge's far edge, with a gap around each footprint. */
+export const MARKER_OFFSET = RIDGE_OFFSET + RIDGE_HALF_DEPTH + CAIRN_HALF_DEPTH + RELEASE_PATH_GAP;
+export const MAX_RELEASE_MARKERS = 12;
 
 export interface ReleaseMarkersOptions {
   readonly project: Project;
@@ -16,7 +24,7 @@ export interface ReleaseMarkersOptions {
   readonly ground: HeightField;
 }
 
-/** Release cairns beside the history path; absent releases get a German empty-state label. */
+/** Release cairns beyond the history ridge; absent release data leaves this object silent. */
 export class ReleaseMarkers implements WorldObject {
   readonly id = 'release-markers';
 
@@ -28,12 +36,6 @@ export class ReleaseMarkers implements WorldObject {
   init(ctx: WorldContext): void {
     const releases = datedReleases(this.options.project);
     if (releases.length === 0) {
-      this.addEmptyLabel(
-        ctx,
-        this.options.project.releases === undefined
-          ? 'Keine Veröffentlichungsdaten'
-          : 'Keine Veröffentlichungen',
-      );
       return;
     }
 
@@ -45,29 +47,45 @@ export class ReleaseMarkers implements WorldObject {
     const end = Date.parse(this.options.project.pushedAt ?? '');
     const span = end - start;
     const parts = [];
+    const points: Vector3[] = [];
 
     for (const [index, release] of releases.entries()) {
-      const fraction = span > 0 ? clamp((Date.parse(release.date) - start) / span) : 0.5;
-      const point = from.clone().lerp(to, fraction).addScaledVector(side, MARKER_OFFSET);
+      const fraction =
+        span > 0
+          ? clamp((Date.parse(release.date) - start) / span)
+          : evenFraction(index, releases.length);
+      const point = from.clone().lerp(to, fraction).addScaledVector(side, -MARKER_OFFSET);
+      points.push(point);
       const y = this.options.ground.heightAt(point.x, point.z);
-      for (const [layer, scale] of [0.24, 0.32, 0.4].entries()) {
+      let stackTop = y;
+      for (const scale of CAIRN_SCALES) {
+        const stoneScale = scale * (1 + (index % 3) * 0.08);
+        const stoneHeight = stoneScale * 1.4;
         parts.push(
           paint(
-            new DodecahedronGeometry(scale * (1 + ((index + layer) % 3) * 0.08), 0)
+            new DodecahedronGeometry(stoneScale, 0)
               .scale(1.2, 0.7, 0.9)
-              .translate(point.x, y + scale * (layer + 0.5), point.z),
+              .translate(point.x, stackTop + stoneHeight / 2, point.z),
             MARKER_COLOUR,
           ),
         );
+        stackTop += stoneHeight;
       }
+    }
 
+    const newest = points[points.length - 1];
+    if (newest) {
       const label = createLabel(
-        `${release.name} · ${releaseDate(release.date)}`,
+        releases.map((release) => `${release.name} · ${releaseDate(release.date)}`).join(' · '),
         this.options.project.theme.primary,
       );
       if (label) {
-        label.name = `release-marker-label-${index}`;
-        label.position.set(point.x, y + 1.25, point.z);
+        label.name = 'release-marker-label';
+        label.position.set(
+          newest.x,
+          this.options.ground.heightAt(newest.x, newest.z) + 1.25,
+          newest.z,
+        );
         label.rotation.y = facingYaw(this.options.from, this.options.to);
         this.labels.push(label);
         ctx.scene.add(label);
@@ -98,23 +116,13 @@ export class ReleaseMarkers implements WorldObject {
       this.mesh = undefined;
     }
   }
-
-  private addEmptyLabel(ctx: WorldContext, text: string): void {
-    const midpoint = this.options.from.clone().lerp(this.options.to, 0.5);
-    const label = createLabel(text, this.options.project.theme.primary);
-    if (!label) {
-      return;
-    }
-    label.name = 'release-markers-label';
-    label.position.set(midpoint.x, midpoint.y + 1.2, midpoint.z);
-    label.rotation.y = facingYaw(this.options.from, this.options.to);
-    this.labels.push(label);
-    ctx.scene.add(label);
-  }
 }
 
 function datedReleases(project: Project) {
-  return (project.releases ?? []).filter((release) => Number.isFinite(Date.parse(release.date)));
+  return [...(project.releases ?? [])]
+    .filter((release) => Number.isFinite(Date.parse(release.date)))
+    .sort((left, right) => Date.parse(left.date) - Date.parse(right.date))
+    .slice(-MAX_RELEASE_MARKERS);
 }
 
 function releaseDate(value: string): string {
@@ -125,6 +133,10 @@ function releaseDate(value: string): string {
 
 function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function evenFraction(index: number, count: number): number {
+  return count === 1 ? 0.5 : index / (count - 1);
 }
 
 function facingYaw(from: Vector3, to: Vector3): number {

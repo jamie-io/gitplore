@@ -1,6 +1,7 @@
 import { Points } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { qualitySettings } from '@engine/capability.service';
+import type { QualityTier } from '@engine/capability.service';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import { MAX_STAR_LANTERNS, PATH_LAMP_COUNT, StarLanterns } from './star-lanterns';
@@ -13,13 +14,16 @@ const options = (project: Project) => ({
   reducedMotion: () => true,
 });
 
-function pointsFor(project: Project): {
+function pointsFor(
+  project: Project,
+  tier: QualityTier = 'high',
+): {
   ctx: ReturnType<typeof stubContext>;
   points: Points;
   lanterns: StarLanterns;
 } {
   const base = stubContext();
-  const ctx = { ...base, quality: qualitySettings('high') };
+  const ctx = { ...base, quality: qualitySettings(tier) };
   const lanterns = new StarLanterns(options(project));
   lanterns.init(ctx);
   const points = ctx.scene.getObjectByName('star-lanterns');
@@ -29,12 +33,14 @@ function pointsFor(project: Project): {
 
 describe('StarLanterns', () => {
   it('uses deterministic path lamps when stars are absent or zero', () => {
-    for (const project of [PROJECT, { ...PROJECT, stars: 0 }]) {
-      const { ctx, points, lanterns } = pointsFor(project);
+    for (const tier of ['low', 'medium', 'high'] as const) {
+      for (const project of [PROJECT, { ...PROJECT, stars: 0 }]) {
+        const { ctx, points, lanterns } = pointsFor(project, tier);
 
-      expect(points.geometry.getAttribute('position').count).toBe(PATH_LAMP_COUNT);
-      lanterns.dispose();
-      expect(ctx.scene.children).toHaveLength(0);
+        expect(points.geometry.getAttribute('position').count).toBe(PATH_LAMP_COUNT);
+        lanterns.dispose();
+        expect(ctx.scene.children).toHaveLength(0);
+      }
     }
   });
 

@@ -4,7 +4,6 @@ import type { Project } from '@content/project.model';
 import { disposeObject3D } from '@engine/dispose';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import type { HeightField } from '@engine/player/collision';
-import { createLabel } from '../../landmarks/base/label';
 
 /** Stable colours keep the same language recognisable across repository worlds. */
 export const LANGUAGE_COLOURS: Readonly<Record<string, number>> = {
@@ -27,6 +26,10 @@ const PILLAR_WIDTH = 0.55;
 const PILLAR_BASE = 0.35;
 const PILLAR_MAX = 3.6;
 const PILLAR_SPACING = 1.2;
+const PILLAR_SIDE_GAP = 0.5;
+
+/** Keep repository-controlled rows within one side of the visitor's walk. */
+export const MAX_LANGUAGE_PILLARS = 12;
 
 export interface LanguagePillarsOptions {
   readonly project: Project;
@@ -35,19 +38,17 @@ export interface LanguagePillarsOptions {
   readonly ground: HeightField;
 }
 
-/** One pillar per language, merged into one coloured mesh. Missing languages get one quiet label. */
+/** One capped pillar per language, merged into one coloured mesh. Missing data stays silent. */
 export class LanguagePillars implements WorldObject {
   readonly id = 'language-pillars';
 
   private mesh?: Mesh;
-  private label?: Mesh;
 
   constructor(private readonly options: LanguagePillarsOptions) {}
 
   init(ctx: WorldContext): void {
     const languages = languageEntries(this.options.project);
     if (languages.length === 0) {
-      this.addEmptyLabel(ctx, 'Keine Sprachdaten');
       return;
     }
 
@@ -84,31 +85,26 @@ export class LanguagePillars implements WorldObject {
   }
 
   dispose(): void {
-    if (this.label) {
-      disposeObject3D(this.label);
-      this.label = undefined;
-    }
     if (this.mesh) {
       disposeObject3D(this.mesh);
       this.mesh = undefined;
     }
-  }
-
-  private addEmptyLabel(ctx: WorldContext, text: string): void {
-    const label = createLabel(text, this.options.project.theme.primary);
-    if (!label) {
-      return;
-    }
-    label.name = 'language-pillars-label';
-    label.position.copy(this.options.origin).setY(this.options.origin.y + 1.3);
-    label.rotation.y = this.options.rotationY;
-    this.label = label;
-    ctx.scene.add(label);
   }
 }
 
 function languageEntries(project: Project): readonly [string, number][] {
   return Object.entries(project.languages ?? {})
     .filter(([, bytes]) => typeof bytes === 'number' && Number.isFinite(bytes) && bytes > 0)
-    .sort(([left], [right]) => left.localeCompare(right));
+    .sort(([left], [right]) => left.localeCompare(right, 'en'))
+    .slice(0, MAX_LANGUAGE_PILLARS);
+}
+
+/** Half of visible row, excluding the pillar radius. */
+export function languageRowHalfSpan(project: Project): number {
+  return Math.max(0, (languageEntries(project).length - 1) / 2) * PILLAR_SPACING;
+}
+
+/** Centre offset that keeps the capped row clear of the walk by its own half-width. */
+export function languageSideOffset(project: Project): number {
+  return languageRowHalfSpan(project) + PILLAR_WIDTH / 2 + PILLAR_SIDE_GAP;
 }

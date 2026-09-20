@@ -221,9 +221,9 @@ function basinFloor(level: number, radius: number, depth: number): HeightField {
 export class PlazaEnvironment implements Environment {
   readonly id = 'plaza' as const;
   readonly name = 'Plaza';
-  /** Keeps the arrival clear of the fountain while bringing its first exhibit within 25 m. */
+  /** Faces the first exhibit from the moved arrival, keeping the fountain composed beside it. */
   readonly spawn = new Vector3(-8, 0, 4.2);
-  readonly spawnYaw = -0.22;
+  readonly spawnYaw = Math.atan2(this.spawn.x, this.spawn.z + EXHIBIT_RADIUS);
   /** Every shader in this world reads these; public so a test can watch time stand still. */
   readonly shared = new SharedUniforms(PLAZA);
   readonly colliders: readonly Collider[];
