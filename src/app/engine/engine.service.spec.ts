@@ -8,10 +8,11 @@ import {
 } from './capability.service';
 import { ENGINE_MAX_FRAME_SECONDS, EngineService } from './engine.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
-import { BoxGeometry, Mesh, MeshStandardMaterial, Texture, Vector3 } from 'three';
+import { BoxGeometry, Mesh, MeshStandardMaterial, Object3D, Texture, Vector3 } from 'three';
 import { Interactable } from './interaction/interactable';
 import { Collider, HeightField } from './player/collision';
-import { PLAYER_EYE_HEIGHT } from './player/player-controller';
+import { PLAYER_EYE_HEIGHT, PlayerController } from './player/player-controller';
+import { PlayerVisual } from './player/player-visual';
 import { BOOM_HEIGHT, BOOM_LENGTH } from './player/third-person-rig';
 import { WorldScene } from './world-object';
 import { CAPABLE } from './testing/world-context';
@@ -52,6 +53,23 @@ class StubRenderer implements RendererLike {
 
 const FLAT: HeightField = { heightAt: () => 0 };
 
+/** Records what the engine does to a world's avatar, without a figure to build. */
+class StubAvatar implements PlayerVisual {
+  readonly object = new Object3D();
+  readonly synced: number[] = [];
+  readonly modes: boolean[] = [];
+
+  sync(_player: PlayerController, dt: number): void {
+    this.synced.push(dt);
+  }
+  setFirstPerson(on: boolean): void {
+    this.modes.push(on);
+  }
+  dispose(): void {
+    // The scene that built the figure disposes it; the engine never does.
+  }
+}
+
 function stubScene(id: string, interactables: Interactable[] = [], colliders: Collider[] = []) {
   const scene: WorldScene & { initialised: number; disposed: number; updates: number[] } = {
     id,
@@ -66,6 +84,12 @@ function stubScene(id: string, interactables: Interactable[] = [], colliders: Co
     dispose: () => void scene.disposed++,
   };
   return scene;
+}
+
+/** A world that carries an avatar, as every real scene does. */
+function stubSceneWithAvatar(id = 'hub') {
+  const avatar = new StubAvatar();
+  return Object.assign(stubScene(id), { avatar });
 }
 
 describe('EngineService', () => {
@@ -401,6 +425,36 @@ describe('EngineService', () => {
       tick(48);
 
       expect(engine.camera.position.z).toBeCloseTo(engine.player.position.z + BOOM_LENGTH, 6);
+    });
+
+    it('poses the avatar with the same frame it moved the player in', () => {
+      const scene = stubSceneWithAvatar();
+      engine.setScene(scene);
+
+      tick(0);
+      tick(20);
+
+      expect(scene.avatar.synced.at(-1)).toBeCloseTo(0.02, 6);
+    });
+
+    it('tells a freshly built world which view is open', () => {
+      engine.setViewMode('first');
+      const scene = stubSceneWithAvatar();
+
+      engine.setScene(scene);
+
+      // Built per world and never shared, so each new figure has to be told again.
+      expect(scene.avatar.modes).toEqual([true]);
+    });
+
+    it('hides the body when the view moves into the head, and shows it again', () => {
+      const scene = stubSceneWithAvatar();
+      engine.setScene(scene);
+
+      engine.setViewMode('first');
+      engine.setViewMode('third');
+
+      expect(scene.avatar.modes).toEqual([false, true, false]);
     });
 
     it('hands the rig the world the player walks through, so the boom clears it', () => {

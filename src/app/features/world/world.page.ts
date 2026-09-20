@@ -44,7 +44,7 @@ import { SceneDirector } from './scene-director';
       class="hub-canvas"
       tabindex="0"
       role="application"
-      aria-label="3D-Welt: mit WASD bewegen, mit den Pfeiltasten umsehen, E benutzt, M öffnet das Menü"
+      aria-label="3D-Welt: mit WASD bewegen, mit den Pfeiltasten umsehen, E benutzt, V wechselt die Ansicht, M öffnet das Menü"
       (click)="input.requestLock()"
       [inert]="overlayOpen()"
     ></canvas>
@@ -299,6 +299,11 @@ export class WorldPage {
         if (!this.routeState().panel && this.store.started()) {
           this.store.toggleMenu();
         }
+        break;
+      case 'view':
+        // The same signal the settings dialog writes, so the rig, the avatar and the stored
+        // preference can never disagree about which view is open.
+        this.settings.setViewMode(this.settings.viewMode() === 'first' ? 'third' : 'first');
         break;
       case 'exit':
         if (this.store.menuOpen()) {

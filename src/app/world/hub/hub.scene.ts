@@ -1,8 +1,10 @@
 import { Vector3 } from 'three';
 import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
+import { PlayerVisual } from '@engine/player/player-visual';
 import { WorldContext, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
+import { Explorer } from '../avatar/explorer';
 import { Environment } from '../environments/environment';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { createLandmark } from '../landmarks/create-landmark';
@@ -34,6 +36,9 @@ export class HubScene implements WorldScene {
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
 
+  /** Built with the world and disposed with it, cut from this environment's own accent. */
+  private readonly explorer: Explorer;
+
   private readonly environment: Environment;
   private readonly onAreaChange: ((area: string) => void) | undefined;
   private area: string | null = null;
@@ -41,6 +46,10 @@ export class HubScene implements WorldScene {
   constructor(options: HubSceneOptions) {
     this.environment = options.environment;
     this.onAreaChange = options.onAreaChange;
+    this.explorer = new Explorer({
+      mood: options.environment.mood,
+      reducedMotion: options.reducedMotion,
+    });
 
     // Pinned landmarks are placed by hand and never move, so generated anchors have to work around
     // them: without this an anchor can land on top of one.
@@ -85,6 +94,11 @@ export class HubScene implements WorldScene {
     this.interactables = this.landmarks.flatMap((landmark) => landmark.interactables);
   }
 
+  /** The engine drives the figure through `PlayerVisual` alone and never names the Explorer. */
+  get avatar(): PlayerVisual {
+    return this.explorer;
+  }
+
   get ground() {
     return this.environment.ground;
   }
@@ -104,6 +118,7 @@ export class HubScene implements WorldScene {
   init(ctx: WorldContext): void {
     this.environment.init(ctx);
     this.landmarks.forEach((landmark) => landmark.init(ctx));
+    this.explorer.init(ctx);
   }
 
   update(dt: number, ctx: WorldContext): void {
@@ -114,6 +129,7 @@ export class HubScene implements WorldScene {
 
   dispose(): void {
     this.landmarks.forEach((landmark) => landmark.dispose());
+    this.explorer.dispose();
     this.environment.dispose();
     this.area = null;
   }

@@ -37,7 +37,7 @@ import { WorldStore } from '../store/world.store';
         @case ('ready') {
           <p class="hint">
             Bewegen mit <kbd>WASD</kbd>, umsehen mit der Maus oder den <kbd>Pfeiltasten</kbd>,
-            benutzen mit <kbd>E</kbd>, Menü mit <kbd>M</kbd>.
+            benutzen mit <kbd>E</kbd>, Ansicht wechseln mit <kbd>V</kbd>, Menü mit <kbd>M</kbd>.
           </p>
           <button #start type="button" data-role="start" (click)="begin()">Starten</button>
           <a routerLink="/projects">Lieber als Liste</a>

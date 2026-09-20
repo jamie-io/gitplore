@@ -102,6 +102,17 @@ describe('HubScene', () => {
     expect(ctx.scene.children).toEqual([]);
   });
 
+  it('stands the explorer in the world and takes them away with it', () => {
+    const ctx = context();
+    const scene = hub();
+
+    scene.init(ctx);
+    expect(ctx.scene.children).toContain(scene.avatar.object);
+
+    scene.dispose();
+    expect(scene.avatar.object.parent).toBeNull();
+  });
+
   it('spawns the player on the flat centre', () => {
     const scene = hub();
 

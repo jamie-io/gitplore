@@ -2,7 +2,7 @@ import { Service, signal } from '@angular/core';
 import { MoveIntent } from './player/player-controller';
 
 export type InputMode = 'world' | 'ui' | 'demo';
-export type InputAction = 'interact' | 'menu' | 'exit';
+export type InputAction = 'interact' | 'menu' | 'exit' | 'view';
 
 /** Radians of turn per pixel of pointer movement, before the user's sensitivity multiplier. */
 const POINTER_SENSITIVITY = 0.0022;
@@ -22,6 +22,9 @@ const ACTION_KEYS: Record<string, InputAction> = {
   Enter: 'interact',
   KeyM: 'menu',
   Escape: 'exit',
+  // First or third person. The settings dialog holds the same choice; this is the one that is
+  // discoverable without leaving the world.
+  KeyV: 'view',
 };
 
 /** Actions that must work whatever has focus, otherwise an overlay could trap the visitor. */
@@ -148,6 +151,13 @@ export class InputService {
     }
 
     const action = ACTION_KEYS[event.code];
+
+    // A held key repeats; a view that flipped at the repeat rate would strobe the whole camera,
+    // which is the last thing `prefers-reduced-motion` would forgive. Ctrl+V and Cmd+V are a
+    // paste, not a view change — but Shift is the run key, so a running player may still press it.
+    if (action === 'view' && (event.repeat || event.ctrlKey || event.metaKey || event.altKey)) {
+      return;
+    }
 
     if (action && (this.mode() !== 'ui' || GLOBAL_ACTIONS.includes(action))) {
       this.actions.add(action);

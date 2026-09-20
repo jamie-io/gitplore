@@ -4,6 +4,7 @@ import { QualitySettings } from './capability.service';
 import { Interactable } from './interaction/interactable';
 import { Collider, HeightField } from './player/collision';
 import { PlayerController } from './player/player-controller';
+import { PlayerVisual } from './player/player-visual';
 
 /** What a scene gets handed on `init`/`update` (IMPLEMENTATION_PLAN.md §2). */
 export interface WorldContext {
@@ -34,4 +35,10 @@ export interface WorldScene extends WorldObject {
   readonly ground: HeightField;
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
+  /**
+   * The body the player walks around in. The scene builds it, because `@engine` may not import
+   * `@world` and the figure is cut from the place it stands in; the engine only drives and hides
+   * it. Optional so a test scene need not carry one.
+   */
+  readonly avatar?: PlayerVisual;
 }

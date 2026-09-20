@@ -187,6 +187,8 @@ export class ClearingEnvironment implements Environment {
   readonly name = 'Lichtung';
   readonly spawn = new Vector3(0, 0, 0);
   readonly spawnYaw = 0;
+  /** The light and air of this place; the scene reads it to match whatever stands in it. */
+  readonly mood = LICHTUNG;
   /** Every shader in this world reads these; public so a test can watch time stand still. */
   readonly shared = new SharedUniforms(LICHTUNG);
   private occupiedRingRadiiValue: readonly number[] = [];
