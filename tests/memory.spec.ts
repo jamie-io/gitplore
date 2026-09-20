@@ -32,16 +32,19 @@ test.describe('memory', () => {
     // that fetch can leave the counts still for longer than one stats interval.
     const QUIET_READS = 3;
 
+    // Both pairs are read for the baseline so each can be compared with itself later.
+    const BASELINE_KEYS = ['scene-geometries', 'scene-textures', 'geometries', 'textures'] as const;
+
     // One cycle first, so a lazily arriving model (the portal glTF) is in place before the
     // baseline — but under heavy parallel load the model's first fetch plus its one-time
     // meshopt-decoder wasm compile can still be in flight after a single cycle, which would let a
     // pre-model count pass as settled — a false settle, not a leak, so cycling continues until
     // two full cycles in a row agree on the count.
     await cycle();
-    let baseline = await settledStats(page, ['scene-geometries', 'scene-textures'], QUIET_READS);
+    let baseline = await settledStats(page, BASELINE_KEYS, QUIET_READS);
     for (let warmup = 0; warmup < 5; warmup++) {
       await cycle();
-      const next = await settledStats(page, ['scene-geometries', 'scene-textures'], QUIET_READS);
+      const next = await settledStats(page, BASELINE_KEYS, QUIET_READS);
       if (
         next['scene-geometries'] === baseline['scene-geometries'] &&
         next['scene-textures'] === baseline['scene-textures']
@@ -55,14 +58,18 @@ test.describe('memory', () => {
       await cycle();
     }
 
-    const after = await settledStats(
-      page,
-      ['scene-geometries', 'scene-textures', 'geometries', 'textures'],
-      QUIET_READS,
-    );
+    const after = await settledStats(page, BASELINE_KEYS, QUIET_READS);
+    // The scene counts are ownership: what the graph holds after five builds and disposals. They
+    // must be identical to the baseline, and that is the leak guard.
     expect(after['scene-geometries']).toBe(baseline['scene-geometries']);
     expect(after['scene-textures']).toBe(baseline['scene-textures']);
-    expect(after.geometries).toBeLessThanOrEqual(baseline['scene-geometries']);
-    expect(after.textures).toBeLessThanOrEqual(baseline['scene-textures']);
+
+    // `renderer.info.memory` is residency, not ownership: it counts what is uploaded to the GPU
+    // right now, which legitimately sits *below* the scene's own totals once a texture stops being
+    // drawn, and *above* them when the renderer holds something the graph never owned — the shadow
+    // map. Measured across seven cycles the scene stayed at 58/7 while the renderer moved 58/8 →
+    // 38/1. So these counts may only be compared with themselves, never with the scene's.
+    expect(after.geometries).toBeLessThanOrEqual(baseline.geometries);
+    expect(after.textures).toBeLessThanOrEqual(baseline.textures);
   });
 });
