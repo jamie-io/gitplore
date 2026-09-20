@@ -50,10 +50,11 @@ export const AIR_CONTROL = 0.4;
 export const COYOTE_TIME = 0.12;
 
 /**
- * How far the player is pulled down onto a floor they are already falling towards. Without it a
- * downhill stride leaves the ground on nearly every frame and the walk loses its friction, its
- * footfalls and its jump. Kept well under `STEP_HEIGHT`, so an edge a visitor can see is still an
- * edge they fall off.
+ * How far a player who is *already on the ground* is pulled back down onto a floor that has
+ * dropped away beneath them. Without it a downhill stride leaves the ground on nearly every frame
+ * and the walk loses its friction, its footfalls and its jump. It never catches someone who is
+ * airborne, or the last 0.3 m of every jump would be a teleport instead of a fall; and it is kept
+ * well under `STEP_HEIGHT`, so an edge a visitor can see is still an edge they fall off.
  */
 export const GROUND_SNAP = 0.3;
 
@@ -78,16 +79,19 @@ export class PlayerController {
   pitch = 0;
 
   /**
-   * The walk cycle in radians, wrapped to `[0, 2π)`. It advances with horizontal speed while the
-   * player is on the ground and holds still otherwise, so one full turn is one stride and **a foot
-   * lands at every crossing of 0 and of π**. The avatar's legs and the footstep sounds both read
-   * this one phase, which is the only way they can never drift apart.
+   * The walk cycle in radians, wrapped to `[0, 2π)`. It advances with the ground the player
+   * actually covers while they are standing on it — walking into a wall covers none — so one full
+   * turn is one stride and **a foot lands at every crossing of 0 and of π**. The avatar's legs and
+   * the footstep sounds both read this one phase, which is the only way they can never drift apart.
    */
   stridePhase = 0;
 
   /** Metres per second; `y` is the fall speed, `x`/`z` the horizontal momentum. */
   private readonly velocity = new Vector3();
   private grounded = false;
+
+  /** Metres of ground covered horizontally last frame, after the colliders had their say. */
+  private lastStep = 0;
 
   /** Seconds of grace left in which a jump still counts, after walking off an edge. */
   private coyote = 0;
@@ -101,6 +105,7 @@ export class PlayerController {
     this.yaw = yaw;
     this.pitch = pitch;
     this.velocity.set(0, 0, 0);
+    this.lastStep = 0;
     this.grounded = false;
     this.coyote = 0;
   }
@@ -120,7 +125,7 @@ export class PlayerController {
 
     this.move(dt, intent, colliders, feetY);
     this.fall(dt, intent, ground, colliders, feetY);
-    this.advanceStride(dt);
+    this.advanceStride();
   }
 
   private move(
@@ -150,6 +155,7 @@ export class PlayerController {
     if (this.velocity.x === 0 && this.velocity.z === 0) {
       // Standing perfectly still resolves nothing, so a teleport that lands inside a collider
       // stays where it was put — as it always has.
+      this.lastStep = 0;
       return;
     }
 
@@ -159,6 +165,13 @@ export class PlayerController {
       PLAYER_RADIUS,
       colliders,
       feetY,
+    );
+
+    // Ground genuinely covered: a wall takes it away, and a push-out shoving the player clear of a
+    // collider must never hand back more of it than they meant to walk.
+    this.lastStep = Math.min(
+      Math.hypot(resolved.x - this.position.x, resolved.z - this.position.z),
+      Math.hypot(this.velocity.x, this.velocity.z) * dt,
     );
 
     this.position.x = resolved.x;
@@ -211,8 +224,12 @@ export class PlayerController {
 
     const floor =
       floorHeightAt(this.position.x, this.position.z, feetY, ground, colliders) + PLAYER_EYE_HEIGHT;
+    // `this.grounded` still holds last frame's footing here, and the jump above clears it on
+    // takeoff: the snap may only pull down someone the ground has slipped away from, never
+    // someone who is in the air on purpose.
     const landed =
-      this.position.y <= floor || (this.velocity.y <= 0 && this.position.y - floor <= GROUND_SNAP);
+      this.position.y <= floor ||
+      (this.grounded && this.velocity.y <= 0 && this.position.y - floor <= GROUND_SNAP);
 
     if (landed) {
       this.position.y = floor;
@@ -225,13 +242,12 @@ export class PlayerController {
     }
   }
 
-  private advanceStride(dt: number): void {
+  private advanceStride(): void {
     if (!this.grounded) {
       return;
     }
 
-    const speed = Math.hypot(this.velocity.x, this.velocity.z);
-    this.stridePhase = (this.stridePhase + (TAU * speed * dt) / STRIDE_LENGTH) % TAU;
+    this.stridePhase = (this.stridePhase + (TAU * this.lastStep) / STRIDE_LENGTH) % TAU;
   }
 }
 

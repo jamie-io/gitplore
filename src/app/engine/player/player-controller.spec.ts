@@ -2,6 +2,8 @@ import { Vector3 } from 'three';
 import { Collider, HeightField } from './collision';
 import {
   AIR_CONTROL,
+  GRAVITY,
+  JUMP_SPEED,
   MoveIntent,
   NO_INTENT,
   PLAYER_EYE_HEIGHT,
@@ -200,6 +202,20 @@ describe('PlayerController stride phase', () => {
     );
   });
 
+  it('stops advancing when a wall stops the player', () => {
+    const wall: Collider = { kind: 'aabb', minX: -4, maxX: 4, minZ: -20, maxZ: -3 };
+    const player = settled();
+    simulate(player, { forward: 1 }, { seconds: 3, colliders: [wall] });
+    const pinned = player.stridePhase;
+    const against = player.position.z;
+
+    simulate(player, { forward: 1 }, { seconds: 1, colliders: [wall] });
+
+    // Still walking into the wall at full tilt, and still covering no ground at all.
+    expect(player.position.z).toBe(against);
+    expect(player.stridePhase).toBe(pinned);
+  });
+
   it('holds still while the player stands still', () => {
     const player = settled();
     simulate(player, { forward: 1 }, { seconds: 1 });
@@ -288,6 +304,33 @@ describe('PlayerController ground handling', () => {
       Math.min(0, player.position.z) * 0.4 + PLAYER_EYE_HEIGHT,
       4,
     );
+
+    // Still footed rather than falling, which is the whole point: the jump keeps working downhill.
+    const before = player.position.y;
+    player.update(1 / 60, intent({ forward: 1, run: true, jump: true }), ramp, []);
+
+    expect(player.position.y).toBeGreaterThan(before);
+  });
+
+  it('jumps its whole arc and lands without a snap at the end', () => {
+    const player = settled();
+    const floor = player.position.y;
+    player.update(1 / 60, intent({ jump: true }), FLAT, []);
+
+    let apex = player.position.y;
+    let longestDrop = 0;
+    while (player.position.y > floor) {
+      const previous = player.position.y;
+      player.update(1 / 60, NO_INTENT, FLAT, []);
+      apex = Math.max(apex, player.position.y);
+      longestDrop = Math.max(longestDrop, previous - player.position.y);
+    }
+
+    expect(apex - floor).toBeGreaterThan(0.9);
+    expect(player.position.y).toBe(floor);
+    // The arc falls all the way to the floor: no single frame drops further than gravity could
+    // carry the player at the speed they land with.
+    expect(longestDrop).toBeLessThanOrEqual(JUMP_SPEED / 60 + GRAVITY / (60 * 60));
   });
 
   it('leaves the ground when jumping and comes back down', () => {
