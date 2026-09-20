@@ -2,9 +2,6 @@ import { PerspectiveCamera } from 'three';
 import { Collider, HeightField } from './collision';
 import { PlayerController } from './player-controller';
 
-/** Which rig places the camera. Mirrors the view setting the visitor picks in the UI (§6). */
-export type ViewMode = 'first' | 'third';
-
 /**
  * What a rig needs beyond the player to place the camera for one frame: the step its easing
  * integrates over, the world a boom has to stay out of, and whether the visitor asked for less

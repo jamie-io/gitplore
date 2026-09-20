@@ -59,6 +59,8 @@ export class ThirdPersonRig implements CameraRig {
   private readonly anchorX = new DampedAxis();
   private readonly anchorY = new DampedAxis();
   private readonly anchorZ = new DampedAxis();
+  /** How far out the boom currently reaches; in at once, out on the follow spring. */
+  private readonly reach = new DampedAxis();
 
   /** Where the player stood last frame; more ground than they could walk means a teleport. */
   private readonly previous = new Vector3();
@@ -70,17 +72,21 @@ export class ThirdPersonRig implements CameraRig {
   }
 
   sync(player: PlayerController, frame: RigFrame): void {
-    this.followHead(player, frame);
+    const teleported = this.followHead(player, frame);
 
     this.camera.rotation.y = player.yaw;
     this.camera.rotation.x = player.pitch;
     this.camera.rotation.z = 0;
 
-    this.extendBoom(player, frame);
+    this.extendBoom(player, frame, teleported);
   }
 
-  /** Eases the boom's anchor towards the head, or snaps to it when the player was teleported. */
-  private followHead(player: PlayerController, frame: RigFrame): void {
+  /**
+   * Eases the boom's anchor towards the head, or snaps to it when the player was teleported.
+   * Reports which, because a boom that has just arrived in another world should not ease out of
+   * whatever length it had in the last one.
+   */
+  private followHead(player: PlayerController, frame: RigFrame): boolean {
     const x = player.position.x;
     const y = player.position.y + BOOM_HEIGHT;
     const z = player.position.z;
@@ -94,7 +100,7 @@ export class ThirdPersonRig implements CameraRig {
       this.anchorX.reset(x);
       this.anchorY.reset(y);
       this.anchorZ.reset(z);
-      return;
+      return true;
     }
 
     // Reduced motion is about the camera, not about the player: the head still moves, the camera
@@ -103,14 +109,17 @@ export class ThirdPersonRig implements CameraRig {
     this.anchorX.step(x, follow, frame.dt);
     this.anchorZ.step(z, follow, frame.dt);
     this.anchorY.step(y, frame.reducedMotion ? 0 : RISE_LAG, frame.dt, MAX_RISE_LAG);
+    return false;
   }
 
   /**
-   * Marches outwards from the anchor and leaves the camera on the furthest sample still clear of
-   * every prop. No raycast: colliders are XZ footprints and the ground is analytic, so walking the
-   * boom is both cheaper and exactly as truthful as tracing it would be.
+   * Marches outwards from the anchor to the furthest sample still clear of every prop, and puts
+   * the camera there. No raycast: colliders are XZ footprints and the ground is analytic, so
+   * walking the boom is both cheaper and exactly as truthful as tracing it would be. Nothing can
+   * hide between two samples, so every point short of the furthest clear one is clear as well —
+   * which is what lets the boom sit part of the way out while it eases.
    */
-  private extendBoom(player: PlayerController, frame: RigFrame): void {
+  private extendBoom(player: PlayerController, frame: RigFrame, teleported: boolean): void {
     const level = Math.cos(player.pitch);
     // Straight back along the look direction, so pitch orbits the boom instead of tilting the head.
     const backX = Math.sin(player.yaw) * level;
@@ -133,21 +142,38 @@ export class ThirdPersonRig implements CameraRig {
       frame.colliders,
       y - STEP_HEIGHT,
     );
-    // A boom blocked at its very first sample leaves the camera on the anchor, which is first
-    // person in all but name — the only honest answer when there is no room behind the player.
-    this.camera.position.set(x, y, z);
-
+    // Blocked at the very first sample, the boom has nowhere to go and the camera sits on the
+    // anchor — first person in all but name, and the only honest answer when there is no room
+    // behind the player at all.
+    let clear = 0;
     for (let step = 1; step <= BOOM_STEPS; step++) {
-      const reach = (BOOM_LENGTH * step) / BOOM_STEPS;
-      const sampleX = x + backX * reach;
-      const sampleZ = z + backZ * reach;
-      const sampleY = liftedOverGround(sampleX, y + backY * reach, sampleZ, frame.ground);
+      const distance = (BOOM_LENGTH * step) / BOOM_STEPS;
+      const sampleX = x + backX * distance;
+      const sampleZ = z + backZ * distance;
+      const sampleY = liftedOverGround(sampleX, y + backY * distance, sampleZ, frame.ground);
 
       if (!isClear(sampleX, sampleY, sampleZ, frame.colliders)) {
-        return;
+        break;
       }
-      this.camera.position.set(sampleX, sampleY, sampleZ);
+      clear = distance;
     }
+
+    this.reach.step(clear, frame.reducedMotion || teleported ? 0 : FOLLOW_LAG, frame.dt);
+    // Never further out than the sample proved clear. That one guard is also what brings the boom
+    // in the instant a wall appears, while it still eases back out once the wall is behind it: a
+    // camera may take its time coming out, it may not take its time leaving a wall.
+    if (this.reach.value > clear) {
+      this.reach.reset(clear);
+    }
+
+    const reach = this.reach.value;
+    const cameraX = x + backX * reach;
+    const cameraZ = z + backZ * reach;
+    this.camera.position.set(
+      cameraX,
+      liftedOverGround(cameraX, y + backY * reach, cameraZ, frame.ground),
+      cameraZ,
+    );
   }
 }
 

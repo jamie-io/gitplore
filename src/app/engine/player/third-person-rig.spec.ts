@@ -144,6 +144,69 @@ describe('ThirdPersonRig', () => {
     });
   });
 
+  describe('the boom coming back out', () => {
+    it('comes in the instant a wall appears, rather than easing through it', () => {
+      const camera = new PerspectiveCamera();
+      const player = standing();
+      const rig = new ThirdPersonRig(camera);
+      rig.sync(player, frame({ reducedMotion: false }));
+
+      rig.sync(player, frame({ reducedMotion: false, colliders: [wall(2, 1)] }));
+
+      expect(camera.position.z).toBeCloseTo(1.2, 6);
+    });
+
+    it('eases back out once the wall is behind it', () => {
+      const camera = new PerspectiveCamera();
+      const player = standing();
+      const rig = new ThirdPersonRig(camera);
+      const blocked = frame({ reducedMotion: false, colliders: [wall(2, 1)] });
+      rig.sync(player, blocked);
+      rig.sync(player, blocked);
+
+      rig.sync(player, frame({ reducedMotion: false }));
+
+      expect(camera.position.z).toBeGreaterThan(1.2);
+      expect(camera.position.z).toBeLessThan(BOOM_LENGTH);
+    });
+
+    it('is back at full length a moment later', () => {
+      const camera = new PerspectiveCamera();
+      const player = standing();
+      const rig = new ThirdPersonRig(camera);
+      rig.sync(player, frame({ reducedMotion: false, colliders: [wall(2, 1)] }));
+
+      for (let i = 0; i < 60; i++) {
+        rig.sync(player, frame({ reducedMotion: false }));
+      }
+
+      expect(camera.position.z).toBeCloseTo(BOOM_LENGTH, 3);
+    });
+
+    it('takes the boom back out in one frame under reduced motion', () => {
+      const camera = new PerspectiveCamera();
+      const player = standing();
+      const rig = new ThirdPersonRig(camera);
+      rig.sync(player, frame({ colliders: [wall(2, 1)] }));
+
+      rig.sync(player, frame());
+
+      expect(camera.position.z).toBeCloseTo(BOOM_LENGTH, 6);
+    });
+
+    it('arrives in another world at full length instead of growing into it', () => {
+      const camera = new PerspectiveCamera();
+      const player = standing();
+      const rig = new ThirdPersonRig(camera);
+      rig.sync(player, frame({ reducedMotion: false, colliders: [wall(2, 1)] }));
+
+      player.teleport(new Vector3(0, PLAYER_EYE_HEIGHT, -30));
+      rig.sync(player, frame({ reducedMotion: false }));
+
+      expect(camera.position.z).toBeCloseTo(-30 + BOOM_LENGTH, 6);
+    });
+  });
+
   describe('follow lag', () => {
     it('trails the player instead of snapping to them', () => {
       const camera = new PerspectiveCamera();

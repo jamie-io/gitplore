@@ -39,6 +39,24 @@ const LABEL_Y = 5.2;
  */
 const GLOW_INTENSITY = 2;
 
+/** The glowing surface's opacity once the camera is far enough back to see it whole. */
+export const VEIL_OPACITY = 0.75;
+
+/**
+ * Where the glowing surface starts fading, and where it stops being drawn at all, in metres from
+ * its centre.
+ *
+ * The third-person camera hangs 3.6 m behind the head while `SPAWN_DISTANCE` is 3, so arriving in
+ * a repository world leaves the camera on the far side of this surface looking back at the player
+ * through it. At that range a 2.6 × 3.4 m double-sided transparent quad fills the entire frame:
+ * the view washes over in the project's colour, and the software renderer behind the lowest tier
+ * loses a third of its frame rate shading it. Hiding below `VEIL_HIDE` rather than merely reaching
+ * alpha 0 is what removes the cost — a transparent quad at alpha 0 is still drawn. The fade reads
+ * the camera, not the player, because the whole point is that the two now stand metres apart.
+ */
+export const VEIL_FADE = 2.5;
+export const VEIL_HIDE = 1;
+
 /** Extra clearance so the player never clips a pillar. */
 const PILLAR_COLLIDER_RADIUS = PILLAR_RADIUS + 0.1;
 
@@ -53,6 +71,9 @@ export class PortalLandmark extends Landmark {
   /** The procedural arch; replaced by the glTF model once that has loaded. */
   private proxy: Group | null = null;
   private modelState: 'none' | 'loading' | 'loaded' = 'none';
+
+  /** The glowing surface between the pillars, faded out as the camera comes through it. */
+  private veil: Mesh<PlaneGeometry, MeshStandardMaterial> | null = null;
 
   protected describe(): LandmarkShape {
     return {
@@ -79,7 +100,7 @@ export class PortalLandmark extends Landmark {
       emissive: new Color(this.project.theme.primary),
       emissiveIntensity: GLOW_INTENSITY,
       transparent: true,
-      opacity: 0.75,
+      opacity: VEIL_OPACITY,
       side: DoubleSide,
     });
 
@@ -100,9 +121,9 @@ export class PortalLandmark extends Landmark {
     this.proxy.add(lintel);
     this.group.add(this.proxy);
 
-    const surface = new Mesh(new PlaneGeometry(HALF_WIDTH * 2 - 0.2, PILLAR_HEIGHT - 0.2), glow);
-    surface.position.set(0, PILLAR_HEIGHT / 2, 0);
-    this.group.add(surface);
+    this.veil = new Mesh(new PlaneGeometry(HALF_WIDTH * 2 - 0.2, PILLAR_HEIGHT - 0.2), glow);
+    this.veil.position.set(0, PILLAR_HEIGHT / 2, 0);
+    this.group.add(this.veil);
 
     const label = createLabel(this.project.title, this.project.theme.primary);
     if (label) {
@@ -113,6 +134,7 @@ export class PortalLandmark extends Landmark {
 
   override update(dt: number, ctx: WorldContext): void {
     this.loadModelWhenNear(ctx);
+    this.fadeVeilNearCamera(ctx);
 
     if (!this.dolly) {
       return;
@@ -131,9 +153,32 @@ export class PortalLandmark extends Landmark {
     }
   }
 
+  /**
+   * Fades the glowing surface out as the camera closes on it and stops drawing it once it is
+   * closer than `VEIL_HIDE`. Not gated on `prefers-reduced-motion`: this is not an animation to
+   * spare anyone, it is the difference between seeing the world and seeing one flat colour.
+   */
+  private fadeVeilNearCamera(ctx: WorldContext): void {
+    if (!this.veil) {
+      return;
+    }
+
+    const { x, y, z } = ctx.camera.position;
+    const distance = Math.hypot(
+      x - this.position.x,
+      y - (this.position.y + PILLAR_HEIGHT / 2),
+      z - this.position.z,
+    );
+    const fade = clamp01((distance - VEIL_HIDE) / (VEIL_FADE - VEIL_HIDE));
+
+    this.veil.visible = fade > 0;
+    this.veil.material.opacity = VEIL_OPACITY * fade;
+  }
+
   override dispose(): void {
     this.dolly = null;
     this.proxy = null;
+    this.veil = null;
     if (this.modelState === 'loaded' && this.project.landmark.model) {
       this.ctx?.assets.releaseModel(this.project.landmark.model);
     }
@@ -200,4 +245,8 @@ export class PortalLandmark extends Landmark {
 
     this.dolly = { elapsed: 0, from: null };
   }
+}
+
+function clamp01(value: number): number {
+  return Math.min(Math.max(value, 0), 1);
 }
