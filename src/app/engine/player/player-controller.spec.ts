@@ -1,14 +1,19 @@
 import { Vector3 } from 'three';
 import { Collider, HeightField } from './collision';
 import {
+  AIR_CONTROL,
   MoveIntent,
   NO_INTENT,
   PLAYER_EYE_HEIGHT,
   PLAYER_RADIUS,
   PlayerController,
+  RUN_MULTIPLIER,
+  STRIDE_LENGTH,
+  WALK_SPEED,
 } from './player-controller';
 
 const FLAT: HeightField = { heightAt: () => 0 };
+const TAU = Math.PI * 2;
 const intent = (partial: Partial<MoveIntent>): MoveIntent => ({ ...NO_INTENT, ...partial });
 
 /** Runs a whole second so gravity and movement both have time to act. */
@@ -28,6 +33,18 @@ function settled(ground: HeightField = FLAT): PlayerController {
   const player = new PlayerController();
   simulate(player, {}, { seconds: 2, ground });
   return player;
+}
+
+/** Metres per second over one frame — the speed the player actually travels at, not the one asked for. */
+function frameSpeed(
+  player: PlayerController,
+  moves: Partial<MoveIntent>,
+  ground: HeightField = FLAT,
+): number {
+  const step = 1 / 60;
+  const before = player.position.clone();
+  player.update(step, intent(moves), ground, []);
+  return Math.hypot(player.position.x - before.x, player.position.z - before.z) / step;
 }
 
 describe('PlayerController movement', () => {
@@ -69,6 +86,148 @@ describe('PlayerController movement', () => {
     const ran = Math.abs(simulate(settled(), { forward: 1, run: true }).z);
 
     expect(ran).toBeGreaterThan(walked);
+  });
+});
+
+describe('PlayerController momentum', () => {
+  it('ramps up to speed instead of starting at it', () => {
+    expect(frameSpeed(settled(), { forward: 1 })).toBeLessThan(WALK_SPEED / 2);
+  });
+
+  it('reaches the walking cap and settles there', () => {
+    const player = settled();
+    simulate(player, { forward: 1 }, { seconds: 1 });
+
+    expect(frameSpeed(player, { forward: 1 })).toBeCloseTo(WALK_SPEED, 6);
+  });
+
+  it('reaches the running cap and no further', () => {
+    const player = settled();
+    simulate(player, { forward: 1, run: true }, { seconds: 1 });
+
+    expect(frameSpeed(player, { forward: 1, run: true })).toBeCloseTo(
+      WALK_SPEED * RUN_MULTIPLIER,
+      6,
+    );
+  });
+
+  it('takes about a sixth of a second to reach walking speed', () => {
+    const player = settled();
+    const step = 1 / 240;
+    let elapsed = 0;
+
+    while (elapsed < 1) {
+      const before = player.position.z;
+      player.update(step, intent({ forward: 1 }), FLAT, []);
+      if (Math.abs(player.position.z - before) / step >= WALK_SPEED - 1e-9) {
+        break;
+      }
+      elapsed += step;
+    }
+
+    expect(elapsed).toBeGreaterThan(0.12);
+    expect(elapsed).toBeLessThan(0.2);
+  });
+
+  it('carries on for a moment after the keys are let go', () => {
+    const player = settled();
+    simulate(player, { forward: 1 }, { seconds: 1 });
+
+    expect(frameSpeed(player, {})).toBeGreaterThan(WALK_SPEED / 2);
+  });
+
+  it('comes to a complete stop shortly afterwards', () => {
+    const player = settled();
+    simulate(player, { forward: 1 }, { seconds: 1 });
+
+    simulate(player, {}, { seconds: 0.5 });
+    const stopped = player.position.z;
+    simulate(player, {}, { seconds: 0.5 });
+
+    expect(player.position.z).toBe(stopped);
+  });
+
+  it('steers only weakly while off the ground', () => {
+    const airborne = settled();
+    airborne.update(1 / 60, intent({ jump: true }), FLAT, []);
+
+    expect(frameSpeed(airborne, { forward: 1 })).toBeCloseTo(
+      frameSpeed(settled(), { forward: 1 }) * AIR_CONTROL,
+      6,
+    );
+  });
+
+  it('keeps its momentum in the air when the keys are let go', () => {
+    const player = settled();
+    simulate(player, { forward: 1 }, { seconds: 1 });
+    player.update(1 / 60, intent({ forward: 1, jump: true }), FLAT, []);
+
+    expect(frameSpeed(player, {})).toBeCloseTo(WALK_SPEED, 6);
+  });
+});
+
+describe('PlayerController stride phase', () => {
+  /** The phase gained over one frame, measured the way a consumer watching for a footfall would. */
+  function strideAdvance(player: PlayerController, moves: Partial<MoveIntent>): number {
+    const before = player.stridePhase;
+    player.update(1 / 60, intent(moves), FLAT, []);
+    return (player.stridePhase - before + TAU) % TAU;
+  }
+
+  it('starts at the beginning of a stride', () => {
+    expect(new PlayerController().stridePhase).toBe(0);
+  });
+
+  it('advances in step with the ground covered', () => {
+    const player = settled();
+    simulate(player, { forward: 1 }, { seconds: 1 });
+
+    const before = player.position.z;
+    const advance = strideAdvance(player, { forward: 1 });
+    const travelled = Math.abs(player.position.z - before);
+
+    expect(advance).toBeCloseTo((TAU * travelled) / STRIDE_LENGTH, 6);
+  });
+
+  it('runs through the stride faster at a run than at a walk', () => {
+    const walking = settled();
+    simulate(walking, { forward: 1 }, { seconds: 1 });
+    const running = settled();
+    simulate(running, { forward: 1, run: true }, { seconds: 1 });
+
+    expect(strideAdvance(running, { forward: 1, run: true })).toBeGreaterThan(
+      strideAdvance(walking, { forward: 1 }),
+    );
+  });
+
+  it('holds still while the player stands still', () => {
+    const player = settled();
+    simulate(player, { forward: 1 }, { seconds: 1 });
+    simulate(player, {}, { seconds: 1 });
+    const standing = player.stridePhase;
+
+    simulate(player, {}, { seconds: 1 });
+
+    expect(player.stridePhase).toBe(standing);
+  });
+
+  it('holds still while the player is off the ground', () => {
+    const player = settled();
+    simulate(player, { forward: 1 }, { seconds: 1 });
+    player.update(1 / 60, intent({ forward: 1, jump: true }), FLAT, []);
+    const airborne = player.stridePhase;
+
+    player.update(1 / 60, intent({ forward: 1 }), FLAT, []);
+
+    expect(player.stridePhase).toBe(airborne);
+  });
+
+  it('stays inside one turn however far the player walks', () => {
+    const player = settled();
+    simulate(player, { forward: 1, run: true }, { seconds: 10 });
+
+    expect(player.stridePhase).toBeGreaterThanOrEqual(0);
+    expect(player.stridePhase).toBeLessThan(TAU);
   });
 });
 
@@ -119,6 +278,18 @@ describe('PlayerController ground handling', () => {
     expect(position.y).toBeCloseTo(Math.max(0, -position.z) * 0.2 + PLAYER_EYE_HEIGHT, 4);
   });
 
+  it('stays on the ground while walking down a slope', () => {
+    const ramp: HeightField = { heightAt: (_x, z) => Math.min(0, z) * 0.4 };
+
+    const player = settled(ramp);
+    simulate(player, { forward: 1, run: true }, { seconds: 1, ground: ramp });
+
+    expect(player.position.y).toBeCloseTo(
+      Math.min(0, player.position.z) * 0.4 + PLAYER_EYE_HEIGHT,
+      4,
+    );
+  });
+
   it('leaves the ground when jumping and comes back down', () => {
     const player = settled();
 
@@ -141,6 +312,41 @@ describe('PlayerController ground handling', () => {
   });
 });
 
+describe('PlayerController coyote time', () => {
+  /** A plateau that ends at z = -5, so walking forward runs off a two-metre drop. */
+  const ledge: HeightField = { heightAt: (_x, z) => (z > -5 ? 2 : 0) };
+
+  /** Walks the player forward until the ground has fallen away beneath them. */
+  function walkOff(): PlayerController {
+    const player = settled(ledge);
+    while (player.position.z > -5.2) {
+      player.update(1 / 60, intent({ forward: 1 }), ledge, []);
+    }
+    return player;
+  }
+
+  it('still jumps in the moment after walking off an edge', () => {
+    const player = walkOff();
+    const leaving = player.position.y;
+
+    player.update(1 / 60, intent({ forward: 1, jump: true }), ledge, []);
+
+    expect(player.position.y).toBeGreaterThan(leaving);
+  });
+
+  it('no longer jumps once the grace has run out', () => {
+    const player = walkOff();
+    for (let i = 0; i < 12; i++) {
+      player.update(1 / 60, intent({ forward: 1 }), ledge, []);
+    }
+    const falling = player.position.y;
+
+    player.update(1 / 60, intent({ forward: 1, jump: true }), ledge, []);
+
+    expect(player.position.y).toBeLessThan(falling);
+  });
+});
+
 describe('PlayerController collision', () => {
   it('stops at a pillar instead of walking through it', () => {
     const pillar: Collider = { kind: 'cylinder', x: 0, z: -5, radius: 1 };
@@ -150,5 +356,37 @@ describe('PlayerController collision', () => {
     expect(Math.hypot(position.x - pillar.x, position.z - pillar.z)).toBeGreaterThanOrEqual(
       1 + PLAYER_RADIUS - 1e-6,
     );
+  });
+
+  it('steps up onto a crate low enough to climb', () => {
+    const crate: Collider = { kind: 'aabb', minX: -2, maxX: 2, minZ: -20, maxZ: -3, top: 0.4 };
+
+    const position = simulate(settled(), { forward: 1 }, { seconds: 2, colliders: [crate] });
+
+    expect(position.z).toBeLessThan(-3);
+    expect(position.y).toBeCloseTo(0.4 + PLAYER_EYE_HEIGHT, 4);
+  });
+
+  it('is stopped by a block whose top is out of reach', () => {
+    const block: Collider = { kind: 'aabb', minX: -2, maxX: 2, minZ: -20, maxZ: -3, top: 1.2 };
+
+    const position = simulate(settled(), { forward: 1 }, { seconds: 2, colliders: [block] });
+
+    expect(position.z).toBeCloseTo(-3 + PLAYER_RADIUS, 4);
+    expect(position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 4);
+  });
+
+  it('walks off the edge of a crate and falls to the ground', () => {
+    const crate: Collider = { kind: 'aabb', minX: -2, maxX: 2, minZ: -6, maxZ: -2, top: 0.8 };
+    const player = new PlayerController();
+    player.teleport(new Vector3(0, 0.8 + PLAYER_EYE_HEIGHT, -3));
+
+    simulate(player, {}, { seconds: 0.5, colliders: [crate] });
+    expect(player.position.y).toBeCloseTo(0.8 + PLAYER_EYE_HEIGHT, 4);
+
+    const position = simulate(player, { forward: 1 }, { seconds: 2, colliders: [crate] });
+
+    expect(position.z).toBeLessThan(-6);
+    expect(position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 4);
   });
 });

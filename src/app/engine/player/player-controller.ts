@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { Collider, HeightField, resolveCollisions } from './collision';
+import { Collider, HeightField, floorHeightAt, resolveCollisions } from './collision';
 
 /** What the player wants to do this frame, independent of how the input was produced. */
 export interface MoveIntent {
@@ -31,12 +31,45 @@ export const RUN_MULTIPLIER = 1.9;
 export const GRAVITY = 24;
 export const JUMP_SPEED = 7;
 
+/**
+ * Horizontal acceleration on the ground, in m/s². `WALK_SPEED` and `RUN_MULTIPLIER` remain the cap;
+ * this only says how long the ramp up to it takes — about 0.16 s from standing to a walk.
+ */
+export const ACCELERATION = 28;
+
+/**
+ * Horizontal braking on the ground, in m/s². A shade sharper than the ramp, so letting go of the
+ * keys reads as a decision rather than as a slide.
+ */
+export const DECELERATION = 34;
+
+/** The share of `ACCELERATION` that still steers the player while they are off the ground. */
+export const AIR_CONTROL = 0.4;
+
+/** Seconds after walking off an edge in which a jump still counts as a jump from the ground. */
+export const COYOTE_TIME = 0.12;
+
+/**
+ * How far the player is pulled down onto a floor they are already falling towards. Without it a
+ * downhill stride leaves the ground on nearly every frame and the walk loses its friction, its
+ * footfalls and its jump. Kept well under `STEP_HEIGHT`, so an edge a visitor can see is still an
+ * edge they fall off.
+ */
+export const GROUND_SNAP = 0.3;
+
+/** Metres of ground covered by one full stride, that is by two steps. */
+export const STRIDE_LENGTH = 4;
+
 /** Just short of straight up, so the view never flips over. */
 export const MAX_PITCH = Math.PI / 2 - 0.02;
 
+const TAU = Math.PI * 2;
+
 /**
  * Kinematic capsule: no physics engine, just gravity, an analytic ground height and circle-vs-collider
- * push-out (IMPLEMENTATION_PLAN.md §2).
+ * push-out (IMPLEMENTATION_PLAN.md §2). Horizontal motion carries momentum — the intent sets a
+ * target velocity that the current one is steered towards — so starting, stopping and turning all
+ * take a moment instead of snapping.
  */
 export class PlayerController {
   readonly position = new Vector3(0, PLAYER_EYE_HEIGHT, 0);
@@ -44,8 +77,20 @@ export class PlayerController {
   yaw = 0;
   pitch = 0;
 
-  private velocityY = 0;
+  /**
+   * The walk cycle in radians, wrapped to `[0, 2π)`. It advances with horizontal speed while the
+   * player is on the ground and holds still otherwise, so one full turn is one stride and **a foot
+   * lands at every crossing of 0 and of π**. The avatar's legs and the footstep sounds both read
+   * this one phase, which is the only way they can never drift apart.
+   */
+  stridePhase = 0;
+
+  /** Metres per second; `y` is the fall speed, `x`/`z` the horizontal momentum. */
+  private readonly velocity = new Vector3();
   private grounded = false;
+
+  /** Seconds of grace left in which a jump still counts, after walking off an edge. */
+  private coyote = 0;
 
   /**
    * Moves the player and defines the full orientation they arrive with. Pitch resets by default:
@@ -55,8 +100,9 @@ export class PlayerController {
     this.position.copy(position);
     this.yaw = yaw;
     this.pitch = pitch;
-    this.velocityY = 0;
+    this.velocity.set(0, 0, 0);
     this.grounded = false;
+    this.coyote = 0;
   }
 
   update(
@@ -68,11 +114,21 @@ export class PlayerController {
     this.yaw -= intent.yawDelta;
     this.pitch = clamp(this.pitch - intent.pitchDelta, -MAX_PITCH, MAX_PITCH);
 
-    this.move(dt, intent, colliders);
-    this.fall(dt, intent, ground);
+    // One footing for the whole frame, so the same surface decides both what can be stepped onto
+    // and what is a wall. Taking it after gravity would lose a step of exactly `STEP_HEIGHT`.
+    const feetY = this.position.y - PLAYER_EYE_HEIGHT;
+
+    this.move(dt, intent, colliders, feetY);
+    this.fall(dt, intent, ground, colliders, feetY);
+    this.advanceStride(dt);
   }
 
-  private move(dt: number, intent: MoveIntent, colliders: readonly Collider[]): void {
+  private move(
+    dt: number,
+    intent: MoveIntent,
+    colliders: readonly Collider[],
+    feetY: number,
+  ): void {
     // Forward is -Z at yaw 0, matching the Three.js camera convention.
     const forwardX = -Math.sin(this.yaw);
     const forwardZ = -Math.cos(this.yaw);
@@ -88,39 +144,94 @@ export class PlayerController {
       dz /= length;
     }
 
-    if (length === 0) {
+    const cap = WALK_SPEED * (intent.run ? RUN_MULTIPLIER : 1);
+    this.steer(dt, dx * cap, dz * cap, length > 0);
+
+    if (this.velocity.x === 0 && this.velocity.z === 0) {
+      // Standing perfectly still resolves nothing, so a teleport that lands inside a collider
+      // stays where it was put — as it always has.
       return;
     }
 
-    const speed = WALK_SPEED * (intent.run ? RUN_MULTIPLIER : 1) * dt;
     const resolved = resolveCollisions(
-      this.position.x + dx * speed,
-      this.position.z + dz * speed,
+      this.position.x + this.velocity.x * dt,
+      this.position.z + this.velocity.z * dt,
       PLAYER_RADIUS,
       colliders,
+      feetY,
     );
 
     this.position.x = resolved.x;
     this.position.z = resolved.z;
   }
 
-  private fall(dt: number, intent: MoveIntent, ground: HeightField): void {
-    if (intent.jump && this.grounded) {
-      this.velocityY = JUMP_SPEED;
-      this.grounded = false;
+  /**
+   * Steers the horizontal velocity towards the one the intent asks for, as fast as the player's
+   * footing allows. Because it is the velocity that is capped and not the step, the top speed is
+   * still exactly `WALK_SPEED` times the run multiplier.
+   */
+  private steer(dt: number, targetX: number, targetZ: number, wanted: boolean): void {
+    // Mid-air there is nothing to push against: with no input, momentum simply carries.
+    if (!this.grounded && !wanted) {
+      return;
     }
 
-    this.velocityY -= GRAVITY * dt;
-    this.position.y += this.velocityY * dt;
+    const rate = (wanted ? ACCELERATION : DECELERATION) * (this.grounded ? 1 : AIR_CONTROL);
+    const dx = targetX - this.velocity.x;
+    const dz = targetZ - this.velocity.z;
+    const distance = Math.hypot(dx, dz);
+    const step = rate * dt;
 
-    const floor = ground.heightAt(this.position.x, this.position.z) + PLAYER_EYE_HEIGHT;
-    if (this.position.y <= floor) {
+    if (distance <= step) {
+      this.velocity.x = targetX;
+      this.velocity.z = targetZ;
+      return;
+    }
+
+    this.velocity.x += (dx / distance) * step;
+    this.velocity.z += (dz / distance) * step;
+  }
+
+  private fall(
+    dt: number,
+    intent: MoveIntent,
+    ground: HeightField,
+    colliders: readonly Collider[],
+    feetY: number,
+  ): void {
+    if (intent.jump && (this.grounded || this.coyote > 0)) {
+      this.velocity.y = JUMP_SPEED;
+      this.grounded = false;
+      // Spending the grace is what stops a held jump key from becoming a second jump.
+      this.coyote = 0;
+    }
+
+    this.velocity.y -= GRAVITY * dt;
+    this.position.y += this.velocity.y * dt;
+
+    const floor =
+      floorHeightAt(this.position.x, this.position.z, feetY, ground, colliders) + PLAYER_EYE_HEIGHT;
+    const landed =
+      this.position.y <= floor || (this.velocity.y <= 0 && this.position.y - floor <= GROUND_SNAP);
+
+    if (landed) {
       this.position.y = floor;
-      this.velocityY = 0;
+      this.velocity.y = 0;
       this.grounded = true;
+      this.coyote = COYOTE_TIME;
     } else {
       this.grounded = false;
+      this.coyote = Math.max(0, this.coyote - dt);
     }
+  }
+
+  private advanceStride(dt: number): void {
+    if (!this.grounded) {
+      return;
+    }
+
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    this.stridePhase = (this.stridePhase + (TAU * speed * dt) / STRIDE_LENGTH) % TAU;
   }
 }
 
