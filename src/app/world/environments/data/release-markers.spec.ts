@@ -2,7 +2,7 @@ import { Mesh, Vector3 } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
-import { MARKER_OFFSET, ReleaseMarkers } from './release-markers';
+import { MARKER_OFFSET, ReleaseMarkers, releaseLabelText } from './release-markers';
 
 const PROJECT = PROJECT_FIXTURES[0];
 const options = (project: Project) => ({
@@ -99,6 +99,19 @@ describe('ReleaseMarkers', () => {
     capped.dispose();
     expect(ctx.scene.children).toHaveLength(0);
     expect(cappedContext.scene.children).toHaveLength(0);
+  });
+
+  it('labels exactly the newest three releases in chronological order', () => {
+    const releases = [
+      { name: 'v1.0.0', date: '2025-01-01T00:00:00Z' },
+      { name: 'v2.0.0', date: '2025-02-01T00:00:00Z' },
+      { name: 'v3.0.0', date: '2025-03-01T00:00:00Z' },
+      { name: 'v4.0.0', date: '2025-04-01T00:00:00Z' },
+      { name: 'v5.0.0', date: '2025-05-01T00:00:00Z' },
+      { name: 'v6.0.0', date: '2025-06-01T00:00:00Z' },
+    ];
+
+    expect(releaseLabelText(releases).match(/v\d+\.0\.0/g)).toEqual(['v4.0.0', 'v5.0.0', 'v6.0.0']);
   });
 
   it('places a merged cairn beside the walk for each dated release', () => {

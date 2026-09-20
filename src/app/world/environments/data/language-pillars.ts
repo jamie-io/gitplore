@@ -95,7 +95,10 @@ export class LanguagePillars implements WorldObject {
 function languageEntries(project: Project): readonly [string, number][] {
   return Object.entries(project.languages ?? {})
     .filter(([, bytes]) => typeof bytes === 'number' && Number.isFinite(bytes) && bytes > 0)
-    .sort(([left], [right]) => left.localeCompare(right, 'en'))
+    .sort(([leftLanguage, leftBytes], [rightLanguage, rightBytes]) => {
+      const byteOrder = rightBytes - leftBytes;
+      return byteOrder !== 0 ? byteOrder : leftLanguage.localeCompare(rightLanguage, 'en');
+    })
     .slice(0, MAX_LANGUAGE_PILLARS);
 }
 

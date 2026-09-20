@@ -2,7 +2,7 @@ import { Mesh, Vector3 } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
-import { CommitRidge } from './commit-ridge';
+import { CommitRidge, RIDGE_SLAB_COUNT } from './commit-ridge';
 
 const PROJECT = PROJECT_FIXTURES[0];
 const FROM = new Vector3(0, 0, 15);
@@ -20,6 +20,21 @@ function meshFor(project: Project): {
   const mesh = ctx.scene.getObjectByName('commit-ridge');
   expect(mesh).toBeInstanceOf(Mesh);
   return { ctx, mesh: mesh as Mesh, ridge };
+}
+
+function slabHeight(mesh: Mesh, index: number): number {
+  const positions = mesh.geometry.getAttribute('position');
+  const verticesPerSlab = positions.count / RIDGE_SLAB_COUNT;
+  expect(Number.isInteger(verticesPerSlab)).toBe(true);
+
+  let minimum = Infinity;
+  let maximum = -Infinity;
+  for (let vertex = index * verticesPerSlab; vertex < (index + 1) * verticesPerSlab; vertex++) {
+    const y = positions.getY(vertex);
+    minimum = Math.min(minimum, y);
+    maximum = Math.max(maximum, y);
+  }
+  return maximum - minimum;
 }
 
 describe('CommitRidge', () => {
@@ -48,6 +63,32 @@ describe('CommitRidge', () => {
 
     ridge.dispose();
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('keeps slab heights absolute across repositories with different maxima', () => {
+    const seven = meshFor({
+      ...PROJECT,
+      commitBuckets: Array.from({ length: RIDGE_SLAB_COUNT }, (_, index) => (index === 25 ? 7 : 0)),
+    });
+    const fiftyTwo = meshFor({
+      ...PROJECT,
+      commitBuckets: Array.from(
+        { length: RIDGE_SLAB_COUNT },
+        (_, index) => (index === 25 ? 52 : 0),
+      ),
+    });
+
+    const sevenHeight = slabHeight(seven.mesh, 25);
+    const fiftyTwoHeight = slabHeight(fiftyTwo.mesh, 25);
+
+    expect(sevenHeight).toBeCloseTo(0.06 + (2.86 - 0.06) * Math.sqrt(7 / 52), 5);
+    expect(fiftyTwoHeight).toBeCloseTo(2.86, 5);
+    expect(sevenHeight).toBeLessThan(fiftyTwoHeight);
+
+    seven.ridge.dispose();
+    fiftyTwo.ridge.dispose();
+    expect(seven.ctx.scene.children).toHaveLength(0);
+    expect(fiftyTwo.ctx.scene.children).toHaveLength(0);
   });
 
   it('shows a flat path when commit data is absent or empty', () => {

@@ -16,6 +16,7 @@ const CAIRN_HALF_DEPTH = CAIRN_MAX_SCALE * Math.hypot(1.2, 0.9);
 /** Keep release markers beyond the ridge's far edge, with a gap around each footprint. */
 export const MARKER_OFFSET = RIDGE_OFFSET + RIDGE_HALF_DEPTH + CAIRN_HALF_DEPTH + RELEASE_PATH_GAP;
 export const MAX_RELEASE_MARKERS = 12;
+const MAX_RELEASE_LABELS = 3;
 
 export interface ReleaseMarkersOptions {
   readonly project: Project;
@@ -75,10 +76,7 @@ export class ReleaseMarkers implements WorldObject {
 
     const newest = points[points.length - 1];
     if (newest) {
-      const label = createLabel(
-        releases.map((release) => `${release.name} · ${releaseDate(release.date)}`).join(' · '),
-        this.options.project.theme.primary,
-      );
+      const label = createLabel(releaseLabelText(releases), this.options.project.theme.primary);
       if (label) {
         label.name = 'release-marker-label';
         label.position.set(
@@ -116,6 +114,13 @@ export class ReleaseMarkers implements WorldObject {
       this.mesh = undefined;
     }
   }
+}
+
+export function releaseLabelText(releases: NonNullable<Project['releases']>): string {
+  return releases
+    .slice(-MAX_RELEASE_LABELS)
+    .map((release) => `${release.name} · ${releaseDate(release.date)}`)
+    .join(' · ');
 }
 
 function datedReleases(project: Project) {

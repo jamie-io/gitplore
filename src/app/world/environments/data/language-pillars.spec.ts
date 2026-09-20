@@ -1,8 +1,8 @@
-import { Mesh, Vector3 } from 'three';
+import { Color, Mesh, Vector3 } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
-import { LanguagePillars } from './language-pillars';
+import { LANGUAGE_COLOURS, LanguagePillars } from './language-pillars';
 
 const PROJECT = PROJECT_FIXTURES[0];
 const options = (project: Project) => ({
@@ -43,6 +43,38 @@ describe('LanguagePillars', () => {
     capped.dispose();
     expect(manyContext.scene.children).toHaveLength(0);
     expect(cappedContext.scene.children).toHaveLength(0);
+  });
+
+  it('keeps a later high-byte language when the cap removes earlier names', () => {
+    const languages = Object.fromEntries([
+      ['Aardvark', 1],
+      ...Array.from({ length: 11 }, (_, index) => [
+        `Language ${index.toString().padStart(2, '0')}`,
+        1,
+      ]),
+      ['TypeScript', 1000],
+    ]);
+    const ctx = stubContext();
+    const pillars = new LanguagePillars(options({ ...PROJECT, languages }));
+
+    pillars.init(ctx);
+
+    const mesh = ctx.scene.getObjectByName('language-pillars') as Mesh;
+    mesh.geometry.computeBoundingBox();
+    const typescript = new Color(LANGUAGE_COLOURS['TypeScript']);
+    const colours = mesh.geometry.getAttribute('color');
+    const hasTypescriptColour = Array.from({ length: colours.count }, (_, index) =>
+      [colours.getX(index), colours.getY(index), colours.getZ(index)].every(
+        (component, axis) =>
+          Math.abs(component - [typescript.r, typescript.g, typescript.b][axis]) < 0.00001,
+      ),
+    ).some(Boolean);
+
+    expect(mesh.geometry.boundingBox?.max.y).toBeGreaterThan(3);
+    expect(hasTypescriptColour).toBe(true);
+
+    pillars.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
   });
 
   it('builds one coloured pillar for each language', () => {

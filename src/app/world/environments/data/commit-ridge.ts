@@ -11,7 +11,8 @@ export const RIDGE_SLAB_COUNT = 52;
 
 const PATH_INSET = 2;
 const BASE_HEIGHT = 0.06;
-const MAX_HEIGHT = 2.8;
+const MAX_HEIGHT = 2.86;
+const SLAB_UNIT = (MAX_HEIGHT - BASE_HEIGHT) / Math.sqrt(RIDGE_SLAB_COUNT);
 const SLAB_DEPTH = 0.9;
 const SLAB_GAP = 0.3;
 const RIDGE_PATH_GAP = 0.5;
@@ -100,19 +101,11 @@ function buildGeometry(options: CommitRidgeOptions) {
   const usable = Math.max(distance - inset * 2, 0);
   const width = Math.max(0.08, Math.min(0.65, (usable / RIDGE_SLAB_COUNT) * (1 - SLAB_GAP)));
   const buckets = options.project.commitBuckets;
-  const maximum = buckets?.reduce(
-    (highest, value) => (Number.isFinite(value) ? Math.max(highest, value) : highest),
-    0,
-  );
   const parts = [];
 
   for (let index = 0; index < RIDGE_SLAB_COUNT; index++) {
     const value = buckets?.[index];
-    const share =
-      maximum && typeof value === 'number' && Number.isFinite(value)
-        ? Math.max(0, value) / maximum
-        : 0;
-    const height = BASE_HEIGHT + share * MAX_HEIGHT;
+    const height = slabHeight(value);
     const point = from
       .clone()
       .addScaledVector(axis, inset + ((index + 0.5) / RIDGE_SLAB_COUNT) * usable)
@@ -131,6 +124,11 @@ function buildGeometry(options: CommitRidgeOptions) {
   merged.computeBoundingBox();
   merged.computeBoundingSphere();
   return merged;
+}
+
+function slabHeight(count: number | undefined): number {
+  const safeCount = typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0;
+  return Math.min(MAX_HEIGHT, BASE_HEIGHT + SLAB_UNIT * Math.sqrt(safeCount));
 }
 
 function offsetPoint(from: Vector3, to: Vector3, offset: number): Vector3 {
