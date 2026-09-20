@@ -3,8 +3,8 @@ import { qualitySettings, QualityTier } from '@engine/capability.service';
 import { PlayerController } from '@engine/player/player-controller';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
-import { ClearingEnvironment, OPEN_GROUND, lichtungGround } from './clearing';
-import { MIN_LANDMARK_SEPARATION, RING_RADIUS } from './placement';
+import { ClearingEnvironment, lichtungGround } from './clearing';
+import { MIN_LANDMARK_SEPARATION, OUTER_RING_RADIUS, RING_RADIUS } from './placement';
 import { isExcluded } from './scatter';
 import { POND, terrainHeightAt } from './terrain';
 
@@ -38,19 +38,53 @@ describe('ClearingEnvironment', () => {
     expect(clearing().colliders.length).toBeGreaterThan(0);
   });
 
-  it('lays anchors out on the ring, at the ring radius', () => {
-    const [first] = clearing().anchors(3);
+  it('lays anchors out on the occupied near and far radii', () => {
+    const radii = clearing()
+      .anchors(3)
+      .map(({ position }) => Math.hypot(position[0], position[2]));
 
-    expect(Math.hypot(first.position[0], first.position[2])).toBeCloseTo(RING_RADIUS, 5);
+    expect(radii.some((radius) => Math.abs(radius - RING_RADIUS) < 1e-5)).toBe(true);
+    expect(radii.some((radius) => Math.abs(radius - OUTER_RING_RADIUS) < 1e-5)).toBe(true);
   });
 
   it('keeps generated anchors clear of a pinned landmark', () => {
-    const pinned = [[0, 0, RING_RADIUS] as const];
+    const pinned = [[0, 0, -RING_RADIUS] as const];
 
     for (const anchor of clearing().anchors(3, pinned)) {
-      const distance = Math.hypot(anchor.position[0] - 0, anchor.position[2] - RING_RADIUS);
+      const distance = Math.hypot(
+        anchor.position[0] - pinned[0][0],
+        anchor.position[2] - pinned[0][2],
+      );
       expect(distance).toBeGreaterThanOrEqual(MIN_LANDMARK_SEPARATION);
     }
+  });
+
+  it('keeps open ground across both occupied landmark radii', () => {
+    const environment = clearing();
+    environment.anchors(3);
+    const ringInners = environment.openGround
+      .filter((exclusion) => exclusion.kind === 'ring')
+      .map((exclusion) => exclusion.inner);
+
+    expect(ringInners).toEqual(expect.arrayContaining([RING_RADIUS - 8, OUTER_RING_RADIUS - 8]));
+    expect(
+      environment.openGround.some(
+        (exclusion) =>
+          exclusion.kind === 'segment' && Math.abs(exclusion.bz + OUTER_RING_RADIUS) < 1e-9,
+      ),
+    ).toBe(true);
+  });
+
+  it('drops unoccupied ring paths instead of painting a route to nowhere', () => {
+    const environment = clearing();
+    environment.anchors(1);
+
+    const ringInners = environment.openGround
+      .filter((exclusion) => exclusion.kind === 'ring')
+      .map((exclusion) => exclusion.inner);
+
+    expect(ringInners).toEqual([RING_RADIUS - 8]);
+    expect(environment.occupiedRingRadii).toEqual([RING_RADIUS]);
   });
 
   it('builds terrain, sky and the monument into the scene and takes them out again', () => {
@@ -69,11 +103,13 @@ describe('ClearingEnvironment', () => {
 describe('ClearingEnvironment surroundings', () => {
   it('keeps trees and boulders out of the meadow, the portal ring, the spoke and the pond', () => {
     // The first two colliders are the monument's and the pond's.
-    for (const collider of clearing().colliders.slice(2)) {
+    const environment = clearing();
+    environment.anchors(3);
+    for (const collider of environment.colliders.slice(2)) {
       if (collider.kind !== 'cylinder') {
         throw new Error('expected only trunk and boulder cylinders after the first two');
       }
-      expect(isExcluded(collider.x, collider.z, OPEN_GROUND)).toBe(false);
+      expect(isExcluded(collider.x, collider.z, environment.openGround)).toBe(false);
     }
   });
 
@@ -108,10 +144,16 @@ describe('ClearingEnvironment surroundings', () => {
 
   it('wears a dirt path along the portal ring', () => {
     const dirt = new Color(0x9c7d56);
-    const onPath = lichtungGround(RING_RADIUS, 0, 0, 0).clone();
-    const beside = lichtungGround(RING_RADIUS + 6, 0, 0, 0).clone();
+    const environment = clearing();
+    environment.anchors(3);
+    const radii = environment.occupiedRingRadii;
+    const onPath = lichtungGround(RING_RADIUS, 0, 0, 0, radii).clone();
+    const beside = lichtungGround(RING_RADIUS + 6, 0, 0, 0, radii).clone();
+    const onFarPath = lichtungGround(OUTER_RING_RADIUS, 0, 0, 0, radii).clone();
+    const besideFarPath = lichtungGround(OUTER_RING_RADIUS + 6, 0, 0, 0, radii).clone();
 
     expect(colourDistance(onPath, dirt)).toBeLessThan(colourDistance(beside, dirt));
+    expect(colourDistance(onFarPath, dirt)).toBeLessThan(colourDistance(besideFarPath, dirt));
   });
 
   it('holds every animation still for visitors who prefer reduced motion', () => {

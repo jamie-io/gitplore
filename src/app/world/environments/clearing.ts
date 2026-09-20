@@ -20,7 +20,7 @@ import { GrassField } from './grass';
 import { LICHTUNG, applyMood, clearMood } from './mood';
 import { Monument } from './monument';
 import { Motes } from './motes';
-import { Position, RING_RADIUS, ringPlacements } from './placement';
+import { Position, ringPlacements } from './placement';
 import { valueNoise } from './random';
 import {
   Exclusion,
@@ -53,26 +53,69 @@ const EDGE = TERRAIN_SIZE / 2 - 6;
 /** Grass keeps this far from every landmark's centre. */
 const LANDMARK_CLEARANCE = 3.5;
 
-/** Where nothing tall grows: the meadow, the portal ring, the spoke, the monument and the pond. */
-export const OPEN_GROUND: readonly Exclusion[] = [
-  { kind: 'circle', x: 0, z: 0, radius: MEADOW_RADIUS },
-  { kind: 'ring', x: 0, z: 0, inner: RING_RADIUS - RING_BAND, outer: RING_RADIUS + RING_BAND },
-  { kind: 'segment', ax: 0, az: 0, bx: 0, bz: -RING_RADIUS, halfWidth: 4 },
-  { kind: 'circle', x: MONUMENT.x, z: MONUMENT.z, radius: 5 },
-  { kind: 'circle', x: POND.x, z: POND.z, radius: POND.radius * 1.4 },
-];
+function occupiedRadii(placements: readonly Position[]): readonly number[] {
+  return [
+    ...new Set(placements.map(([x, , z]) => Math.hypot(x, z)).filter((radius) => radius > 0)),
+  ].sort((first, second) => first - second);
+}
+
+function openGroundFor(occupiedRingRadii: readonly number[]): readonly Exclusion[] {
+  const farthestRingRadius = occupiedRingRadii.at(-1);
+
+  const exclusions: Exclusion[] = [
+    { kind: 'circle', x: 0, z: 0, radius: MEADOW_RADIUS },
+    ...occupiedRingRadii.map((radius): Exclusion => ({
+      kind: 'ring',
+      x: 0,
+      z: 0,
+      inner: radius - RING_BAND,
+      outer: radius + RING_BAND,
+    })),
+  ];
+  if (farthestRingRadius !== undefined) {
+    exclusions.push({
+      kind: 'segment',
+      ax: 0,
+      az: 0,
+      bx: 0,
+      bz: -farthestRingRadius,
+      halfWidth: 4,
+    });
+  }
+  exclusions.push(
+    { kind: 'circle', x: MONUMENT.x, z: MONUMENT.z, radius: 5 },
+    { kind: 'circle', x: POND.x, z: POND.z, radius: POND.radius * 1.4 },
+  );
+  return exclusions;
+}
+
+/** Base exclusions kept for callers that need open ground before landmarks are placed. */
+export const OPEN_GROUND: readonly Exclusion[] = openGroundFor([]);
 
 /** The worn path: no grass, no flowers. */
-const PATHS: readonly Exclusion[] = [
-  {
-    kind: 'ring',
-    x: 0,
-    z: 0,
-    inner: RING_RADIUS - PATH_HALF_WIDTH,
-    outer: RING_RADIUS + PATH_HALF_WIDTH,
-  },
-  { kind: 'segment', ax: 0, az: -2, bx: 0, bz: -RING_RADIUS, halfWidth: PATH_HALF_WIDTH },
-];
+function pathsFor(occupiedRingRadii: readonly number[]): readonly Exclusion[] {
+  const farthestRingRadius = occupiedRingRadii.at(-1);
+  const paths: Exclusion[] = [
+    ...occupiedRingRadii.map((radius): Exclusion => ({
+      kind: 'ring',
+      x: 0,
+      z: 0,
+      inner: radius - PATH_HALF_WIDTH,
+      outer: radius + PATH_HALF_WIDTH,
+    })),
+  ];
+  if (farthestRingRadius !== undefined) {
+    paths.push({
+      kind: 'segment',
+      ax: 0,
+      az: -2,
+      bx: 0,
+      bz: -farthestRingRadius,
+      halfWidth: PATH_HALF_WIDTH,
+    });
+  }
+  return paths;
+}
 const WATER: Exclusion = { kind: 'circle', x: POND.x, z: POND.z, radius: POND.radius * 1.02 };
 const MONUMENT_FOOT: Exclusion = { kind: 'circle', x: MONUMENT.x, z: MONUMENT.z, radius: 3.8 };
 
@@ -94,7 +137,13 @@ function clamp01(value: number): number {
  * The meadow's colour at one terrain face: sunny crowns, deep hollows, rock on steep faces, a
  * muddy shore and the worn path. Returns one shared instance, which `ProceduralGround` copies at once.
  */
-export function lichtungGround(x: number, z: number, height: number, slope: number): Color {
+export function lichtungGround(
+  x: number,
+  z: number,
+  height: number,
+  slope: number,
+  occupiedRingRadii: readonly number[] = [],
+): Color {
   const patch = valueNoise(x * 0.045, z * 0.045, 3);
   scratch
     .copy(HOLLOW)
@@ -107,16 +156,19 @@ export function lichtungGround(x: number, z: number, height: number, slope: numb
   if (toPond < POND.radius * 1.25) {
     scratch.lerp(SHORE, clamp01((POND.radius * 1.25 - toPond) / (POND.radius * 0.35)));
   }
-  const worn = pathWear(x, z);
+  const worn = pathWear(x, z, occupiedRingRadii);
   if (worn > 0) {
     scratch.lerp(PATH, worn);
   }
   return scratch;
 }
 
-function pathWear(x: number, z: number): number {
-  const ring = Math.abs(Math.hypot(x, z) - RING_RADIUS);
-  const spoke = z < -2 && z > -RING_RADIUS ? Math.abs(x) : Infinity;
+function pathWear(x: number, z: number, occupiedRingRadii: readonly number[]): number {
+  const ring = occupiedRingRadii.length
+    ? Math.min(...occupiedRingRadii.map((radius) => Math.abs(Math.hypot(x, z) - radius)))
+    : Infinity;
+  const farthestRingRadius = occupiedRingRadii.at(-1) ?? 0;
+  const spoke = z < -2 && z > -farthestRingRadius ? Math.abs(x) : Infinity;
   const distance = Math.min(ring, spoke);
   return (
     clamp01((PATH_HALF_WIDTH - distance) / PATH_HALF_WIDTH) *
@@ -137,10 +189,20 @@ export class ClearingEnvironment implements Environment {
   readonly spawnYaw = 0;
   /** Every shader in this world reads these; public so a test can watch time stand still. */
   readonly shared = new SharedUniforms(LICHTUNG);
-  readonly colliders: readonly Collider[];
+  private occupiedRingRadiiValue: readonly number[] = [];
+  private openGroundValue: readonly Exclusion[] = OPEN_GROUND;
+  private pathExclusions: readonly Exclusion[] = pathsFor([]);
+  private preparedColliders: readonly Collider[] | null = null;
+  private groves!: {
+    readonly broadleaf: readonly Placement[];
+    readonly birch: readonly Placement[];
+    readonly pine: readonly Placement[];
+    readonly boulders: readonly Placement[];
+  };
 
   private readonly terrain = new Terrain({
-    colorAt: lichtungGround,
+    colorAt: (x, z, height, slope) =>
+      lichtungGround(x, z, height, slope, this.occupiedRingRadiiValue),
     decorate: (material) => void withAtmosphere(material, this.shared),
   });
   private readonly monument = new Monument(MONUMENT.clone());
@@ -155,17 +217,7 @@ export class ClearingEnvironment implements Environment {
     ground: this.terrain,
     colours: { shallow: 0x7fb8a8, deep: 0x2f5f6f, foam: 0xf4f1e8 },
   });
-  private readonly grass = new GrassField({
-    shared: this.shared,
-    heightGlsl: terrainGlsl(),
-    // A smaller circle packed denser: 20 blades a square metre read as a meadow, 5 read as
-    // stubble, and past 30 m the ground's own face colours carry the grass to the horizon.
-    radius: 34,
-    blades: 90000,
-    height: 0.45,
-    colours: { root: 0x467a2c, tip: 0xb9cf5c, dry: 0xd0b565 },
-    bare: [...PATHS, WATER, MONUMENT_FOOT],
-  });
+  private grass?: GrassField;
   private readonly backdrop = new Backdrop(
     [
       {
@@ -212,20 +264,32 @@ export class ClearingEnvironment implements Environment {
     ground: this.terrain,
   });
 
-  /** Tall things, placed before `init` because they collide; their counts never depend on the tier. */
-  private readonly groves: {
-    readonly broadleaf: readonly Placement[];
-    readonly birch: readonly Placement[];
-    readonly pine: readonly Placement[];
-    readonly boulders: readonly Placement[];
-  };
   /** Every landmark footprint, pinned and generated, recorded when the scene asks for anchors. */
   private reserved: readonly Position[] = [];
   private props: InstancedMesh[] = [];
   private scene: WorldContext['scene'] | null = null;
 
-  constructor(private readonly options: EnvironmentOptions) {
-    const exclusions = OPEN_GROUND;
+  constructor(private readonly options: EnvironmentOptions) {}
+
+  get colliders(): readonly Collider[] {
+    this.prepareWorld();
+    return this.preparedColliders!;
+  }
+
+  get openGround(): readonly Exclusion[] {
+    return this.openGroundValue;
+  }
+
+  get occupiedRingRadii(): readonly number[] {
+    return this.occupiedRingRadiiValue;
+  }
+
+  private prepareWorld(): void {
+    if (this.preparedColliders) {
+      return;
+    }
+
+    const exclusions = this.openGroundValue;
     this.groves = {
       broadleaf: scatter(
         {
@@ -275,7 +339,7 @@ export class ClearingEnvironment implements Environment {
       ),
     };
 
-    this.colliders = [
+    this.preparedColliders = [
       ...this.monument.colliders,
       { kind: 'cylinder', x: POND.x, z: POND.z, radius: POND.radius * 0.95 },
       ...cylinderColliders(this.groves.broadleaf, 0.3),
@@ -294,10 +358,27 @@ export class ClearingEnvironment implements Environment {
     // The start world asks once, in the scene's constructor, before `init`: remember every
     // landmark's footprint so the grass leaves room around each of them.
     this.reserved = [...avoid, ...anchors.map((anchor) => anchor.position)];
+    this.occupiedRingRadiiValue = occupiedRadii(this.reserved);
+    this.openGroundValue = openGroundFor(this.occupiedRingRadiiValue);
+    this.pathExclusions = pathsFor(this.occupiedRingRadiiValue);
+    this.preparedColliders = null;
+    this.prepareWorld();
     return anchors;
   }
 
   init(ctx: WorldContext): void {
+    this.prepareWorld();
+    this.grass = new GrassField({
+      shared: this.shared,
+      heightGlsl: terrainGlsl(),
+      // A smaller circle packed denser: 20 blades a square metre read as a meadow, 5 read as
+      // stubble, and past 30 m the ground's own face colours carry the grass to the horizon.
+      radius: 34,
+      blades: 90000,
+      height: 0.45,
+      colours: { root: 0x467a2c, tip: 0xb9cf5c, dry: 0xd0b565 },
+      bare: [...this.pathExclusions, WATER, MONUMENT_FOOT],
+    });
     this.scene = ctx.scene;
     applyMood(ctx.scene, LICHTUNG);
 
@@ -324,7 +405,7 @@ export class ClearingEnvironment implements Environment {
     this.sun.update(dt, ctx);
     this.monument.update();
     this.pond.update();
-    this.grass.update();
+    this.grass?.update();
     this.pollen.update();
     this.butterflies.update();
   }
@@ -335,7 +416,8 @@ export class ClearingEnvironment implements Environment {
     this.butterflies.dispose();
     this.pollen.dispose();
     this.backdrop.dispose();
-    this.grass.dispose();
+    this.grass?.dispose();
+    this.grass = undefined;
     this.pond.dispose();
     this.monument.dispose();
     this.sun.dispose();
@@ -376,7 +458,7 @@ export class ClearingEnvironment implements Environment {
         area: { inner: 14, outer: EDGE },
         clusters: { count: 12, radius: 8 },
         scale: [0.7, 1.4],
-        exclusions: OPEN_GROUND,
+        exclusions: this.openGroundValue,
       },
       this.terrain,
     );
@@ -413,7 +495,7 @@ export class ClearingEnvironment implements Environment {
             area: { inner: 6, outer: 60 },
             clusters: { count: 14, radius: 6 },
             scale: [0.8, 1.3],
-            exclusions: [...PATHS, WATER, MONUMENT_FOOT],
+            exclusions: [...this.pathExclusions, WATER, MONUMENT_FOOT],
           },
           this.terrain,
         ),

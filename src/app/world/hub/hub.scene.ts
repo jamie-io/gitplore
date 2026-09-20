@@ -53,20 +53,28 @@ export class HubScene implements WorldScene {
     );
     let anchorIndex = 0;
 
-    this.landmarks = options.projects.map((project) => {
+    this.landmarks = options.projects.flatMap((project) => {
       const position = project.landmark.position;
-      const placement: LandmarkPlacement = position
+      const placement: LandmarkPlacement | undefined = position
         ? { position, rotationY: project.landmark.rotationY ?? 0 }
         : anchors[anchorIndex++];
 
-      return createLandmark({
-        project,
-        placement,
-        ground: this.environment.ground,
-        reducedMotion: options.reducedMotion,
-        onEnter: options.onEnter,
-        textures: options.textures,
-      });
+      if (!placement) {
+        // A fixed front fan can run out of safe bearings. The environment deliberately returns no
+        // replacement rather than stacking this project on a landmark already in the hub.
+        return [];
+      }
+
+      return [
+        createLandmark({
+          project,
+          placement,
+          ground: this.environment.ground,
+          reducedMotion: options.reducedMotion,
+          onEnter: options.onEnter,
+          textures: options.textures,
+        }),
+      ];
     });
 
     // Shapes are known before init (`Landmark.describe`), so the engine can read one flat list.
