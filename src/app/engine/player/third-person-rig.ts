@@ -1,0 +1,211 @@
+import { PerspectiveCamera, Vector3 } from 'three';
+import { CameraRig, RigFrame } from './camera-rig';
+import { Collider, HeightField, STEP_HEIGHT, resolveCollisions } from './collision';
+import { PlayerController } from './player-controller';
+
+/** Metres from the boom's anchor to the camera when nothing stands in the way. */
+export const BOOM_LENGTH = 3.6;
+
+/** How far above the eye the boom is anchored, so the view looks slightly down over the figure. */
+export const BOOM_HEIGHT = 0.35;
+
+/**
+ * Samples taken along the boom while looking for the furthest point still clear of the props. Six
+ * over 3.6 m is one every 0.6 m, and since each sample keeps the camera's own width clear as well,
+ * nothing solid can fit between two of them unseen.
+ */
+export const BOOM_STEPS = 6;
+
+/** Half the width the camera counts as having when asking whether a point is inside a prop. */
+export const BOOM_RADIUS = 0.3;
+
+/** However far down the boom swings, the camera stays this far above the terrain. */
+export const GROUND_CLEARANCE = 0.4;
+
+/**
+ * Smoothing time of the horizontal follow, in seconds: roughly how long the boom's anchor takes to
+ * catch up with the head. It is what makes the camera trail the player instead of being welded on.
+ */
+export const FOLLOW_LAG = 0.12;
+
+/**
+ * Smoothing time of the vertical follow — slower than the horizontal one, and deliberately its own
+ * term. Stepping onto a crate raises the eye by a whole `STEP_HEIGHT` between two frames, and
+ * nothing in the controller smooths that; without this the climb reads as a jolt. It is also what
+ * gives a landing its dip: the camera arrives carrying the fall's momentum and settles afterwards.
+ */
+export const RISE_LAG = 0.18;
+
+/**
+ * How far the camera may trail the head vertically. One step is the largest vertical teleport the
+ * controller can make in a single frame, so a climb is smoothed in full while a fall still carries
+ * the camera down with the player rather than leaving it hanging in the air.
+ */
+export const MAX_RISE_LAG = STEP_HEIGHT;
+
+/**
+ * Further than a full-speed run and a jump together could cover in one capped frame: 8.55 m/s
+ * sideways and 7 m/s up, over 0.05 s, is 0.55 m. Only a teleport into another world moves the
+ * player this far, and the boom snaps there instead of flying across the map to reach it.
+ */
+const TELEPORT_DISTANCE = 2;
+
+/**
+ * Third-person view: the camera hangs on a boom behind the player's head, orbited by pitch and
+ * reeled in by whatever stands between the two. Only the boom's anchor eases — the aim is taken
+ * straight from the player — so looking around stays as crisp as it is in first person.
+ */
+export class ThirdPersonRig implements CameraRig {
+  private readonly anchorX = new DampedAxis();
+  private readonly anchorY = new DampedAxis();
+  private readonly anchorZ = new DampedAxis();
+
+  /** Where the player stood last frame; more ground than they could walk means a teleport. */
+  private readonly previous = new Vector3();
+  private following = false;
+
+  constructor(private readonly camera: PerspectiveCamera) {
+    // Yaw first, then pitch: the ZXY default would roll the view when looking up while turning.
+    camera.rotation.order = 'YXZ';
+  }
+
+  sync(player: PlayerController, frame: RigFrame): void {
+    this.followHead(player, frame);
+
+    this.camera.rotation.y = player.yaw;
+    this.camera.rotation.x = player.pitch;
+    this.camera.rotation.z = 0;
+
+    this.extendBoom(player, frame);
+  }
+
+  /** Eases the boom's anchor towards the head, or snaps to it when the player was teleported. */
+  private followHead(player: PlayerController, frame: RigFrame): void {
+    const x = player.position.x;
+    const y = player.position.y + BOOM_HEIGHT;
+    const z = player.position.z;
+    const teleported =
+      !this.following || this.previous.distanceTo(player.position) > TELEPORT_DISTANCE;
+
+    this.previous.copy(player.position);
+    this.following = true;
+
+    if (teleported) {
+      this.anchorX.reset(x);
+      this.anchorY.reset(y);
+      this.anchorZ.reset(z);
+      return;
+    }
+
+    // Reduced motion is about the camera, not about the player: the head still moves, the camera
+    // just stops easing after it.
+    const follow = frame.reducedMotion ? 0 : FOLLOW_LAG;
+    this.anchorX.step(x, follow, frame.dt);
+    this.anchorZ.step(z, follow, frame.dt);
+    this.anchorY.step(y, frame.reducedMotion ? 0 : RISE_LAG, frame.dt, MAX_RISE_LAG);
+  }
+
+  /**
+   * Marches outwards from the anchor and leaves the camera on the furthest sample still clear of
+   * every prop. No raycast: colliders are XZ footprints and the ground is analytic, so walking the
+   * boom is both cheaper and exactly as truthful as tracing it would be.
+   */
+  private extendBoom(player: PlayerController, frame: RigFrame): void {
+    const level = Math.cos(player.pitch);
+    // Straight back along the look direction, so pitch orbits the boom instead of tilting the head.
+    const backX = Math.sin(player.yaw) * level;
+    const backY = -Math.sin(player.pitch);
+    const backZ = Math.cos(player.yaw) * level;
+
+    const y = liftedOverGround(
+      this.anchorX.value,
+      this.anchorY.value,
+      this.anchorZ.value,
+      frame.ground,
+    );
+    // The player is always outside the props, the eased anchor is not: a smoothed path around a
+    // house corner cuts into it. The march may not start from inside, so the anchor is held clear
+    // exactly as the player's own feet are.
+    const { x, z } = resolveCollisions(
+      this.anchorX.value,
+      this.anchorZ.value,
+      BOOM_RADIUS,
+      frame.colliders,
+      y - STEP_HEIGHT,
+    );
+    // A boom blocked at its very first sample leaves the camera on the anchor, which is first
+    // person in all but name — the only honest answer when there is no room behind the player.
+    this.camera.position.set(x, y, z);
+
+    for (let step = 1; step <= BOOM_STEPS; step++) {
+      const reach = (BOOM_LENGTH * step) / BOOM_STEPS;
+      const sampleX = x + backX * reach;
+      const sampleZ = z + backZ * reach;
+      const sampleY = liftedOverGround(sampleX, y + backY * reach, sampleZ, frame.ground);
+
+      if (!isClear(sampleX, sampleY, sampleZ, frame.colliders)) {
+        return;
+      }
+      this.camera.position.set(sampleX, sampleY, sampleZ);
+    }
+  }
+}
+
+/** The boom may swing below the ground; the visitor may not end up under it. */
+function liftedOverGround(x: number, y: number, z: number, ground: HeightField): number {
+  return Math.max(y, ground.heightAt(x, z) + GROUND_CLEARANCE);
+}
+
+/**
+ * Whether the camera may sit at this point. It reuses the player's own containment maths rather
+ * than keeping a second copy of it: a point `resolveCollisions` moves at all was inside something.
+ * Colliders whose walkable `top` lies at or below the camera are skipped, which is what passing
+ * feet one `STEP_HEIGHT` below the camera asks for — the boom passes over a crate instead of being
+ * reeled in by it.
+ */
+function isClear(x: number, y: number, z: number, colliders: readonly Collider[]): boolean {
+  const resolved = resolveCollisions(x, z, BOOM_RADIUS, colliders, y - STEP_HEIGHT);
+  return resolved.x === x && resolved.z === z;
+}
+
+/**
+ * One axis of a critically damped spring, stepped from its closed form so the motion is the same at
+ * any frame rate. `smoothing` is the spring's characteristic time: after it, under half the gap is
+ * left, and after three times it the gap is gone. 0 means no easing at all, which is what reduced
+ * motion asks for.
+ */
+class DampedAxis {
+  value = 0;
+  private velocity = 0;
+
+  reset(value: number): void {
+    this.value = value;
+    this.velocity = 0;
+  }
+
+  /** `maxLag` caps how far behind the target the value may fall, however fast the target runs. */
+  step(target: number, smoothing: number, dt: number, maxLag = Infinity): void {
+    if (smoothing <= 0) {
+      this.reset(target);
+      return;
+    }
+
+    const rate = 2 / smoothing;
+    const decay = Math.exp(-rate * dt);
+    const lag = this.value - target;
+    const slope = this.velocity + rate * lag;
+
+    this.value = target + (lag + slope * dt) * decay;
+    this.velocity = (this.velocity - slope * rate * dt) * decay;
+
+    // Pinned at the cap the value travels with the target; the spring takes over again as soon as
+    // the target stops running away from it, which is what turns a landing into a settle.
+    if (this.value < target - maxLag) {
+      this.value = target - maxLag;
+      this.velocity = Math.max(this.velocity, 0);
+    } else if (this.value > target + maxLag) {
+      this.value = target + maxLag;
+      this.velocity = Math.min(this.velocity, 0);
+    }
+  }
+}

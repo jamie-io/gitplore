@@ -10,7 +10,9 @@ import { ENGINE_MAX_FRAME_SECONDS, EngineService } from './engine.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
 import { BoxGeometry, Mesh, MeshStandardMaterial, Texture, Vector3 } from 'three';
 import { Interactable } from './interaction/interactable';
-import { HeightField } from './player/collision';
+import { Collider, HeightField } from './player/collision';
+import { PLAYER_EYE_HEIGHT } from './player/player-controller';
+import { BOOM_HEIGHT, BOOM_LENGTH } from './player/third-person-rig';
 import { WorldScene } from './world-object';
 import { CAPABLE } from './testing/world-context';
 
@@ -50,11 +52,11 @@ class StubRenderer implements RendererLike {
 
 const FLAT: HeightField = { heightAt: () => 0 };
 
-function stubScene(id: string, interactables: Interactable[] = []) {
+function stubScene(id: string, interactables: Interactable[] = [], colliders: Collider[] = []) {
   const scene: WorldScene & { initialised: number; disposed: number; updates: number[] } = {
     id,
     ground: FLAT,
-    colliders: [],
+    colliders,
     interactables,
     initialised: 0,
     disposed: 0,
@@ -354,6 +356,49 @@ describe('EngineService', () => {
     engine.detach();
 
     expect(scene.disposed).toBe(1);
+  });
+
+  describe('camera rig', () => {
+    it('starts in third person, on a boom behind the player', () => {
+      tick(0);
+      tick(16);
+
+      expect(engine.camera.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT + BOOM_HEIGHT, 6);
+      expect(engine.camera.position.z).toBeCloseTo(BOOM_LENGTH, 6);
+    });
+
+    it('moves the camera onto the head when the view mode changes mid-play', () => {
+      tick(0);
+      tick(16);
+
+      engine.setViewMode('first');
+      tick(32);
+
+      expect(engine.camera.position.toArray()).toEqual(engine.player.position.toArray());
+    });
+
+    it('goes back to the boom when the view mode changes back', () => {
+      engine.setViewMode('first');
+      tick(0);
+      tick(16);
+
+      engine.setViewMode('third');
+      tick(32);
+
+      expect(engine.camera.position.z).toBeCloseTo(BOOM_LENGTH, 6);
+    });
+
+    it('hands the rig the world the player walks through, so the boom clears it', () => {
+      // A wall straight behind the spawn: the boom has to stop short of it.
+      engine.setScene(
+        stubScene('hub', [], [{ kind: 'aabb', minX: -5, maxX: 5, minZ: 2, maxZ: 3 }]),
+      );
+
+      tick(0);
+      tick(16);
+
+      expect(engine.camera.position.z).toBeLessThan(2);
+    });
   });
 
   describe('interaction', () => {

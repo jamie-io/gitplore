@@ -25,6 +25,7 @@ import { LoadingScreen } from '@ui/loading-screen/loading-screen';
 import { ProjectMenu } from '@ui/project-menu/project-menu';
 import { SceneVeil } from '@ui/scene-veil/scene-veil';
 import { SettingsDialog } from '@ui/settings-dialog/settings-dialog';
+import { SettingsStore } from '@ui/store/settings.store';
 import { WorldStore } from '@ui/store/world.store';
 import { SceneDirector } from './scene-director';
 
@@ -105,6 +106,7 @@ export class WorldPage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly director = inject(SceneDirector);
+  private readonly settings = inject(SettingsStore);
 
   /** While a dialog owns the input, what lies beneath it must not be reachable by Tab (§6). */
   protected readonly overlayOpen = computed(() => this.store.inputMode() === 'ui');
@@ -142,6 +144,9 @@ export class WorldPage {
 
   constructor() {
     effect(() => this.input.setMode(this.store.inputMode()));
+    // `@engine` may not reach into `@ui`, so the chosen view travels the same way the tier does.
+    // Reactively, because the settings dialog and the view key both move the same signal mid-play.
+    effect(() => this.engine.setViewMode(this.settings.viewMode()));
     // Settings and adaptive stepping change the tier at runtime; the renderer follows.
     effect(() => {
       this.capability.tier();
