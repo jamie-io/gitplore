@@ -175,6 +175,29 @@ describe('WorldStore', () => {
     expect(store.menuOpen()).toBe(false);
   });
 
+  it('remembers the current project and hub travel distances', () => {
+    const distances = new Map([
+      ['deslopify', 18.4],
+      ['novaverta', 27.1],
+    ]);
+
+    store.setCurrentProject('novaverta');
+    store.setTravelDistances(distances);
+
+    expect(store.currentProject()).toBe('novaverta');
+    expect(store.travelDistances()).toBe(distances);
+  });
+
+  it('clears travel state with transient world state', () => {
+    store.setCurrentProject('novaverta');
+    store.setTravelDistances(new Map([['novaverta', 27.1]]));
+
+    store.resetTransient();
+
+    expect(store.currentProject()).toBeNull();
+    expect(store.travelDistances().size).toBe(0);
+  });
+
   it('names the area the player is standing in', () => {
     store.setArea('Clearing');
 

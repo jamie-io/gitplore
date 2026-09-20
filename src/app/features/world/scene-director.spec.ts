@@ -131,6 +131,50 @@ describe('SceneDirector', () => {
     await director.show('novaverta');
 
     expect(store.area()).toBe('Showroom — Phönix Industriedienstleistungen');
+    expect(store.currentProject()).toBe('novaverta');
+  });
+
+  it('snapshots live hub landmark distances when the menu opens', async () => {
+    await director.show(null);
+    const hub = engine.world as HubScene;
+
+    store.setMenuOpen(true);
+    TestBed.tick();
+
+    for (const landmark of hub.landmarks) {
+      const expected = Math.hypot(
+        landmark.position.x - engine.player.position.x,
+        landmark.position.z - engine.player.position.z,
+      );
+      expect(store.travelDistances().get(landmark.project.slug)).toBeCloseTo(expected, 5);
+    }
+  });
+
+  it('takes one distance snapshot per menu opening', async () => {
+    await director.show(null);
+
+    store.setMenuOpen(true);
+    TestBed.tick();
+    const firstSnapshot = store.travelDistances();
+
+    store.setArea('Lichtung');
+    TestBed.tick();
+    expect(store.travelDistances()).toBe(firstSnapshot);
+
+    store.setMenuOpen(false);
+    TestBed.tick();
+    store.setMenuOpen(true);
+    TestBed.tick();
+    expect(store.travelDistances()).not.toBe(firstSnapshot);
+  });
+
+  it('does not expose distances inside a repository world', async () => {
+    await director.show('novaverta');
+
+    store.setMenuOpen(true);
+    TestBed.tick();
+
+    expect(store.travelDistances().size).toBe(0);
   });
 
   it('raises and clears the swap flag around a build', async () => {
@@ -255,5 +299,15 @@ describe('SceneDirector', () => {
 
     // There is nothing in a repo world to teleport to, so the router builds the destination.
     expect(navigate).toHaveBeenCalledWith(['/p', 'poetzscher']);
+  });
+
+  it('opens the current project panel instead of navigating to the same world', async () => {
+    await director.show('novaverta');
+    const router = TestBed.inject(Router);
+    const navigate = vi.spyOn(router, 'navigate');
+
+    director.travelTo('novaverta');
+
+    expect(navigate).toHaveBeenCalledWith(['/p', 'novaverta', 'info']);
   });
 });

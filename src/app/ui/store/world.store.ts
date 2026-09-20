@@ -11,8 +11,8 @@ export interface LoadProgress {
 }
 
 /**
- * Everything about the world that is not the open destination — the router owns that
- * (IMPLEMENTATION_PLAN.md §3, §6).
+ * World UI state. The router remains the source of truth for the open destination; the menu keeps
+ * a small current-project marker and its latest hub distance snapshot here.
  */
 @Service()
 export class WorldStore {
@@ -23,6 +23,10 @@ export class WorldStore {
 
   readonly menuOpen = signal(false);
   readonly settingsOpen = signal(false);
+  /** Slug of the repository world the visitor currently stands in; `null` means the hub. */
+  readonly currentProject = signal<string | null>(null);
+  /** XZ walking distances from the hub spawn, captured when the menu opens. */
+  readonly travelDistances = signal<ReadonlyMap<string, number>>(new Map());
 
   /** What the player is close to and facing; written by the engine only on change (§2). */
   readonly nearby = signal<Interactable | null>(null);
@@ -37,8 +41,8 @@ export class WorldStore {
   /**
    * The `/p/:slug/info` panel is showing on top of whatever world is open. The router owns this.
    *
-   * Which world that is, the store deliberately does not know: nothing about the UI depends on it,
-   * and `SceneDirector` reads the slug from the route itself.
+   * The current project marker above is separate menu state; `SceneDirector` updates it after a
+   * world swap, while the router still owns navigation and panel state.
    */
   readonly panelOpen = signal(false);
   /** A scene is being built; the veil covers the swap and the loop stands still behind it. */
@@ -54,7 +58,7 @@ export class WorldStore {
 
   /**
    * Any overlay takes the input away from the world; a running demo takes it next. Standing in a
-   * repo world does not: it is a place, not a dialog, and no signal here reports being in one.
+   * repo world does not: it is a place, not a dialog.
    */
   readonly inputMode = computed<InputMode>(() => {
     if (!this.started() || this.panelOpen() || this.menuOpen() || this.settingsOpen()) {
@@ -98,6 +102,14 @@ export class WorldStore {
     this.area.set(area);
   }
 
+  setCurrentProject(slug: string | null): void {
+    this.currentProject.set(slug);
+  }
+
+  setTravelDistances(distances: ReadonlyMap<string, number>): void {
+    this.travelDistances.set(distances);
+  }
+
   setNearby(nearby: Interactable | null): void {
     this.nearby.set(nearby);
   }
@@ -127,6 +139,8 @@ export class WorldStore {
   resetTransient(): void {
     this.setMenuOpen(false);
     this.setSettingsOpen(false);
+    this.setCurrentProject(null);
+    this.setTravelDistances(new Map());
     this.setDemoActive(false);
     this.requestDemo(null);
     this.setNearby(null);

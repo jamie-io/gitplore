@@ -1,4 +1,4 @@
-import { Service, inject } from '@angular/core';
+import { Service, effect, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AssetService } from '@engine/asset.service';
 import { CapabilityService } from '@engine/capability.service';
@@ -38,6 +38,12 @@ export class SceneDirector {
   /** The project the visitor last stood in, so returning puts them back at its portal. */
   private previousSlug: string | null = null;
   private demo: InWorldDemo | null = null;
+
+  private readonly menuDistanceEffect = effect(() => {
+    if (this.store.menuOpen()) {
+      this.captureMenuDistances();
+    }
+  });
 
   /** Builds the world the route asks for. `null` is the start world. */
   async show(slug: string | null): Promise<void> {
@@ -87,6 +93,8 @@ export class SceneDirector {
       this.current = scene;
       this.place(scene);
       this.store.setArea(project ? `${environment.name} — ${project.title}` : environment.name);
+      this.store.setCurrentProject(project?.slug ?? null);
+      this.store.setTravelDistances(new Map());
       this.previousSlug = slug;
     } finally {
       if (token === this.sequence) {
@@ -129,9 +137,14 @@ export class SceneDirector {
   /**
    * The project menu's direct travel (spec §7). Inside the start world it is a teleport to that
    * project's portal; from a repo world there is nothing to teleport to, so it becomes a
-   * navigation and the router builds the world.
+   * navigation and the router builds the world. Selecting the current project opens its panel.
    */
   travelTo(slug: string): void {
+    if (this.store.currentProject() === slug) {
+      void this.router.navigate(['/p', slug, 'info']);
+      return;
+    }
+
     const landmark = this.current instanceof HubScene ? this.current.landmarkFor(slug) : undefined;
     if (!landmark) {
       void this.router.navigate(['/p', slug]);
@@ -151,6 +164,8 @@ export class SceneDirector {
     this.sequence++;
     this.current = null;
     this.previousSlug = null;
+    this.store.setCurrentProject(null);
+    this.store.setTravelDistances(new Map());
     // A build abandoned by the bump above never reaches the `finally` that would otherwise clear
     // this, since its token no longer matches — so it has to be cleared here too.
     this.store.setSwapping(false);
@@ -177,6 +192,23 @@ export class SceneDirector {
       onDemo: () => this.startDemo(),
       textures: this.assets,
     });
+  }
+
+  private captureMenuDistances(): void {
+    if (!(this.current instanceof HubScene)) {
+      this.store.setTravelDistances(new Map());
+      return;
+    }
+
+    const { x, z } = this.engine.player.position;
+    const distances = new Map<string, number>();
+    for (const landmark of this.current.landmarks) {
+      distances.set(
+        landmark.project.slug,
+        Math.hypot(landmark.position.x - x, landmark.position.z - z),
+      );
+    }
+    this.store.setTravelDistances(distances);
   }
 
   /** Where the arriving player stands (spec §6, "Placement and re-entrancy"). */
