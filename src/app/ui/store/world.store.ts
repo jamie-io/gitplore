@@ -35,6 +35,11 @@ export class WorldStore {
   readonly demoActive = signal(false);
   readonly demoHint = signal<string | null>(null);
 
+  /** An interactable has captured movement and look, and the prompt for releasing it. */
+  private readonly captureState = signal<{ readonly prompt: string } | null>(null);
+  readonly captured = computed(() => this.captureState() !== null);
+  readonly capturePrompt = computed(() => this.captureState()?.prompt ?? null);
+
   /** Slug of the in-world demo the panel asked for; the page fulfils and clears it. */
   readonly demoRequest = signal<string | null>(null);
 
@@ -63,6 +68,9 @@ export class WorldStore {
   readonly inputMode = computed<InputMode>(() => {
     if (!this.started() || this.panelOpen() || this.menuOpen() || this.settingsOpen()) {
       return 'ui';
+    }
+    if (this.captured()) {
+      return 'captured';
     }
     return this.demoActive() ? 'demo' : 'world';
   });
@@ -119,6 +127,10 @@ export class WorldStore {
     this.demoHint.set(active ? hint : null);
   }
 
+  setCaptured(captured: boolean, prompt: string | null = null): void {
+    this.captureState.set(captured ? { prompt: prompt ?? 'Verlassen' } : null);
+  }
+
   requestDemo(slug: string | null): void {
     this.demoRequest.set(slug);
   }
@@ -142,6 +154,7 @@ export class WorldStore {
     this.setCurrentProject(null);
     this.setTravelDistances(new Map());
     this.setDemoActive(false);
+    this.setCaptured(false);
     this.requestDemo(null);
     this.setNearby(null);
     this.setArea('');

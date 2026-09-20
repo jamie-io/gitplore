@@ -1,8 +1,8 @@
 import { Service, signal } from '@angular/core';
 import { MoveIntent } from './player/player-controller';
 
-export type InputMode = 'world' | 'ui' | 'demo';
-export type InputAction = 'interact' | 'menu' | 'exit' | 'view';
+export type InputMode = 'world' | 'ui' | 'demo' | 'captured';
+export type InputAction = 'interact' | 'menu' | 'exit' | 'view' | 'up' | 'down' | 'left' | 'right';
 
 /** Radians of turn per pixel of pointer movement, before the user's sensitivity multiplier. */
 const POINTER_SENSITIVITY = 0.0022;
@@ -27,10 +27,25 @@ const ACTION_KEYS: Record<string, InputAction> = {
   KeyV: 'view',
 };
 
+const CAPTURED_ACTION_KEYS: Record<string, InputAction> = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+};
+
 /** Actions that must work whatever has focus, otherwise an overlay could trap the visitor. */
 const GLOBAL_ACTIONS: readonly InputAction[] = ['menu', 'exit'];
 
 export type ActionListener = (action: InputAction) => void;
+export type CaptureListener = (captured: boolean, prompt: string | null) => void;
+
+/** The narrow control surface an in-world prop needs to take and release player input. */
+export interface InputCapture {
+  capture(prompt?: string): void;
+  releaseCapture(): void;
+  addCaptureListener(listener: CaptureListener): () => void;
+}
 
 function isEditable(target: EventTarget | null): boolean {
   return (
@@ -44,13 +59,15 @@ function isEditable(target: EventTarget | null): boolean {
  * signal per frame: the render loop pulls an intent, and only the lock state and mode are signals.
  */
 @Service()
-export class InputService {
+export class InputService implements InputCapture {
   readonly locked = signal(false);
   readonly mode = signal<InputMode>('world');
 
   private readonly pressed = new Set<string>();
   private readonly actions = new Set<InputAction>();
   private readonly listeners = new Set<ActionListener>();
+  private readonly captureListeners = new Set<CaptureListener>();
+  private captured = false;
 
   private canvas: HTMLCanvasElement | null = null;
   private pointerX = 0;
@@ -81,6 +98,7 @@ export class InputService {
       document.removeEventListener('pointerlockchange', onLockChange);
       window.removeEventListener('blur', onBlur);
       this.pressed.clear();
+      this.captured = false;
       this.canvas = null;
     };
   }
@@ -94,6 +112,28 @@ export class InputService {
     if (mode === 'ui' && document.pointerLockElement === this.canvas) {
       document.exitPointerLock?.();
     }
+  }
+
+  /** Takes movement and look away from the visitor until they release the capture. */
+  capture(prompt = 'Verlassen'): void {
+    if (this.captured) {
+      return;
+    }
+
+    this.captured = true;
+    this.setMode('captured');
+    this.captureListeners.forEach((listener) => listener(true, prompt));
+  }
+
+  /** Releases a captured control surface and returns to world input. */
+  releaseCapture(): void {
+    if (!this.captured) {
+      return;
+    }
+
+    this.captured = false;
+    this.setMode('world');
+    this.captureListeners.forEach((listener) => listener(false, null));
   }
 
   requestLock(): void {
@@ -145,8 +185,35 @@ export class InputService {
     return () => this.listeners.delete(listener);
   }
 
+  /** Hears capture transitions without requiring a render frame. */
+  addCaptureListener(listener: CaptureListener): () => void {
+    this.captureListeners.add(listener);
+    return () => this.captureListeners.delete(listener);
+  }
+
   private onKeyDown(event: KeyboardEvent): void {
     if (isEditable(event.target)) {
+      return;
+    }
+
+    if (this.mode() === 'captured') {
+      if (event.code === 'Escape') {
+        this.releaseCapture();
+      } else if (
+        event.code === 'KeyE' &&
+        !event.repeat &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        this.releaseCapture();
+      } else {
+        const capturedAction = CAPTURED_ACTION_KEYS[event.code];
+        if (capturedAction) {
+          this.actions.add(capturedAction);
+          this.listeners.forEach((listener) => listener(capturedAction));
+        }
+      }
       return;
     }
 
@@ -156,6 +223,10 @@ export class InputService {
     // which is the last thing `prefers-reduced-motion` would forgive. Ctrl+V and Cmd+V are a
     // paste, not a view change — but Shift is the run key, so a running player may still press it.
     if (action === 'view' && (event.repeat || event.ctrlKey || event.metaKey || event.altKey)) {
+      return;
+    }
+
+    if (action === 'menu' && (event.repeat || event.ctrlKey || event.metaKey || event.altKey)) {
       return;
     }
 

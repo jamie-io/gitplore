@@ -26,7 +26,9 @@ const STATS_INTERVAL_MS = 500;
         <!-- Also the arrival announcement for a scene change (spec §7); the director writes it. -->
         <p class="area" aria-live="polite">{{ store.area() }}</p>
         <p class="prompt" aria-live="polite">
-          @if (store.demoHint(); as hint) {
+          @if (store.capturePrompt(); as prompt) {
+            <kbd>E</kbd> / <kbd>Esc</kbd> {{ prompt }}
+          } @else if (store.demoHint(); as hint) {
             {{ hint }}
           } @else if (store.nearby(); as nearby) {
             <kbd>E</kbd> {{ nearby.prompt }}

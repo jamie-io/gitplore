@@ -117,6 +117,17 @@ describe('WorldStore', () => {
       expect(store.inputMode()).toBe('demo');
     });
 
+    it('is captured while an interactable owns the controls', () => {
+      store.setCaptured(true, 'Aufstehen');
+
+      expect(store.inputMode()).toBe('captured');
+      expect(store.capturePrompt()).toBe('Aufstehen');
+
+      store.setCaptured(false);
+      expect(store.inputMode()).toBe('world');
+      expect(store.capturePrompt()).toBeNull();
+    });
+
     it('lets an overlay win over a running demo', () => {
       store.setDemoActive(true);
       store.toggleMenu();
@@ -150,6 +161,7 @@ describe('WorldStore', () => {
     store.setMenuOpen(true);
     store.setSettingsOpen(true);
     store.setDemoActive(true, 'hint');
+    store.setCaptured(true, 'Aufstehen');
     store.requestDemo('deslopify');
     store.setNearby(PORTAL);
     store.setArea('Deslopify');
@@ -160,6 +172,8 @@ describe('WorldStore', () => {
     expect(store.settingsOpen()).toBe(false);
     expect(store.demoActive()).toBe(false);
     expect(store.demoHint()).toBeNull();
+    expect(store.inputMode()).toBe('world');
+    expect(store.capturePrompt()).toBeNull();
     expect(store.demoRequest()).toBeNull();
     expect(store.nearby()).toBeNull();
     expect(store.area()).toBe('');

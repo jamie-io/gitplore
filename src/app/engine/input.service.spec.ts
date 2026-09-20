@@ -134,6 +134,71 @@ describe('InputService', () => {
 
       expect(input.consumeIntent(STEP).forward).toBe(1);
     });
+
+    it('captures the controls and releases them exactly once', () => {
+      const changes: { captured: boolean; prompt: string | null }[] = [];
+      const off = input.addCaptureListener((captured, prompt) =>
+        changes.push({ captured, prompt }),
+      );
+
+      input.capture('Aufstehen');
+      input.capture('ignored');
+      expect(input.mode()).toBe('captured');
+      expect(changes).toEqual([{ captured: true, prompt: 'Aufstehen' }]);
+
+      input.releaseCapture();
+      input.releaseCapture();
+      off();
+
+      expect(input.mode()).toBe('world');
+      expect(changes).toEqual([
+        { captured: true, prompt: 'Aufstehen' },
+        { captured: false, prompt: null },
+      ]);
+    });
+
+    it('ignores movement and look while captured', () => {
+      lock(canvas);
+      input.capture();
+      press('KeyW');
+      press('ArrowRight');
+      moveMouse(100, 50);
+
+      expect(input.consumeIntent(STEP)).toEqual({
+        forward: 0,
+        strafe: 0,
+        run: false,
+        jump: false,
+        yawDelta: 0,
+        pitchDelta: 0,
+      });
+    });
+
+    it('delivers captured arrow presses as actions without turning them into movement', () => {
+      input.capture();
+      press('ArrowUp');
+      press('ArrowLeft');
+
+      expect([...input.consumeActions()]).toEqual(['up', 'left']);
+      expect(input.consumeIntent(STEP).forward).toBe(0);
+      expect(input.consumeIntent(STEP).yawDelta).toBe(0);
+    });
+
+    it('releases capture on Escape or an unmodified first E press', () => {
+      input.capture();
+      press('Escape');
+      expect(input.mode()).toBe('world');
+      expect([...input.consumeActions()]).toEqual([]);
+
+      input.capture();
+      press('KeyE', { repeat: true });
+      press('KeyE', { ctrlKey: true });
+      expect(input.mode()).toBe('captured');
+
+      press('KeyE');
+      expect(input.mode()).toBe('world');
+      expect([...input.consumeActions()]).toEqual([]);
+    });
   });
 
   describe('one-shot actions', () => {
@@ -178,6 +243,18 @@ describe('InputService', () => {
     it('leaves the view key alone while the UI has focus, where the select owns it', () => {
       input.setMode('ui');
       press('KeyV');
+
+      expect([...input.consumeActions()]).toEqual([]);
+    });
+
+    it('ignores repeated or modified M presses, so a dialog cannot strobe', () => {
+      press('KeyM');
+      input.consumeActions();
+
+      press('KeyM', { repeat: true });
+      press('KeyM', { ctrlKey: true });
+      press('KeyM', { metaKey: true });
+      press('KeyM', { altKey: true });
 
       expect([...input.consumeActions()]).toEqual([]);
     });
