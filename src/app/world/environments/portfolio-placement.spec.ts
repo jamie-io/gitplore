@@ -93,6 +93,7 @@ describe('the committed portfolio in the hub', () => {
       z: landmark.position.z,
     }));
 
+    expect(scene.landmarks).toHaveLength(projects.length);
     expectFrontArc(placed);
     expectSeparated(placed);
     expectNotOccluded(placed);

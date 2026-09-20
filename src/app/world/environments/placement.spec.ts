@@ -15,6 +15,18 @@ describe('ringPlacements', () => {
     expect(ringPlacements(9).length).toBe(9);
   });
 
+  it('keeps the safe hub capacity when project count exceeds the slot grid', () => {
+    const pinned = [
+      [-10, 0, -20],
+      [0, 0, -20],
+      [10, 0, -20],
+    ] as const;
+    const seated = (projectCount: number) =>
+      pinned.length + ringPlacements(Math.max(0, projectCount - pinned.length), pinned).length;
+
+    expect([5, 9, 13, 20, 50].map(seated)).toEqual([5, 9, 9, 9, 9]);
+  });
+
   it('alternates near and far radii along the bearing order', () => {
     const spots = [...ringPlacements(9)].sort(
       (a, b) =>

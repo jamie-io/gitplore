@@ -144,30 +144,6 @@ function asPlacement({ position, rotationY }: SlotPlacement): LandmarkPlacement 
   return { position, rotationY };
 }
 
-function fallbackPlacements(
-  count: number,
-  avoid: readonly Position[],
-): readonly LandmarkPlacement[] {
-  const candidates = centreOutward(
-    slotCandidates(count <= MAX_RING_SLOTS ? MAX_RING_SLOTS : count),
-  );
-  const selected: SlotPlacement[] = [];
-  const taken = [...avoid];
-
-  for (const candidate of candidates) {
-    if (!clears(candidate, taken)) {
-      continue;
-    }
-    selected.push(candidate);
-    taken.push(candidate.position);
-    if (selected.length === count) {
-      break;
-    }
-  }
-
-  return selected.map(asPlacement);
-}
-
 /**
  * Deterministic bearing slots in front of the spawn, each turned to face it. Radii alternate along
  * the bearing order so neighbouring portals differ in depth; pinned landmarks and already selected
@@ -185,9 +161,7 @@ export function ringPlacements(
     return [];
   }
 
-  const candidates = centreOutward(
-    slotCandidates(count <= MAX_RING_SLOTS ? MAX_RING_SLOTS : count),
-  );
+  const candidates = centreOutward(slotCandidates(MAX_RING_SLOTS));
   const selected: SlotPlacement[] = [];
   const taken = [...avoid];
 
@@ -204,14 +178,15 @@ export function ringPlacements(
 
   // Nothing is clear, or there are more projects than the visibility fan can hold. Return only
   // candidates that preserve both landmark invariants; dropping a portal is safer than stacking it.
-  return fallbackPlacements(count, avoid);
+  return selected.map(asPlacement);
 }
 
 /**
  * The first `count` candidates that stand clear of every position in `avoid`.
  *
- * Falls back to the unfiltered candidates when filtering leaves too few: a tight fit is better than
- * dropping a project out of the world, which is the same trade-off `ringPlacements` makes.
+ * Falls back to the unfiltered candidates when filtering leaves too few: arc-based callers use a
+ * tight fit when they need the requested count, while `ringPlacements` leaves unsafe overflow
+ * unplaced.
  */
 export function clearOf(
   candidates: readonly LandmarkPlacement[],
