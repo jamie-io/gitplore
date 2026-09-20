@@ -5,7 +5,7 @@ import { REPO_OVERRIDES } from '@content/repo-overrides';
 import type { SyncedRepo } from '@content/synced-repo';
 import { HubScene } from '../hub/hub.scene';
 import { ClearingEnvironment } from './clearing';
-import { MIN_LANDMARK_SEPARATION } from './placement';
+import { FRONT_ARC, MIN_LANDMARK_SEPARATION } from './placement';
 
 interface PlacedLandmark {
   readonly slug: string;
@@ -14,12 +14,14 @@ interface PlacedLandmark {
 }
 
 function expectFrontArc(placed: readonly PlacedLandmark[]): void {
+  const angleEpsilon = 1e-10;
+
   for (const landmark of placed) {
     expect(landmark.z, `${landmark.slug} must stand in front of the spawn`).toBeLessThan(0);
     expect(
       Math.abs(Math.atan2(landmark.x, -landmark.z)),
-      `${landmark.slug} must stay within 0.45π of −Z`,
-    ).toBeLessThanOrEqual(Math.PI * 0.45);
+      `${landmark.slug} must stay within the front arc of −Z`,
+    ).toBeLessThanOrEqual(FRONT_ARC / 2 + angleEpsilon);
   }
 }
 

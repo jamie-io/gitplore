@@ -1,4 +1,10 @@
-import { arcAnchors, MIN_LANDMARK_SEPARATION, ringPlacements, RING_RADIUS } from './placement';
+import {
+  arcAnchors,
+  FRONT_ARC,
+  MIN_LANDMARK_SEPARATION,
+  ringPlacements,
+  RING_RADIUS,
+} from './placement';
 
 describe('ringPlacements', () => {
   it('returns exactly as many spots as asked for', () => {
@@ -24,6 +30,16 @@ describe('ringPlacements', () => {
 
   it('is deterministic, so a rebuild puts everything back where it was', () => {
     expect(ringPlacements(4)).toEqual(ringPlacements(4));
+  });
+
+  it('selects spots from the arc centre outward', () => {
+    const angles = ringPlacements(5).map(({ position }) => Math.atan2(position[0], -position[2]));
+
+    expect(angles[0]).toBeCloseTo(0, 5);
+    for (let index = 1; index < angles.length; index++) {
+      expect(Math.abs(angles[index])).toBeGreaterThanOrEqual(Math.abs(angles[index - 1]));
+    }
+    expect(Math.abs(angles.at(-1)!)).toBeCloseTo(FRONT_ARC / 2, 5);
   });
 
   it('keeps spots apart, so two landmarks never overlap', () => {

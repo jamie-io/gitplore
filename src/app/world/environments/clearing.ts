@@ -20,7 +20,7 @@ import { GrassField } from './grass';
 import { LICHTUNG, applyMood, clearMood } from './mood';
 import { Monument } from './monument';
 import { Motes } from './motes';
-import { OUTER_RING_RADIUS, Position, RING_RADIUS, ringPlacements } from './placement';
+import { Position, RING_RADIUS, ringPlacements } from './placement';
 import { valueNoise } from './random';
 import {
   Exclusion,
@@ -57,14 +57,7 @@ const LANDMARK_CLEARANCE = 3.5;
 export const OPEN_GROUND: readonly Exclusion[] = [
   { kind: 'circle', x: 0, z: 0, radius: MEADOW_RADIUS },
   { kind: 'ring', x: 0, z: 0, inner: RING_RADIUS - RING_BAND, outer: RING_RADIUS + RING_BAND },
-  {
-    kind: 'ring',
-    x: 0,
-    z: 0,
-    inner: OUTER_RING_RADIUS - RING_BAND,
-    outer: OUTER_RING_RADIUS + RING_BAND,
-  },
-  { kind: 'segment', ax: 0, az: 0, bx: 0, bz: -OUTER_RING_RADIUS, halfWidth: 4 },
+  { kind: 'segment', ax: 0, az: 0, bx: 0, bz: -RING_RADIUS, halfWidth: 4 },
   { kind: 'circle', x: MONUMENT.x, z: MONUMENT.z, radius: 5 },
   { kind: 'circle', x: POND.x, z: POND.z, radius: POND.radius * 1.4 },
 ];
@@ -78,14 +71,7 @@ const PATHS: readonly Exclusion[] = [
     inner: RING_RADIUS - PATH_HALF_WIDTH,
     outer: RING_RADIUS + PATH_HALF_WIDTH,
   },
-  {
-    kind: 'ring',
-    x: 0,
-    z: 0,
-    inner: OUTER_RING_RADIUS - PATH_HALF_WIDTH,
-    outer: OUTER_RING_RADIUS + PATH_HALF_WIDTH,
-  },
-  { kind: 'segment', ax: 0, az: -2, bx: 0, bz: -OUTER_RING_RADIUS, halfWidth: PATH_HALF_WIDTH },
+  { kind: 'segment', ax: 0, az: -2, bx: 0, bz: -RING_RADIUS, halfWidth: PATH_HALF_WIDTH },
 ];
 const WATER: Exclusion = { kind: 'circle', x: POND.x, z: POND.z, radius: POND.radius * 1.02 };
 const MONUMENT_FOOT: Exclusion = { kind: 'circle', x: MONUMENT.x, z: MONUMENT.z, radius: 3.8 };
@@ -129,12 +115,8 @@ export function lichtungGround(x: number, z: number, height: number, slope: numb
 }
 
 function pathWear(x: number, z: number): number {
-  const distanceFromCentre = Math.hypot(x, z);
-  const ring = Math.min(
-    Math.abs(distanceFromCentre - RING_RADIUS),
-    Math.abs(distanceFromCentre - OUTER_RING_RADIUS),
-  );
-  const spoke = z < -2 && z > -OUTER_RING_RADIUS ? Math.abs(x) : Infinity;
+  const ring = Math.abs(Math.hypot(x, z) - RING_RADIUS);
+  const spoke = z < -2 && z > -RING_RADIUS ? Math.abs(x) : Infinity;
   const distance = Math.min(ring, spoke);
   return (
     clamp01((PATH_HALF_WIDTH - distance) / PATH_HALF_WIDTH) *

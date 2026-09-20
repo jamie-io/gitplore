@@ -69,7 +69,7 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
       embeddable: true,
       screenshot: 'assets/screens/poetzscher.webp',
     },
-    landmark: { kind: 'screen', position: [16, 0, -11], rotationY: -0.7 },
+    landmark: { kind: 'screen', position: [15, 0, -12], rotationY: -0.7 },
     environment: 'showroom',
     theme: { primary: '#2f6b4f', accent: '#eaf2ec' },
   },

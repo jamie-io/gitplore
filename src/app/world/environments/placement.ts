@@ -13,10 +13,10 @@ export const OUTER_RING_RADIUS = 30;
 export const MIN_LANDMARK_SEPARATION = 9;
 
 /**
- * Both arcs are centred on −Z and span ±0.45π. Their capacity comes from the chord between
+ * Both arcs are centred on −Z and span ±0.3π. Their capacity comes from the chord between
  * neighbours, not from a hard-coded project count.
  */
-const FRONT_ARC = Math.PI * 0.9;
+export const FRONT_ARC = Math.PI * 0.6;
 
 function arcCapacity(radius: number): number {
   const minimumAngle = 2 * Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * radius)));
@@ -38,9 +38,28 @@ function clears(spot: LandmarkPlacement, taken: readonly Position[]): boolean {
   );
 }
 
+function centreOutward(candidates: readonly LandmarkPlacement[]): readonly LandmarkPlacement[] {
+  return [...candidates].sort((a, b) => {
+    const aAngle = Math.atan2(a.position[0], -a.position[2]);
+    const bAngle = Math.atan2(b.position[0], -b.position[2]);
+    return Math.abs(aAngle) - Math.abs(bAngle) || aAngle - bAngle;
+  });
+}
+
+function overflowPlacements(count: number): readonly LandmarkPlacement[] {
+  const nearCount = Math.min(count, NEAR_RING_CAPACITY);
+  const farCount = Math.max(0, count - nearCount);
+
+  return [
+    ...centreOutward(arcAnchors(nearCount, [], RING_RADIUS, FRONT_ARC)),
+    ...centreOutward(arcAnchors(farCount, [], OUTER_RING_RADIUS, FRONT_ARC)),
+  ];
+}
+
 /**
  * Evenly spaced spots on two front arcs around the spawn, each turned to face it. The near arc fills
- * first; the outer arc carries overflow. Pinned landmarks and already selected spots are skipped.
+ * from its centre outward; the outer arc carries overflow the same way. Pinned landmarks and
+ * already selected spots are skipped.
  *
  * Deterministic on purpose: the world is rebuilt whenever the visitor returns to it, and a
  * landmark that moved between visits would read as a bug. Projects that must never move pin
@@ -55,14 +74,14 @@ export function ringPlacements(
   }
 
   const target = Math.min(count, MAX_RING_SLOTS);
-  const near = arcAnchors(NEAR_RING_CAPACITY, [], RING_RADIUS, FRONT_ARC).filter((spot) =>
-    clears(spot, avoid),
+  const near = centreOutward(arcAnchors(NEAR_RING_CAPACITY, [], RING_RADIUS, FRONT_ARC)).filter(
+    (spot) => clears(spot, avoid),
   );
   const selectedNear = near.slice(0, Math.min(target, near.length));
   const taken = [...avoid, ...selectedNear.map(({ position }) => position)];
-  const far = arcAnchors(OUTER_RING_CAPACITY, [], OUTER_RING_RADIUS, FRONT_ARC).filter((spot) =>
-    clears(spot, taken),
-  );
+  const far = centreOutward(
+    arcAnchors(OUTER_RING_CAPACITY, [], OUTER_RING_RADIUS, FRONT_ARC),
+  ).filter((spot) => clears(spot, taken));
   const selected = [...selectedNear, ...far.slice(0, target - selectedNear.length)];
 
   if (selected.length >= target && target === count) {
@@ -72,7 +91,7 @@ export function ringPlacements(
   // Nothing on either arc is clear, or there are more projects than the arcs can hold. A tight fit
   // is still better than dropping a project out of the world.
   return avoid.length === 0 || count > MAX_RING_SLOTS
-    ? arcAnchors(count, [], RING_RADIUS, FRONT_ARC)
+    ? overflowPlacements(count)
     : ringPlacements(count);
 }
 

@@ -45,12 +45,24 @@ describe('ClearingEnvironment', () => {
   });
 
   it('keeps generated anchors clear of a pinned landmark', () => {
-    const pinned = [[0, 0, RING_RADIUS] as const];
+    const pinned = [[0, 0, -RING_RADIUS] as const];
 
     for (const anchor of clearing().anchors(3, pinned)) {
-      const distance = Math.hypot(anchor.position[0] - 0, anchor.position[2] - RING_RADIUS);
+      const distance = Math.hypot(
+        anchor.position[0] - pinned[0][0],
+        anchor.position[2] - pinned[0][2],
+      );
       expect(distance).toBeGreaterThanOrEqual(MIN_LANDMARK_SEPARATION);
     }
+  });
+
+  it('does not lead visitors along an unused overflow arc', () => {
+    expect(
+      OPEN_GROUND.some((exclusion) => exclusion.kind === 'ring' && exclusion.inner > RING_RADIUS),
+    ).toBe(false);
+    expect(
+      OPEN_GROUND.some((exclusion) => exclusion.kind === 'segment' && exclusion.bz < -RING_RADIUS),
+    ).toBe(false);
   });
 
   it('builds terrain, sky and the monument into the scene and takes them out again', () => {
