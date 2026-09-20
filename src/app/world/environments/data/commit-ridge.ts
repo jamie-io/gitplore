@@ -8,11 +8,14 @@ import type { HeightField } from '@engine/player/collision';
 
 /** The sync shape is fixed: one slab per lifetime bucket. */
 export const RIDGE_SLAB_COUNT = 52;
+const RIDGE_PEAK_COMMITS = 100;
 
 const PATH_INSET = 2;
 const BASE_HEIGHT = 0.06;
 const MAX_HEIGHT = 2.86;
-const SLAB_UNIT = (MAX_HEIGHT - BASE_HEIGHT) / Math.sqrt(RIDGE_SLAB_COUNT);
+// Calibrate against the observed 100-commit peak, leaving headroom for busier days.
+// Keep separate from 52-bucket resolution so bucket changes do not rescale ridges.
+const SLAB_UNIT = (MAX_HEIGHT - BASE_HEIGHT) / Math.sqrt(RIDGE_PEAK_COMMITS);
 const SLAB_DEPTH = 0.9;
 const SLAB_GAP = 0.3;
 const RIDGE_PATH_GAP = 0.5;

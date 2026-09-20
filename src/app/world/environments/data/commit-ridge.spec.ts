@@ -59,7 +59,7 @@ describe('CommitRidge', () => {
 
     expect(ctx.scene.children.filter((child) => child.name === 'commit-ridge')).toHaveLength(1);
     expect(mesh.geometry.getAttribute('position').count).toBeGreaterThan(52 * 8);
-    expect(mesh.geometry.boundingBox?.max.y).toBeGreaterThan(1);
+    expect(mesh.geometry.boundingBox?.max.y).toBeCloseTo(0.80081, 5);
 
     ridge.dispose();
     expect(ctx.scene.children).toHaveLength(0);
@@ -70,25 +70,26 @@ describe('CommitRidge', () => {
       ...PROJECT,
       commitBuckets: Array.from({ length: RIDGE_SLAB_COUNT }, (_, index) => (index === 25 ? 7 : 0)),
     });
-    const fiftyTwo = meshFor({
+    const sevenWithHigherMaximum = meshFor({
       ...PROJECT,
-      commitBuckets: Array.from(
-        { length: RIDGE_SLAB_COUNT },
-        (_, index) => (index === 25 ? 52 : 0),
+      commitBuckets: Array.from({ length: RIDGE_SLAB_COUNT }, (_, index) =>
+        index === 0 ? 100 : index === 25 ? 7 : 0,
       ),
     });
 
     const sevenHeight = slabHeight(seven.mesh, 25);
-    const fiftyTwoHeight = slabHeight(fiftyTwo.mesh, 25);
+    const sevenWithHigherMaximumHeight = slabHeight(sevenWithHigherMaximum.mesh, 25);
+    const peakHeight = slabHeight(sevenWithHigherMaximum.mesh, 0);
 
-    expect(sevenHeight).toBeCloseTo(0.06 + (2.86 - 0.06) * Math.sqrt(7 / 52), 5);
-    expect(fiftyTwoHeight).toBeCloseTo(2.86, 5);
-    expect(sevenHeight).toBeLessThan(fiftyTwoHeight);
+    expect(sevenHeight).toBeCloseTo(0.80081, 5);
+    expect(sevenWithHigherMaximumHeight).toBeCloseTo(0.80081, 5);
+    expect(peakHeight).toBeCloseTo(2.86, 5);
+    expect(sevenHeight).toBe(sevenWithHigherMaximumHeight);
 
     seven.ridge.dispose();
-    fiftyTwo.ridge.dispose();
+    sevenWithHigherMaximum.ridge.dispose();
     expect(seven.ctx.scene.children).toHaveLength(0);
-    expect(fiftyTwo.ctx.scene.children).toHaveLength(0);
+    expect(sevenWithHigherMaximum.ctx.scene.children).toHaveLength(0);
   });
 
   it('shows a flat path when commit data is absent or empty', () => {
