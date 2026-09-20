@@ -13,8 +13,10 @@ const RIDGE_PEAK_COMMITS = 100;
 const PATH_INSET = 2;
 const BASE_HEIGHT = 0.06;
 const MAX_HEIGHT = 2.86;
-// Calibrate against the observed 100-commit peak, leaving headroom for busier days.
-// Keep separate from 52-bucket resolution so bucket changes do not rescale ridges.
+// Calibrated so a 100-commit bucket reaches the ceiling. The busiest bucket observed so far is
+// gitplore's 52, which lands at 2.08 m — 100 is chosen above it so a busier week still reads as
+// busier, and every bucket at or over 100 renders flat at MAX_HEIGHT.
+// Kept separate from the 52-bucket resolution so a change there does not rescale every ridge.
 const SLAB_UNIT = (MAX_HEIGHT - BASE_HEIGHT) / Math.sqrt(RIDGE_PEAK_COMMITS);
 const SLAB_DEPTH = 0.9;
 const SLAB_GAP = 0.3;
