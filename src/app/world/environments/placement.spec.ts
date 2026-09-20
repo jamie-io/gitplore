@@ -100,12 +100,29 @@ describe('ringPlacements', () => {
       }
     });
 
-    it('places everything anyway when no slot is clear', () => {
-      // Pinning a landmark at every usable slot leaves nowhere to go; dropping a project from the
-      // world would be worse than a tight fit, so the deterministic layout stands in.
-      const everywhere = ringPlacements(15).map(({ position }) => position);
+    it('leaves impossible slots unplaced instead of stacking them', () => {
+      const everywhere = ringPlacements(9).map(({ position }) => position);
 
-      expect(ringPlacements(3, everywhere)).toEqual(ringPlacements(3));
+      expect(ringPlacements(3, everywhere)).toEqual([]);
+    });
+
+    it('does not stack fallback placements on the three pinned portfolio landmarks', () => {
+      const pinned = [
+        [-10, 0, -20],
+        [0, 0, -20],
+        [10, 0, -20],
+      ] as const;
+      const generated = ringPlacements(6, pinned);
+      const placed = [...pinned, ...generated.map(({ position }) => position)];
+
+      expect(generated).toHaveLength(6);
+      for (let i = 0; i < placed.length; i++) {
+        for (let j = i + 1; j < placed.length; j++) {
+          expect(
+            Math.hypot(placed[i][0] - placed[j][0], placed[i][2] - placed[j][2]),
+          ).toBeGreaterThanOrEqual(MIN_LANDMARK_SEPARATION);
+        }
+      }
     });
 
     it('is unchanged when nothing is pinned near the ring', () => {

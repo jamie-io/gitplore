@@ -5,7 +5,12 @@ import { REPO_OVERRIDES } from '@content/repo-overrides';
 import type { SyncedRepo } from '@content/synced-repo';
 import { HubScene } from '../hub/hub.scene';
 import { ClearingEnvironment } from './clearing';
-import { FRONT_ARC, MIN_LANDMARK_SEPARATION } from './placement';
+import {
+  FRONT_ARC,
+  MIN_LANDMARK_SEPARATION,
+  PORTAL_HALF_WIDTH,
+  VISIBILITY_MARGIN,
+} from './placement';
 
 interface PlacedLandmark {
   readonly slug: string;
@@ -38,9 +43,6 @@ function expectSeparated(placed: readonly PlacedLandmark[]): void {
 }
 
 function expectNotOccluded(placed: readonly PlacedLandmark[]): void {
-  const PORTAL_HALF_WIDTH = 3.5;
-  const VISIBILITY_MARGIN = (3 * Math.PI) / 180;
-
   for (let i = 0; i < placed.length; i++) {
     const first = placed[i];
     const firstRadius = Math.hypot(first.x, first.z);
@@ -97,13 +99,24 @@ describe('the committed portfolio in the hub', () => {
   });
 
   it('fits nine future landmarks in the same front arc without shrinking separation', () => {
-    const placed: PlacedLandmark[] = new ClearingEnvironment({ reducedMotion: () => false })
-      .anchors(9)
+    const pinned = projects
+      .filter((project) => project.landmark.position)
+      .map((project) => ({
+        slug: project.slug,
+        x: project.landmark.position![0],
+        z: project.landmark.position![2],
+      }));
+    const generated = new ClearingEnvironment({ reducedMotion: () => false })
+      .anchors(
+        6,
+        pinned.map(({ x, z }) => [x, 0, z] as const),
+      )
       .map((anchor, index) => ({
         slug: `future-${index}`,
         x: anchor.position[0],
         z: anchor.position[2],
       }));
+    const placed = [...pinned, ...generated];
 
     expect(placed).toHaveLength(9);
     expectFrontArc(placed);

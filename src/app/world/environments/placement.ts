@@ -18,33 +18,40 @@ export const MIN_LANDMARK_SEPARATION = 9;
  */
 export const FRONT_ARC = Math.PI * 0.6;
 
-const PORTAL_HALF_WIDTH = 3.5;
-const VISIBILITY_MARGIN = 3 * (Math.PI / 180);
+export const PORTAL_HALF_WIDTH = 3.5;
+export const VISIBILITY_MARGIN = 3 * (Math.PI / 180);
+/** Tiny margin absorbs trigonometric round-off when the slot grid lands on a separation boundary. */
+const SLOT_GRID_EPSILON = 1e-10;
+/** Tiny margin absorbs round-off when a candidate bearing is compared with a pinned bearing. */
+const BEARING_COMPARISON_EPSILON = 1e-12;
 // Same-radius slots are two positions apart because near and far radii alternate.
-const SEPARATION_BEARING_GAP =
+const SLOT_GRID_BEARING_GAP =
   Math.max(
     Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * RING_RADIUS))),
     Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * OUTER_RING_RADIUS))),
-  ) + 1e-10;
+  ) + SLOT_GRID_EPSILON;
 
 function alternatingRadius(index: number): number {
   return index % 2 === 0 ? RING_RADIUS : OUTER_RING_RADIUS;
 }
 
 function minimumBearingGap(firstRadius: number, secondRadius: number): number {
-  const visibilityGap =
+  return (
     Math.max(
       Math.atan(PORTAL_HALF_WIDTH / firstRadius),
       Math.atan(PORTAL_HALF_WIDTH / secondRadius),
-    ) + VISIBILITY_MARGIN;
+    ) + VISIBILITY_MARGIN
+  );
+}
 
-  return Math.max(visibilityGap, SEPARATION_BEARING_GAP);
+function slotGridBearingGap(firstRadius: number, secondRadius: number): number {
+  return Math.max(minimumBearingGap(firstRadius, secondRadius), SLOT_GRID_BEARING_GAP);
 }
 
 function requiredBearingSpan(slotCount: number): number {
   let span = 0;
   for (let index = 1; index < slotCount; index++) {
-    span += minimumBearingGap(alternatingRadius(index - 1), alternatingRadius(index));
+    span += slotGridBearingGap(alternatingRadius(index - 1), alternatingRadius(index));
   }
   return span;
 }
@@ -79,7 +86,7 @@ function isVisibleFromSpawn(first: SlotPlacement, second: Position): boolean {
   }
 
   return (
-    Math.abs(first.bearing - bearingOf(second)) + 1e-12 >=
+    Math.abs(first.bearing - bearingOf(second)) + BEARING_COMPARISON_EPSILON >=
     minimumBearingGap(first.radius, secondRadius)
   );
 }
@@ -113,7 +120,7 @@ function slotCandidates(count: number): readonly SlotPlacement[] {
   }
 
   const gaps = Array.from({ length: Math.max(0, count - 1) }, (_, index) =>
-    minimumBearingGap(alternatingRadius(index), alternatingRadius(index + 1)),
+    slotGridBearingGap(alternatingRadius(index), alternatingRadius(index + 1)),
   );
   const requiredSpan = gaps.reduce((sum, gap) => sum + gap, 0);
   const span = Math.min(FRONT_ARC, requiredSpan);
@@ -140,9 +147,28 @@ function asPlacement({ position, rotationY }: SlotPlacement): LandmarkPlacement 
   return { position, rotationY };
 }
 
-function fallbackPlacements(count: number): readonly LandmarkPlacement[] {
-  const candidates = slotCandidates(count <= MAX_RING_SLOTS ? MAX_RING_SLOTS : count);
-  return centreOutward(candidates).slice(0, count).map(asPlacement);
+function fallbackPlacements(
+  count: number,
+  avoid: readonly Position[],
+): readonly LandmarkPlacement[] {
+  const candidates = centreOutward(
+    slotCandidates(count <= MAX_RING_SLOTS ? MAX_RING_SLOTS : count),
+  );
+  const selected: SlotPlacement[] = [];
+  const taken = [...avoid];
+
+  for (const candidate of candidates) {
+    if (!clears(candidate, taken)) {
+      continue;
+    }
+    selected.push(candidate);
+    taken.push(candidate.position);
+    if (selected.length === count) {
+      break;
+    }
+  }
+
+  return selected.map(asPlacement);
 }
 
 /**
@@ -179,9 +205,9 @@ export function ringPlacements(
     }
   }
 
-  // Nothing is clear, or there are more projects than the visibility fan can hold. A tight fit is
-  // still better than dropping a project out of the world.
-  return fallbackPlacements(count);
+  // Nothing is clear, or there are more projects than the visibility fan can hold. Return only
+  // candidates that preserve both landmark invariants; dropping a portal is safer than stacking it.
+  return fallbackPlacements(count, avoid);
 }
 
 /**
