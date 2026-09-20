@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
+import { PlayerVisual } from '@engine/player/player-visual';
 import { WorldContext, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import { Explorer } from '../avatar/explorer';
@@ -34,8 +35,9 @@ export class HubScene implements WorldScene {
   readonly landmarks: readonly Landmark[];
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
+
   /** Built with the world and disposed with it, cut from this environment's own accent. */
-  readonly avatar: Explorer;
+  private readonly explorer: Explorer;
 
   private readonly environment: Environment;
   private readonly onAreaChange: ((area: string) => void) | undefined;
@@ -44,7 +46,7 @@ export class HubScene implements WorldScene {
   constructor(options: HubSceneOptions) {
     this.environment = options.environment;
     this.onAreaChange = options.onAreaChange;
-    this.avatar = new Explorer({
+    this.explorer = new Explorer({
       mood: options.environment.mood,
       reducedMotion: options.reducedMotion,
     });
@@ -84,6 +86,11 @@ export class HubScene implements WorldScene {
     this.interactables = this.landmarks.flatMap((landmark) => landmark.interactables);
   }
 
+  /** The engine drives the figure through `PlayerVisual` alone and never names the Explorer. */
+  get avatar(): PlayerVisual {
+    return this.explorer;
+  }
+
   get ground() {
     return this.environment.ground;
   }
@@ -103,7 +110,7 @@ export class HubScene implements WorldScene {
   init(ctx: WorldContext): void {
     this.environment.init(ctx);
     this.landmarks.forEach((landmark) => landmark.init(ctx));
-    this.avatar.init(ctx);
+    this.explorer.init(ctx);
   }
 
   update(dt: number, ctx: WorldContext): void {
@@ -114,7 +121,7 @@ export class HubScene implements WorldScene {
 
   dispose(): void {
     this.landmarks.forEach((landmark) => landmark.dispose());
-    this.avatar.dispose();
+    this.explorer.dispose();
     this.environment.dispose();
     this.area = null;
   }

@@ -157,6 +157,24 @@ describe('InputService', () => {
       expect([...input.consumeActions()]).toEqual(['view']);
     });
 
+    it('ignores a held V, so the camera cannot strobe at the key-repeat rate', () => {
+      press('KeyV');
+      input.consumeActions();
+
+      press('KeyV', { repeat: true });
+
+      expect([...input.consumeActions()]).toEqual([]);
+    });
+
+    it('leaves Ctrl+V and Cmd+V to the clipboard, but not Shift+V to the run key', () => {
+      press('KeyV', { ctrlKey: true });
+      press('KeyV', { metaKey: true });
+      expect([...input.consumeActions()]).toEqual([]);
+
+      press('KeyV', { shiftKey: true });
+      expect([...input.consumeActions()]).toEqual(['view']);
+    });
+
     it('leaves the view key alone while the UI has focus, where the select owns it', () => {
       input.setMode('ui');
       press('KeyV');

@@ -169,6 +169,24 @@ describe('Explorer', () => {
       });
     });
 
+    it('keeps drawing on a tier that has shadows, so the shadow has something to come from', () => {
+      const explorer = built(context('high'));
+
+      explorer.setFirstPerson(true);
+
+      expect(explorer.object.visible).toBe(true);
+    });
+
+    it('drops the draws on a tier with no shadows, where they would produce nothing', () => {
+      const explorer = built(context('low'));
+
+      explorer.setFirstPerson(true);
+      expect(explorer.object.visible).toBe(false);
+
+      explorer.setFirstPerson(false);
+      expect(explorer.object.visible).toBe(true);
+    });
+
     it('writes both again when the view goes back over the shoulder', () => {
       const explorer = built();
 
@@ -252,6 +270,25 @@ describe('Explorer', () => {
       expect(Math.sign(arm)).toBe(-Math.sign(leg));
     });
 
+    it('lifts the hips at mid-stance, not where the legs are furthest apart', () => {
+      const explorer = built();
+      const player = standing(explorer);
+      const pelvis = joint(explorer, 'explorer-pelvis');
+
+      // Both poses at the same full pace, so only the phase differs.
+      player.stridePhase = 0;
+      step(explorer, player, 0, -0.075);
+      const together = pelvis.position.y;
+
+      player.stridePhase = Math.PI / 2;
+      step(explorer, player, 0, -0.075);
+      const apart = pelvis.position.y;
+
+      // A leg swung out by LEG_SWING lifts its own sole about 0.22 m; the hips have to be at their
+      // lowest there, or the bob adds to that float instead of covering it.
+      expect(together).toBeGreaterThan(apart);
+    });
+
     it('stops the legs when a wall stops the player', () => {
       const explorer = built();
       const player = new PlayerController();
@@ -290,8 +327,36 @@ describe('Explorer', () => {
       step(explorer, player, 0.07, 0);
 
       const hip = joint(explorer, 'explorer-hip-left');
-      expect(Math.abs(hip.rotation.z)).toBeGreaterThan(0.1);
+      expect(Math.abs(hip.rotation.z)).toBeGreaterThan(0.05);
       expect(hip.rotation.x).toBeCloseTo(0, 6);
+    });
+
+    it('never crosses the feet through each other while strafing', () => {
+      const explorer = built();
+      const player = standing(explorer);
+      const left = joint(explorer, 'explorer-boot-left');
+      const right = joint(explorer, 'explorer-boot-right');
+      const here = new Vector3();
+
+      let closest = Infinity;
+      let widest = 0;
+      // A whole stride at full sideways pace, which is where the scissor is at its largest.
+      for (let i = 1; i <= 48; i++) {
+        player.stridePhase = (i / 48) * Math.PI * 2;
+        step(explorer, player, 0.075, 0);
+        explorer.object.updateMatrixWorld(true);
+
+        const leftX = left.getWorldPosition(here).x;
+        const rightX = right.getWorldPosition(here).x;
+        // The yaw is 0, so world X is the body's own right: the left boot stays left of the right.
+        const separation = rightX - leftX;
+        closest = Math.min(closest, separation);
+        widest = Math.max(widest, separation);
+      }
+
+      expect(closest).toBeGreaterThan(0);
+      // …and the scissor is still worth animating: the stance opens and closes by ~19 cm.
+      expect(widest - closest).toBeGreaterThan(0.1);
     });
 
     it('leaves the legs alone while the player stands still', () => {

@@ -152,6 +152,13 @@ export class InputService {
 
     const action = ACTION_KEYS[event.code];
 
+    // A held key repeats; a view that flipped at the repeat rate would strobe the whole camera,
+    // which is the last thing `prefers-reduced-motion` would forgive. Ctrl+V and Cmd+V are a
+    // paste, not a view change — but Shift is the run key, so a running player may still press it.
+    if (action === 'view' && (event.repeat || event.ctrlKey || event.metaKey || event.altKey)) {
+      return;
+    }
+
     if (action && (this.mode() !== 'ui' || GLOBAL_ACTIONS.includes(action))) {
       this.actions.add(action);
       this.listeners.forEach((listener) => listener(action));

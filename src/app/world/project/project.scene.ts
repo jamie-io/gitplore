@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
 import { PlayerController } from '@engine/player/player-controller';
+import { PlayerVisual } from '@engine/player/player-visual';
 import { WorldContext, WorldObject, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import { Explorer } from '../avatar/explorer';
@@ -59,8 +60,9 @@ export class ProjectScene implements WorldScene {
   readonly landmarks: readonly Landmark[];
   /** Where the director puts the player on arrival, and which way they look. */
   readonly arrival: { readonly position: Vector3; readonly yaw: number };
+
   /** Built with the world and disposed with it, cut from this environment's own accent. */
-  readonly avatar: Explorer;
+  private readonly explorer: Explorer;
 
   protected readonly environment: Environment;
   protected readonly project: Project;
@@ -75,7 +77,7 @@ export class ProjectScene implements WorldScene {
     this.environment = options.environment;
     this.project = options.project;
     this.id = `project:${options.project.slug}`;
-    this.avatar = new Explorer({
+    this.explorer = new Explorer({
       mood: options.environment.mood,
       reducedMotion: options.reducedMotion,
     });
@@ -167,6 +169,11 @@ export class ProjectScene implements WorldScene {
     this.cachedInteractables = null;
   }
 
+  /** The engine drives the figure through `PlayerVisual` alone and never names the Explorer. */
+  get avatar(): PlayerVisual {
+    return this.explorer;
+  }
+
   get ground() {
     return this.environment.ground;
   }
@@ -187,7 +194,7 @@ export class ProjectScene implements WorldScene {
   init(ctx: WorldContext): void {
     this.environment.init(ctx);
     this.parts.forEach((part) => part.init(ctx));
-    this.avatar.init(ctx);
+    this.explorer.init(ctx);
   }
 
   update(dt: number, ctx: WorldContext): void {
@@ -197,7 +204,7 @@ export class ProjectScene implements WorldScene {
 
   dispose(): void {
     this.parts.forEach((part) => part.dispose());
-    this.avatar.dispose();
+    this.explorer.dispose();
     this.environment.dispose();
   }
 }

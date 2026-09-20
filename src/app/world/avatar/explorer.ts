@@ -56,6 +56,17 @@ const LEG_SWING = 0.7;
 /** Counter-swing of the arms, as a share of the legs': shoulders move less than hips. */
 const ARM_SWING = 0.45;
 
+/**
+ * Share of `LEG_SWING` the sideways scissor gets while the player strafes.
+ *
+ * It is small because the stance is narrow: the hips are `2 · HIP_SPAN` = 0.22 m apart and a leg
+ * reaches `HIP_HEIGHT` down to the sole, so a sideways swing of θ carries each sole
+ * `HIP_HEIGHT · sin θ` towards the other one. At `0.15 · LEG_SWING` = 0.105 rad the two soles close
+ * to 2.7 cm apart at the widest point of the cycle and never pass each other — which knee-less legs
+ * can only do as an interpenetration, four times per stride.
+ */
+const STRAFE_SWING = 0.15;
+
 /** Metres the hips rise at the top of each step. Twice per stride, because a stride is two steps. */
 const WALK_BOB = 0.035;
 
@@ -133,6 +144,8 @@ export class Explorer implements PlayerVisual {
   private readonly materials: MeshStandardMaterial[] = [];
   private rig: Rig | null = null;
   private firstPerson = false;
+  /** Whether this world's tier renders shadows at all, from `init` on. */
+  private shadows = false;
 
   /** Where the soles stood last frame, so this one knows how much ground was covered. */
   private readonly previous = { x: 0, y: 0, z: 0 };
@@ -167,6 +180,7 @@ export class Explorer implements PlayerVisual {
       return;
     }
 
+    this.shadows = ctx.quality.shadows;
     this.rig = this.build();
     // Casting only: the shadow box is 64 m across, so the figure is about seven texels wide, and
     // letting it receive its own shadow at that resolution buys acne rather than modelling.
@@ -195,6 +209,10 @@ export class Explorer implements PlayerVisual {
       material.colorWrite = !on;
       material.depthWrite = !on;
     }
+    // The one case where dropping the object is safe, because there is then no shadow left to
+    // lose: the weakest tier draws none at all, and twelve draw calls that write nothing and cast
+    // nothing are twelve draw calls off the tier whose frame budget is pinned.
+    this.object.visible = !on || this.shadows;
   }
 
   sync(player: PlayerController, dt: number): void {
@@ -269,8 +287,11 @@ export class Explorer implements PlayerVisual {
     forward: number,
     reduced: boolean,
   ): void {
-    // Twice per stride: the hips are highest in the middle of each of the two steps.
-    const bob = (1 - Math.cos(2 * player.stridePhase)) * 0.5 * WALK_BOB * pace;
+    // Twice per stride, peaking at mid-stance — phase 0 and π, where a foot lands and the legs
+    // pass each other. That is where real hips are highest, and with knee-less legs it is also
+    // where the soles are lowest: a leg swung out by `LEG_SWING` lifts its own sole about 0.22 m,
+    // so a bob peaking at maximum spread would add to that float instead of covering it.
+    const bob = (1 + Math.cos(2 * player.stridePhase)) * 0.5 * WALK_BOB * pace;
     const breath = reduced ? 0 : Math.sin(this.time * BREATH_RATE) * BREATH_RISE * (1 - pace);
     rig.pelvis.position.y = HIP_HEIGHT + bob + breath;
     rig.chest.position.y = -this.settle.value * SETTLE_DIP;
@@ -293,7 +314,7 @@ export class Explorer implements PlayerVisual {
     rig.hips.forEach((hip, index) => {
       const lead = index === 0 ? swing : -swing;
       hip.rotation.x = lead * LEG_SWING * forward + tuck * TUCK_LEG;
-      hip.rotation.z = lead * LEG_SWING * side;
+      hip.rotation.z = lead * LEG_SWING * STRAFE_SWING * side;
     });
     rig.shoulders.forEach((shoulder, index) => {
       // Against the leg on the same side, which is what an arm does.
@@ -389,10 +410,9 @@ export class Explorer implements PlayerVisual {
       const hip = new Group();
       hip.name = `explorer-hip-${sign < 0 ? 'left' : 'right'}`;
       hip.position.x = sign * HIP_SPAN;
-      hip.add(
-        mesh(legGeometry, body, 0, -0.415, 0),
-        mesh(bootGeometry, body, 0, -HIP_HEIGHT + 0.055, -0.03),
-      );
+      const boot = mesh(bootGeometry, body, 0, -HIP_HEIGHT + 0.055, -0.03);
+      boot.name = `explorer-boot-${sign < 0 ? 'left' : 'right'}`;
+      hip.add(mesh(legGeometry, body, 0, -0.415, 0), boot);
       pelvis.add(hip);
       return hip;
     }) as [Group, Group];
