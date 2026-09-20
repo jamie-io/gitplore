@@ -6,6 +6,7 @@ import { ReadmeService } from '@content/readme.service';
 import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
 import { DemoFrame } from '../demo-frame/demo-frame';
 import { DemoPanelHost } from '../demo-panel-host/demo-panel-host';
+import { RepositoryData } from '../repository-data/repository-data';
 import { WorldStore } from '../store/world.store';
 
 /**
@@ -14,7 +15,7 @@ import { WorldStore } from '../store/world.store';
  */
 @Component({
   selector: 'app-project-panel',
-  imports: [MarkdownComponent, FocusTrapDirective, DemoFrame, DemoPanelHost],
+  imports: [MarkdownComponent, FocusTrapDirective, DemoFrame, DemoPanelHost, RepositoryData],
   template: `
     <div class="backdrop">
       <div
@@ -38,6 +39,8 @@ import { WorldStore } from '../store/world.store';
               }
             </ul>
           </header>
+
+          <app-repository-data [project]="project" />
 
           @if (project.demo.kind === 'iframe') {
             <section class="demo" aria-label="Demo">

@@ -50,6 +50,27 @@ describe('ProjectDetailPage', () => {
     expect(host().querySelector('h1')?.textContent).toContain('Phönix');
   });
 
+  it('renders repository data on the simple-view detail page', async () => {
+    const content = TestBed.inject(ContentService);
+    const original = content.bySlug('novaverta')!;
+    content.bySlug = (slug) =>
+      slug === 'novaverta'
+        ? {
+            ...original,
+            languages: { TypeScript: 100 },
+            commitBuckets: Array(52).fill(0),
+            releases: [],
+            stars: 0,
+            createdAt: '2026-01-01T00:00:00Z',
+          }
+        : undefined;
+
+    await open('novaverta');
+
+    expect(host().querySelector('app-repository-data')).not.toBeNull();
+    expect(host().textContent).toContain('Keine Veröffentlichungen.');
+  });
+
   it('renders the README', async () => {
     await open('novaverta', '# Überschrift\n\nAbsatz.');
 

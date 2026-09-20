@@ -71,6 +71,7 @@ export interface Project {
   readonly stars?: number;
   readonly languages?: Readonly<Record<string, number>>;
   readonly commitBuckets?: readonly number[];
+  readonly firstCommitAt?: string;
   readonly createdAt?: string;
   readonly license?: string | null;
   readonly releases?: readonly SyncedRelease[];
