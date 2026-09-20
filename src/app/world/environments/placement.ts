@@ -1,9 +1,9 @@
 import type { LandmarkPlacement } from '../landmarks/base/landmark';
 
-/** Metres from the spawn to the first landmark arc. */
+/** Metres from the spawn to near bearing slots. */
 export const RING_RADIUS = 20;
 
-/** Metres from the spawn to the overflow landmark arc. */
+/** Metres from the spawn to far bearing slots. */
 export const OUTER_RING_RADIUS = 30;
 
 /**
@@ -13,24 +13,86 @@ export const OUTER_RING_RADIUS = 30;
 export const MIN_LANDMARK_SEPARATION = 9;
 
 /**
- * Both arcs are centred on −Z and span ±0.3π. Their capacity comes from the chord between
- * neighbours, not from a hard-coded project count.
+ * The bearing fan is centred on −Z and spans ±0.3π. Its capacity comes from portal visibility,
+ * not from a hard-coded project count.
  */
 export const FRONT_ARC = Math.PI * 0.6;
 
-function arcCapacity(radius: number): number {
-  const minimumAngle = 2 * Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * radius)));
-  return Math.floor(FRONT_ARC / minimumAngle) + 1;
+const PORTAL_HALF_WIDTH = 3.5;
+const VISIBILITY_MARGIN = 3 * (Math.PI / 180);
+// Same-radius slots are two positions apart because near and far radii alternate.
+const SEPARATION_BEARING_GAP =
+  Math.max(
+    Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * RING_RADIUS))),
+    Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * OUTER_RING_RADIUS))),
+  ) + 1e-10;
+
+function alternatingRadius(index: number): number {
+  return index % 2 === 0 ? RING_RADIUS : OUTER_RING_RADIUS;
 }
 
-const NEAR_RING_CAPACITY = arcCapacity(RING_RADIUS);
-const OUTER_RING_CAPACITY = arcCapacity(OUTER_RING_RADIUS);
-const MAX_RING_SLOTS = NEAR_RING_CAPACITY + OUTER_RING_CAPACITY;
+function minimumBearingGap(firstRadius: number, secondRadius: number): number {
+  const visibilityGap =
+    Math.max(
+      Math.atan(PORTAL_HALF_WIDTH / firstRadius),
+      Math.atan(PORTAL_HALF_WIDTH / secondRadius),
+    ) + VISIBILITY_MARGIN;
+
+  return Math.max(visibilityGap, SEPARATION_BEARING_GAP);
+}
+
+function requiredBearingSpan(slotCount: number): number {
+  let span = 0;
+  for (let index = 1; index < slotCount; index++) {
+    span += minimumBearingGap(alternatingRadius(index - 1), alternatingRadius(index));
+  }
+  return span;
+}
+
+function maxRingSlots(): number {
+  let slots = 1;
+  while (requiredBearingSpan(slots + 1) <= FRONT_ARC) {
+    slots++;
+  }
+  return slots;
+}
+
+const MAX_RING_SLOTS = maxRingSlots();
 
 /** A pinned landmark position, exactly as `ProjectLandmark.position` spells it. */
 export type Position = readonly [number, number, number];
 
-function clears(spot: LandmarkPlacement, taken: readonly Position[]): boolean {
+interface SlotPlacement extends LandmarkPlacement {
+  readonly bearing: number;
+  readonly index: number;
+  readonly radius: number;
+}
+
+function bearingOf(position: Position): number {
+  return Math.atan2(position[0], -position[2]);
+}
+
+function isVisibleFromSpawn(first: SlotPlacement, second: Position): boolean {
+  const secondRadius = Math.hypot(second[0], second[2]);
+  if (secondRadius === 0) {
+    return true;
+  }
+
+  return (
+    Math.abs(first.bearing - bearingOf(second)) + 1e-12 >=
+    minimumBearingGap(first.radius, secondRadius)
+  );
+}
+
+function clears(spot: SlotPlacement, taken: readonly Position[]): boolean {
+  return taken.every(
+    (other) =>
+      Math.hypot(spot.position[0] - other[0], spot.position[2] - other[2]) >=
+        MIN_LANDMARK_SEPARATION && isVisibleFromSpawn(spot, other),
+  );
+}
+
+function clearsDistance(spot: LandmarkPlacement, taken: readonly Position[]): boolean {
   return taken.every(
     (other) =>
       Math.hypot(spot.position[0] - other[0], spot.position[2] - other[2]) >=
@@ -38,28 +100,55 @@ function clears(spot: LandmarkPlacement, taken: readonly Position[]): boolean {
   );
 }
 
-function centreOutward(candidates: readonly LandmarkPlacement[]): readonly LandmarkPlacement[] {
+function centreOutward(candidates: readonly SlotPlacement[]): readonly SlotPlacement[] {
+  const centre = (candidates.length - 1) / 2;
   return [...candidates].sort((a, b) => {
-    const aAngle = Math.atan2(a.position[0], -a.position[2]);
-    const bAngle = Math.atan2(b.position[0], -b.position[2]);
-    return Math.abs(aAngle) - Math.abs(bAngle) || aAngle - bAngle;
+    return Math.abs(a.index - centre) - Math.abs(b.index - centre) || a.index - b.index;
   });
 }
 
-function overflowPlacements(count: number): readonly LandmarkPlacement[] {
-  const nearCount = Math.min(count, NEAR_RING_CAPACITY);
-  const farCount = Math.max(0, count - nearCount);
+function slotCandidates(count: number): readonly SlotPlacement[] {
+  if (count <= 0) {
+    return [];
+  }
 
-  return [
-    ...centreOutward(arcAnchors(nearCount, [], RING_RADIUS, FRONT_ARC)),
-    ...centreOutward(arcAnchors(farCount, [], OUTER_RING_RADIUS, FRONT_ARC)),
-  ];
+  const gaps = Array.from({ length: Math.max(0, count - 1) }, (_, index) =>
+    minimumBearingGap(alternatingRadius(index), alternatingRadius(index + 1)),
+  );
+  const requiredSpan = gaps.reduce((sum, gap) => sum + gap, 0);
+  const span = Math.min(FRONT_ARC, requiredSpan);
+  const scale = requiredSpan === 0 ? 0 : span / requiredSpan;
+  let bearing = -span / 2;
+
+  return Array.from({ length: count }, (_, index) => {
+    const radius = alternatingRadius(index);
+    const x = Math.sin(bearing) * radius;
+    const z = -Math.cos(bearing) * radius;
+    const placement: SlotPlacement = {
+      bearing,
+      index,
+      position: [x, 0, z],
+      radius,
+      rotationY: Math.atan2(-x, -z),
+    };
+    bearing += (gaps[index] ?? 0) * scale;
+    return placement;
+  });
+}
+
+function asPlacement({ position, rotationY }: SlotPlacement): LandmarkPlacement {
+  return { position, rotationY };
+}
+
+function fallbackPlacements(count: number): readonly LandmarkPlacement[] {
+  const candidates = slotCandidates(count <= MAX_RING_SLOTS ? MAX_RING_SLOTS : count);
+  return centreOutward(candidates).slice(0, count).map(asPlacement);
 }
 
 /**
- * Evenly spaced spots on two front arcs around the spawn, each turned to face it. The near arc fills
- * from its centre outward; the outer arc carries overflow the same way. Pinned landmarks and
- * already selected spots are skipped.
+ * Deterministic bearing slots in front of the spawn, each turned to face it. Radii alternate along
+ * the bearing order so neighbouring portals differ in depth; pinned landmarks and already selected
+ * slots are skipped.
  *
  * Deterministic on purpose: the world is rebuilt whenever the visitor returns to it, and a
  * landmark that moved between visits would read as a bug. Projects that must never move pin
@@ -73,26 +162,26 @@ export function ringPlacements(
     return [];
   }
 
-  const target = Math.min(count, MAX_RING_SLOTS);
-  const near = centreOutward(arcAnchors(NEAR_RING_CAPACITY, [], RING_RADIUS, FRONT_ARC)).filter(
-    (spot) => clears(spot, avoid),
+  const candidates = centreOutward(
+    slotCandidates(count <= MAX_RING_SLOTS ? MAX_RING_SLOTS : count),
   );
-  const selectedNear = near.slice(0, Math.min(target, near.length));
-  const taken = [...avoid, ...selectedNear.map(({ position }) => position)];
-  const far = centreOutward(
-    arcAnchors(OUTER_RING_CAPACITY, [], OUTER_RING_RADIUS, FRONT_ARC),
-  ).filter((spot) => clears(spot, taken));
-  const selected = [...selectedNear, ...far.slice(0, target - selectedNear.length)];
+  const selected: SlotPlacement[] = [];
+  const taken = [...avoid];
 
-  if (selected.length >= target && target === count) {
-    return selected;
+  for (const candidate of candidates) {
+    if (!clears(candidate, taken)) {
+      continue;
+    }
+    selected.push(candidate);
+    taken.push(candidate.position);
+    if (selected.length === count) {
+      return selected.map(asPlacement);
+    }
   }
 
-  // Nothing on either arc is clear, or there are more projects than the arcs can hold. A tight fit
-  // is still better than dropping a project out of the world.
-  return avoid.length === 0 || count > MAX_RING_SLOTS
-    ? overflowPlacements(count)
-    : ringPlacements(count);
+  // Nothing is clear, or there are more projects than the visibility fan can hold. A tight fit is
+  // still better than dropping a project out of the world.
+  return fallbackPlacements(count);
 }
 
 /**
@@ -106,7 +195,7 @@ export function clearOf(
   avoid: readonly Position[],
   count: number,
 ): readonly LandmarkPlacement[] {
-  const usable = candidates.filter((spot) => clears(spot, avoid));
+  const usable = candidates.filter((spot) => clearsDistance(spot, avoid));
 
   return (usable.length >= count ? usable : candidates).slice(0, count);
 }

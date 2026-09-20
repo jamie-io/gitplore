@@ -3,25 +3,42 @@ import {
   FRONT_ARC,
   MIN_LANDMARK_SEPARATION,
   ringPlacements,
+  OUTER_RING_RADIUS,
   RING_RADIUS,
 } from './placement';
 
 describe('ringPlacements', () => {
   it('returns exactly as many spots as asked for', () => {
     expect(ringPlacements(0).length).toBe(0);
-    expect(ringPlacements(7).length).toBe(7);
+    expect(ringPlacements(9).length).toBe(9);
   });
 
-  it('puts every spot on the ring around the spawn', () => {
-    for (const { position } of ringPlacements(5)) {
-      expect(Math.hypot(position[0], position[2])).toBeCloseTo(RING_RADIUS, 5);
+  it('alternates near and far radii along the bearing order', () => {
+    const spots = [...ringPlacements(9)].sort(
+      (a, b) =>
+        Math.atan2(a.position[0], -a.position[2]) - Math.atan2(b.position[0], -b.position[2]),
+    );
+
+    spots.forEach(({ position }, index) => {
+      expect(Math.hypot(position[0], position[2])).toBeCloseTo(
+        index % 2 === 0 ? RING_RADIUS : OUTER_RING_RADIUS,
+        5,
+      );
+    });
+  });
+
+  it('keeps every spot within the front arc around the spawn', () => {
+    for (const { position } of ringPlacements(9)) {
+      expect(position[2]).toBeLessThan(0);
+      expect(Math.abs(Math.atan2(position[0], -position[2]))).toBeLessThanOrEqual(FRONT_ARC / 2);
     }
   });
 
   it('turns every spot to face the spawn, so a visitor meets its front', () => {
     for (const { position, rotationY } of ringPlacements(5)) {
       const front = [Math.sin(rotationY), Math.cos(rotationY)];
-      const towardsSpawn = [-position[0] / RING_RADIUS, -position[2] / RING_RADIUS];
+      const radius = Math.hypot(position[0], position[2]);
+      const towardsSpawn = [-position[0] / radius, -position[2] / radius];
 
       expect(front[0]).toBeCloseTo(towardsSpawn[0], 5);
       expect(front[1]).toBeCloseTo(towardsSpawn[1], 5);
@@ -37,9 +54,9 @@ describe('ringPlacements', () => {
 
     expect(angles[0]).toBeCloseTo(0, 5);
     for (let index = 1; index < angles.length; index++) {
-      expect(Math.abs(angles[index])).toBeGreaterThanOrEqual(Math.abs(angles[index - 1]));
+      expect(Math.abs(angles[index]) + 1e-10).toBeGreaterThanOrEqual(Math.abs(angles[index - 1]));
     }
-    expect(Math.abs(angles.at(-1)!)).toBeCloseTo(FRONT_ARC / 2, 5);
+    expect(Math.abs(angles.at(-1)!)).toBeLessThanOrEqual(FRONT_ARC / 2);
   });
 
   it('keeps spots apart, so two landmarks never overlap', () => {
@@ -48,7 +65,7 @@ describe('ringPlacements', () => {
     for (let i = 0; i < spots.length; i++) {
       for (let j = i + 1; j < spots.length; j++) {
         const distance = Math.hypot(spots[i][0] - spots[j][0], spots[i][2] - spots[j][2]);
-        expect(distance).toBeGreaterThan(6);
+        expect(distance).toBeGreaterThanOrEqual(MIN_LANDMARK_SEPARATION);
       }
     }
   });
@@ -83,9 +100,9 @@ describe('ringPlacements', () => {
       }
     });
 
-    it('places everything anyway when no spot on the ring is clear', () => {
+    it('places everything anyway when no slot is clear', () => {
       // Pinning a landmark at every usable slot leaves nowhere to go; dropping a project from the
-      // world would be worse than a tight fit, so the plain ring stands in.
+      // world would be worse than a tight fit, so the deterministic layout stands in.
       const everywhere = ringPlacements(15).map(({ position }) => position);
 
       expect(ringPlacements(3, everywhere)).toEqual(ringPlacements(3));

@@ -4,7 +4,7 @@ import { PlayerController } from '@engine/player/player-controller';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
 import { ClearingEnvironment, OPEN_GROUND, lichtungGround } from './clearing';
-import { MIN_LANDMARK_SEPARATION, RING_RADIUS } from './placement';
+import { MIN_LANDMARK_SEPARATION, OUTER_RING_RADIUS, RING_RADIUS } from './placement';
 import { isExcluded } from './scatter';
 import { POND, terrainHeightAt } from './terrain';
 
@@ -38,10 +38,13 @@ describe('ClearingEnvironment', () => {
     expect(clearing().colliders.length).toBeGreaterThan(0);
   });
 
-  it('lays anchors out on the ring, at the ring radius', () => {
-    const [first] = clearing().anchors(3);
+  it('lays anchors out on the occupied near and far radii', () => {
+    const radii = clearing()
+      .anchors(3)
+      .map(({ position }) => Math.hypot(position[0], position[2]));
 
-    expect(Math.hypot(first.position[0], first.position[2])).toBeCloseTo(RING_RADIUS, 5);
+    expect(radii.some((radius) => Math.abs(radius - RING_RADIUS) < 1e-5)).toBe(true);
+    expect(radii.some((radius) => Math.abs(radius - OUTER_RING_RADIUS) < 1e-5)).toBe(true);
   });
 
   it('keeps generated anchors clear of a pinned landmark', () => {
@@ -56,13 +59,17 @@ describe('ClearingEnvironment', () => {
     }
   });
 
-  it('does not lead visitors along an unused overflow arc', () => {
+  it('keeps open ground across both occupied landmark radii', () => {
     expect(
-      OPEN_GROUND.some((exclusion) => exclusion.kind === 'ring' && exclusion.inner > RING_RADIUS),
-    ).toBe(false);
+      OPEN_GROUND.filter((exclusion) => exclusion.kind === 'ring').map(
+        (exclusion) => exclusion.inner,
+      ),
+    ).toEqual(expect.arrayContaining([RING_RADIUS - 8, OUTER_RING_RADIUS - 8]));
     expect(
-      OPEN_GROUND.some((exclusion) => exclusion.kind === 'segment' && exclusion.bz < -RING_RADIUS),
-    ).toBe(false);
+      OPEN_GROUND.some(
+        (exclusion) => exclusion.kind === 'segment' && exclusion.bz === -OUTER_RING_RADIUS,
+      ),
+    ).toBe(true);
   });
 
   it('builds terrain, sky and the monument into the scene and takes them out again', () => {
@@ -122,8 +129,11 @@ describe('ClearingEnvironment surroundings', () => {
     const dirt = new Color(0x9c7d56);
     const onPath = lichtungGround(RING_RADIUS, 0, 0, 0).clone();
     const beside = lichtungGround(RING_RADIUS + 6, 0, 0, 0).clone();
+    const onFarPath = lichtungGround(OUTER_RING_RADIUS, 0, 0, 0).clone();
+    const besideFarPath = lichtungGround(OUTER_RING_RADIUS + 6, 0, 0, 0).clone();
 
     expect(colourDistance(onPath, dirt)).toBeLessThan(colourDistance(beside, dirt));
+    expect(colourDistance(onFarPath, dirt)).toBeLessThan(colourDistance(besideFarPath, dirt));
   });
 
   it('holds every animation still for visitors who prefer reduced motion', () => {

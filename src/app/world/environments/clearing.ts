@@ -20,7 +20,7 @@ import { GrassField } from './grass';
 import { LICHTUNG, applyMood, clearMood } from './mood';
 import { Monument } from './monument';
 import { Motes } from './motes';
-import { Position, RING_RADIUS, ringPlacements } from './placement';
+import { OUTER_RING_RADIUS, Position, RING_RADIUS, ringPlacements } from './placement';
 import { valueNoise } from './random';
 import {
   Exclusion,
@@ -52,26 +52,42 @@ const MONUMENT = new Vector3(0, 0, 9);
 const EDGE = TERRAIN_SIZE / 2 - 6;
 /** Grass keeps this far from every landmark's centre. */
 const LANDMARK_CLEARANCE = 3.5;
+/** Radii used by current and future bearing slots; paths follow these, not a guessed circle. */
+const OCCUPIED_RING_RADII = [RING_RADIUS, OUTER_RING_RADIUS] as const;
+const FARTHEST_RING_RADIUS = Math.max(...OCCUPIED_RING_RADII);
 
 /** Where nothing tall grows: the meadow, the portal ring, the spoke, the monument and the pond. */
 export const OPEN_GROUND: readonly Exclusion[] = [
   { kind: 'circle', x: 0, z: 0, radius: MEADOW_RADIUS },
-  { kind: 'ring', x: 0, z: 0, inner: RING_RADIUS - RING_BAND, outer: RING_RADIUS + RING_BAND },
-  { kind: 'segment', ax: 0, az: 0, bx: 0, bz: -RING_RADIUS, halfWidth: 4 },
+  ...OCCUPIED_RING_RADII.map((radius): Exclusion => ({
+    kind: 'ring',
+    x: 0,
+    z: 0,
+    inner: radius - RING_BAND,
+    outer: radius + RING_BAND,
+  })),
+  { kind: 'segment', ax: 0, az: 0, bx: 0, bz: -FARTHEST_RING_RADIUS, halfWidth: 4 },
   { kind: 'circle', x: MONUMENT.x, z: MONUMENT.z, radius: 5 },
   { kind: 'circle', x: POND.x, z: POND.z, radius: POND.radius * 1.4 },
 ];
 
 /** The worn path: no grass, no flowers. */
 const PATHS: readonly Exclusion[] = [
-  {
+  ...OCCUPIED_RING_RADII.map((radius): Exclusion => ({
     kind: 'ring',
     x: 0,
     z: 0,
-    inner: RING_RADIUS - PATH_HALF_WIDTH,
-    outer: RING_RADIUS + PATH_HALF_WIDTH,
+    inner: radius - PATH_HALF_WIDTH,
+    outer: radius + PATH_HALF_WIDTH,
+  })),
+  {
+    kind: 'segment',
+    ax: 0,
+    az: -2,
+    bx: 0,
+    bz: -FARTHEST_RING_RADIUS,
+    halfWidth: PATH_HALF_WIDTH,
   },
-  { kind: 'segment', ax: 0, az: -2, bx: 0, bz: -RING_RADIUS, halfWidth: PATH_HALF_WIDTH },
 ];
 const WATER: Exclusion = { kind: 'circle', x: POND.x, z: POND.z, radius: POND.radius * 1.02 };
 const MONUMENT_FOOT: Exclusion = { kind: 'circle', x: MONUMENT.x, z: MONUMENT.z, radius: 3.8 };
@@ -115,8 +131,10 @@ export function lichtungGround(x: number, z: number, height: number, slope: numb
 }
 
 function pathWear(x: number, z: number): number {
-  const ring = Math.abs(Math.hypot(x, z) - RING_RADIUS);
-  const spoke = z < -2 && z > -RING_RADIUS ? Math.abs(x) : Infinity;
+  const ring = Math.min(
+    ...OCCUPIED_RING_RADII.map((radius) => Math.abs(Math.hypot(x, z) - radius)),
+  );
+  const spoke = z < -2 && z > -FARTHEST_RING_RADIUS ? Math.abs(x) : Infinity;
   const distance = Math.min(ring, spoke);
   return (
     clamp01((PATH_HALF_WIDTH - distance) / PATH_HALF_WIDTH) *

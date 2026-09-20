@@ -37,6 +37,33 @@ function expectSeparated(placed: readonly PlacedLandmark[]): void {
   }
 }
 
+function expectNotOccluded(placed: readonly PlacedLandmark[]): void {
+  const PORTAL_HALF_WIDTH = 3.5;
+  const VISIBILITY_MARGIN = (3 * Math.PI) / 180;
+
+  for (let i = 0; i < placed.length; i++) {
+    const first = placed[i];
+    const firstRadius = Math.hypot(first.x, first.z);
+    const firstBearing = Math.atan2(first.x, -first.z);
+
+    for (let j = i + 1; j < placed.length; j++) {
+      const second = placed[j];
+      const secondRadius = Math.hypot(second.x, second.z);
+      const secondBearing = Math.atan2(second.x, -second.z);
+      const minimumBearingDifference =
+        Math.max(
+          Math.atan(PORTAL_HALF_WIDTH / firstRadius),
+          Math.atan(PORTAL_HALF_WIDTH / secondRadius),
+        ) + VISIBILITY_MARGIN;
+
+      expect(
+        Math.abs(firstBearing - secondBearing),
+        `${first.slug} ↔ ${second.slug} must have separate visible bearings`,
+      ).toBeGreaterThanOrEqual(minimumBearingDifference - 1e-10);
+    }
+  }
+}
+
 /**
  * The committed portfolio, placed exactly as the deployed hub places it.
  *
@@ -66,6 +93,7 @@ describe('the committed portfolio in the hub', () => {
 
     expectFrontArc(placed);
     expectSeparated(placed);
+    expectNotOccluded(placed);
   });
 
   it('fits nine future landmarks in the same front arc without shrinking separation', () => {
@@ -80,5 +108,6 @@ describe('the committed portfolio in the hub', () => {
     expect(placed).toHaveLength(9);
     expectFrontArc(placed);
     expectSeparated(placed);
+    expectNotOccluded(placed);
   });
 });
