@@ -43,6 +43,29 @@ test.describe('accessibility', () => {
     expect(results.violations).toEqual([]);
   });
 
+  test('the project menu has no violations in the hub or a repository world', async ({ page }) => {
+    const scanMenu = () =>
+      new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+
+    await startWorld(page);
+    await page.keyboard.press('KeyM');
+    const hubMenu = page.getByRole('dialog', { name: 'Projekte' });
+    await expect(hubMenu).toBeVisible();
+    await expect(hubMenu.locator('.distance').first()).toBeVisible();
+    expect((await scanMenu()).violations).toEqual([]);
+
+    await startWorld(page, '/p/novaverta');
+    await page.keyboard.press('KeyM');
+    const repoMenu = page.getByRole('dialog', { name: 'Projekte' });
+    const current = repoMenu.locator('li[data-slug="novaverta"]');
+    await expect(repoMenu).toBeVisible();
+    await expect(current).toHaveAttribute('aria-current', 'location');
+    await expect(current.locator('.current-badge')).toHaveText('Du bist hier');
+    expect((await scanMenu()).violations).toEqual([]);
+  });
+
   test("a README's task lists survive the same pass", async ({ page }) => {
     // Deslopify is the only README with GFM task lists, and `marked` renders those as bare
     // disabled checkboxes — form controls with no accessible name. Scanning only novaverta hid

@@ -24,14 +24,29 @@ import { WorldStore } from '../store/world.store';
         <h2 id="menu-title">Projekte</h2>
         <ul>
           @for (project of projects(); track project.slug) {
-            <li [style.--primary]="project.theme.primary">
+            <li
+              [style.--primary]="project.theme.primary"
+              [class.current-row]="isCurrent(project.slug)"
+              [attr.data-slug]="project.slug"
+              [attr.aria-current]="isCurrent(project.slug) ? 'location' : null"
+            >
               <span class="title">{{ project.title }}</span>
               <span class="summary">{{ project.summary }}</span>
+              @if (isCurrent(project.slug)) {
+                <span class="current-badge" aria-label="Aktuelle Welt">Du bist hier</span>
+              }
+              @if (distanceLabel(project.slug); as distance) {
+                <span class="distance">{{ distance }}</span>
+              }
               <span class="actions">
                 <button
                   type="button"
                   data-role="travel"
                   [attr.data-slug]="project.slug"
+                  [disabled]="isCurrent(project.slug)"
+                  [attr.aria-label]="
+                    isCurrent(project.slug) ? 'Du bist bereits in dieser Welt' : 'Hinreisen'
+                  "
                   (click)="travelTo(project.slug)"
                 >
                   Hinreisen
@@ -39,7 +54,7 @@ import { WorldStore } from '../store/world.store';
                 <a
                   data-role="open"
                   [attr.data-slug]="project.slug"
-                  [routerLink]="['/p', project.slug]"
+                  [routerLink]="openLink(project.slug)"
                   (click)="close()"
                 >
                   Öffnen
@@ -93,11 +108,25 @@ import { WorldStore } from '../store/world.store';
       border-inline-start: 5px solid var(--primary);
       border-block-end: 1px solid rgb(0 0 0 / 10%);
     }
+    li.current-row {
+      background: color-mix(in srgb, var(--primary) 8%, transparent);
+    }
     .title {
       font-weight: 600;
     }
     .summary {
       font-size: 0.9rem;
+      color: #3c4854;
+    }
+    .current-badge,
+    .distance {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .current-badge {
+      color: var(--primary);
+    }
+    .distance {
       color: #3c4854;
     }
     .actions {
@@ -122,6 +151,10 @@ import { WorldStore } from '../store/world.store';
       border-color: var(--primary);
       color: #fff;
     }
+    .actions button:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
     footer {
       display: flex;
       justify-content: space-between;
@@ -144,7 +177,24 @@ export class ProjectMenu {
 
   protected readonly projects = inject(ContentService).projects;
 
+  protected isCurrent(slug: string): boolean {
+    return this.store.currentProject() === slug;
+  }
+
+  protected distanceLabel(slug: string): string | null {
+    const distance = this.store.travelDistances().get(slug);
+    return distance === undefined ? null : `${Math.round(distance)} m entfernt`;
+  }
+
+  protected openLink(slug: string): readonly string[] {
+    return this.isCurrent(slug) ? ['/p', slug, 'info'] : ['/p', slug];
+  }
+
   protected travelTo(slug: string): void {
+    if (this.isCurrent(slug)) {
+      return;
+    }
+
     this.travel.emit(slug);
     this.close();
   }
