@@ -78,6 +78,8 @@ describe('ProjectMenu', () => {
     const open = row?.querySelector<HTMLAnchorElement>('a[data-role="open"]');
 
     expect(row?.getAttribute('aria-current')).toBe('location');
+    expect(row?.classList.contains('current-row')).toBe(true);
+    expect(row?.querySelector('.current-badge')?.textContent).toContain('Du bist hier');
     expect(row?.textContent).toContain('Du bist hier');
     expect(travel?.disabled).toBe(true);
     expect(open?.getAttribute('href')).toBe('/p/novaverta/info');

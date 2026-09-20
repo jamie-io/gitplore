@@ -40,8 +40,10 @@ export class SceneDirector {
   private demo: InWorldDemo | null = null;
 
   private readonly menuDistanceEffect = effect(() => {
-    if (this.store.menuOpen()) {
-      this.captureMenuDistances();
+    const menuOpen = this.store.menuOpen();
+    const currentProject = this.store.currentProject();
+    if (menuOpen) {
+      this.captureMenuDistances(currentProject);
     }
   });
 
@@ -194,8 +196,8 @@ export class SceneDirector {
     });
   }
 
-  private captureMenuDistances(): void {
-    if (!(this.current instanceof HubScene)) {
+  private captureMenuDistances(currentProject: string | null): void {
+    if (currentProject !== null || !(this.current instanceof HubScene)) {
       this.store.setTravelDistances(new Map());
       return;
     }

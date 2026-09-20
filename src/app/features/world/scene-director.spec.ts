@@ -177,6 +177,23 @@ describe('SceneDirector', () => {
     expect(store.travelDistances().size).toBe(0);
   });
 
+  it('refreshes hub distances after a world change while the menu stays open', async () => {
+    await director.show(null);
+    store.setMenuOpen(true);
+    TestBed.tick();
+    const firstSnapshot = store.travelDistances();
+
+    await director.show('novaverta');
+    TestBed.tick();
+    expect(store.travelDistances().size).toBe(0);
+
+    await director.show(null);
+    TestBed.tick();
+
+    expect(store.travelDistances().size).toBeGreaterThan(0);
+    expect(store.travelDistances()).not.toBe(firstSnapshot);
+  });
+
   it('raises and clears the swap flag around a build', async () => {
     const pending = director.show('novaverta');
     expect(store.swapping()).toBe(true);

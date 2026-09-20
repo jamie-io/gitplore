@@ -26,14 +26,14 @@ import { WorldStore } from '../store/world.store';
           @for (project of projects(); track project.slug) {
             <li
               [style.--primary]="project.theme.primary"
-              [class.current]="isCurrent(project.slug)"
+              [class.current-row]="isCurrent(project.slug)"
               [attr.data-slug]="project.slug"
               [attr.aria-current]="isCurrent(project.slug) ? 'location' : null"
             >
               <span class="title">{{ project.title }}</span>
               <span class="summary">{{ project.summary }}</span>
               @if (isCurrent(project.slug)) {
-                <span class="current" aria-label="Aktuelle Welt">Du bist hier</span>
+                <span class="current-badge" aria-label="Aktuelle Welt">Du bist hier</span>
               }
               @if (distanceLabel(project.slug); as distance) {
                 <span class="distance">{{ distance }}</span>
@@ -108,7 +108,7 @@ import { WorldStore } from '../store/world.store';
       border-inline-start: 5px solid var(--primary);
       border-block-end: 1px solid rgb(0 0 0 / 10%);
     }
-    li.current {
+    li.current-row {
       background: color-mix(in srgb, var(--primary) 8%, transparent);
     }
     .title {
@@ -118,12 +118,12 @@ import { WorldStore } from '../store/world.store';
       font-size: 0.9rem;
       color: #3c4854;
     }
-    .current,
+    .current-badge,
     .distance {
       font-size: 0.85rem;
       font-weight: 600;
     }
-    .current {
+    .current-badge {
       color: var(--primary);
     }
     .distance {
