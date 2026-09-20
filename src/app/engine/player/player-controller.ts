@@ -86,9 +86,16 @@ export class PlayerController {
    */
   stridePhase = 0;
 
+  /**
+   * Whether the player is standing on something. Public for the same reason `stridePhase` is: the
+   * avatar's airborne tuck and its landing settle have to read the controller's own footing, and
+   * anything that inferred it from the position would disagree with it on exactly the frames that
+   * matter. Written here and nowhere else.
+   */
+  grounded = false;
+
   /** Metres per second; `y` is the fall speed, `x`/`z` the horizontal momentum. */
   private readonly velocity = new Vector3();
-  private grounded = false;
 
   /** Metres of ground covered horizontally last frame, after the colliders had their say. */
   private lastStep = 0;

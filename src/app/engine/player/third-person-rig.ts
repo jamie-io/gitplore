@@ -1,6 +1,7 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 import { CameraRig, RigFrame } from './camera-rig';
 import { Collider, HeightField, STEP_HEIGHT, resolveCollisions } from './collision';
+import { DampedAxis } from './damped-axis';
 import { PlayerController } from './player-controller';
 
 /** Metres from the boom's anchor to the camera when nothing stands in the way. */
@@ -208,46 +209,4 @@ function liftedOverGround(x: number, y: number, z: number, ground: HeightField):
 function isClear(x: number, y: number, z: number, colliders: readonly Collider[]): boolean {
   const resolved = resolveCollisions(x, z, BOOM_RADIUS, colliders, y - STEP_HEIGHT);
   return resolved.x === x && resolved.z === z;
-}
-
-/**
- * One axis of a critically damped spring, stepped from its closed form so the motion is the same at
- * any frame rate. `smoothing` is the spring's characteristic time: after it, under half the gap is
- * left, and after three times it the gap is gone. 0 means no easing at all, which is what reduced
- * motion asks for.
- */
-class DampedAxis {
-  value = 0;
-  private velocity = 0;
-
-  reset(value: number): void {
-    this.value = value;
-    this.velocity = 0;
-  }
-
-  /** `maxLag` caps how far behind the target the value may fall, however fast the target runs. */
-  step(target: number, smoothing: number, dt: number, maxLag = Infinity): void {
-    if (smoothing <= 0) {
-      this.reset(target);
-      return;
-    }
-
-    const rate = 2 / smoothing;
-    const decay = Math.exp(-rate * dt);
-    const lag = this.value - target;
-    const slope = this.velocity + rate * lag;
-
-    this.value = target + (lag + slope * dt) * decay;
-    this.velocity = (this.velocity - slope * rate * dt) * decay;
-
-    // Pinned at the cap the value travels with the target; the spring takes over again as soon as
-    // the target stops running away from it, which is what turns a landing into a settle.
-    if (this.value < target - maxLag) {
-      this.value = target - maxLag;
-      this.velocity = Math.max(this.velocity, 0);
-    } else if (this.value > target + maxLag) {
-      this.value = target + maxLag;
-      this.velocity = Math.min(this.velocity, 0);
-    }
-  }
 }
