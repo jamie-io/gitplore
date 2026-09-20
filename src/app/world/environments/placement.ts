@@ -22,8 +22,6 @@ export const PORTAL_HALF_WIDTH = 3.5;
 export const VISIBILITY_MARGIN = 3 * (Math.PI / 180);
 /** Tiny margin absorbs trigonometric round-off when the slot grid lands on a separation boundary. */
 const SLOT_GRID_EPSILON = 1e-10;
-/** Tiny margin absorbs round-off when a candidate bearing is compared with a pinned bearing. */
-const BEARING_COMPARISON_EPSILON = 1e-12;
 // Same-radius slots are two positions apart because near and far radii alternate.
 const SLOT_GRID_BEARING_GAP =
   Math.max(
@@ -86,8 +84,7 @@ function isVisibleFromSpawn(first: SlotPlacement, second: Position): boolean {
   }
 
   return (
-    Math.abs(first.bearing - bearingOf(second)) + BEARING_COMPARISON_EPSILON >=
-    minimumBearingGap(first.radius, secondRadius)
+    Math.abs(first.bearing - bearingOf(second)) >= minimumBearingGap(first.radius, secondRadius)
   );
 }
 

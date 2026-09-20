@@ -161,6 +161,34 @@ describe('HubScene', () => {
       expect(c.position.z).toBe(2);
       expect(c.rotationY).toBe(-1);
     });
+
+    it('skips generated projects when no safe anchor remains', () => {
+      const pinned = [
+        syntheticProject('pinned-a', {
+          kind: 'portal',
+          position: [-10, 0, -20],
+          rotationY: 0,
+        }),
+        syntheticProject('pinned-b', {
+          kind: 'portal',
+          position: [0, 0, -20],
+          rotationY: 0,
+        }),
+        syntheticProject('pinned-c', {
+          kind: 'portal',
+          position: [10, 0, -20],
+          rotationY: 0,
+        }),
+      ];
+      const generated = Array.from({ length: 7 }, (_, index) =>
+        syntheticProject(`generated-${index}`, { kind: 'portal' }),
+      );
+
+      const scene = hub({ projects: [...pinned, ...generated] });
+
+      expect(scene.landmarks).toHaveLength(9);
+      expect(scene.landmarkFor('generated-6')).toBeUndefined();
+    });
   });
 
   describe('areas', () => {

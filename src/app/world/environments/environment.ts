@@ -37,8 +37,8 @@ export interface Environment extends WorldObject {
    * `avoid` holds positions pinned by hand in `repo-overrides.ts`. Only the clearing is ever asked
    * to honour it, because only the start world mixes pinned and generated landmarks — a
    * `ProjectScene` asks for exactly one anchor and pins nothing. The ring can grow until its spots
-   * clear; the fixed-extent layouts filter what they can and fall back to a tight fit rather than
-   * dropping a project out of the world, which is the same trade-off `ringPlacements` makes.
+   * clear; fixed-extent layouts may return fewer anchors when invariants cannot seat every requested
+   * landmark. Callers must omit projects without one.
    */
   anchors(count: number, avoid?: readonly Position[]): readonly Anchor[];
 }

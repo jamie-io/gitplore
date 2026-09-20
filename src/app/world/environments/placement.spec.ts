@@ -2,6 +2,8 @@ import {
   arcAnchors,
   FRONT_ARC,
   MIN_LANDMARK_SEPARATION,
+  PORTAL_HALF_WIDTH,
+  VISIBILITY_MARGIN,
   ringPlacements,
   OUTER_RING_RADIUS,
   RING_RADIUS,
@@ -123,6 +125,26 @@ describe('ringPlacements', () => {
           ).toBeGreaterThanOrEqual(MIN_LANDMARK_SEPARATION);
         }
       }
+    });
+
+    it('rejects a slot just below its visibility bearing requirement', () => {
+      const requiredGap = Math.atan(PORTAL_HALF_WIDTH / RING_RADIUS) + VISIBILITY_MARGIN;
+      const pinnedBearing = requiredGap - 5e-13;
+      const pinned = [
+        Math.sin(pinnedBearing) * OUTER_RING_RADIUS,
+        0,
+        -Math.cos(pinnedBearing) * OUTER_RING_RADIUS,
+      ] as const;
+      const [spot] = ringPlacements(1, [pinned]);
+      const spotRadius = Math.hypot(spot.position[0], spot.position[2]);
+      const spotBearing = Math.atan2(spot.position[0], -spot.position[2]);
+      const minimumGap =
+        Math.max(
+          Math.atan(PORTAL_HALF_WIDTH / spotRadius),
+          Math.atan(PORTAL_HALF_WIDTH / OUTER_RING_RADIUS),
+        ) + VISIBILITY_MARGIN;
+
+      expect(Math.abs(spotBearing - pinnedBearing)).toBeGreaterThanOrEqual(minimumGap);
     });
 
     it('is unchanged when nothing is pinned near the ring', () => {
