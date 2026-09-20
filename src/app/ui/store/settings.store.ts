@@ -7,17 +7,25 @@ const STORAGE_KEY = 'gitplore.settings';
 export const MIN_SENSITIVITY = 0.2;
 export const MAX_SENSITIVITY = 3;
 
+export type ViewMode = 'first' | 'third';
+
 interface StoredSettings {
   qualityOverride: QualityTier | null;
   sensitivity: number;
   /** `null` follows the system's `prefers-reduced-motion`. */
   reducedMotionOverride: boolean | null;
+  viewMode: ViewMode;
+  volume: number;
+  muted: boolean;
 }
 
 const DEFAULTS: StoredSettings = {
   qualityOverride: null,
   sensitivity: 1,
   reducedMotionOverride: null,
+  viewMode: 'third',
+  volume: 0.35,
+  muted: false,
 };
 
 /**
@@ -33,6 +41,9 @@ export class SettingsStore {
   readonly qualityOverride = signal(this.stored.qualityOverride);
   readonly sensitivity = signal(this.stored.sensitivity);
   readonly reducedMotionOverride = signal(this.stored.reducedMotionOverride);
+  readonly viewMode = signal(this.stored.viewMode);
+  readonly volume = signal(this.stored.volume);
+  readonly muted = signal(this.stored.muted);
 
   constructor() {
     this.apply();
@@ -56,6 +67,21 @@ export class SettingsStore {
     this.persist();
   }
 
+  setViewMode(value: ViewMode): void {
+    this.viewMode.set(value);
+    this.persist();
+  }
+
+  setVolume(value: number): void {
+    this.volume.set(clampVolume(value));
+    this.persist();
+  }
+
+  setMuted(value: boolean): void {
+    this.muted.set(value);
+    this.persist();
+  }
+
   private apply(): void {
     this.capability.override(this.qualityOverride());
     this.capability.overrideReducedMotion(this.reducedMotionOverride());
@@ -70,6 +96,9 @@ export class SettingsStore {
           qualityOverride: this.qualityOverride(),
           sensitivity: this.sensitivity(),
           reducedMotionOverride: this.reducedMotionOverride(),
+          viewMode: this.viewMode(),
+          volume: this.volume(),
+          muted: this.muted(),
         } satisfies StoredSettings),
       );
     } catch {
@@ -85,7 +114,14 @@ function clampSensitivity(value: unknown): number {
     : DEFAULTS.sensitivity;
 }
 
+function clampVolume(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.min(Math.max(value, 0), 1)
+    : DEFAULTS.volume;
+}
+
 const TIERS: readonly QualityTier[] = ['low', 'medium', 'high'];
+const VIEW_MODES: readonly ViewMode[] = ['first', 'third'];
 
 /** Stored data is untrusted: it reaches the engine, so every field is validated on the way in. */
 function read(): StoredSettings {
@@ -103,6 +139,9 @@ function read(): StoredSettings {
         typeof parsed.reducedMotionOverride === 'boolean'
           ? parsed.reducedMotionOverride
           : DEFAULTS.reducedMotionOverride,
+      viewMode: VIEW_MODES.find((mode) => mode === parsed.viewMode) ?? DEFAULTS.viewMode,
+      volume: clampVolume(parsed.volume),
+      muted: typeof parsed.muted === 'boolean' ? parsed.muted : DEFAULTS.muted,
     };
   } catch {
     return DEFAULTS;

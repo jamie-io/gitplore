@@ -63,6 +63,19 @@ describe('SettingsDialog', () => {
     expect(options).toEqual(['auto', 'low', 'medium', 'high']);
   });
 
+  it('offers German view-mode choices and stores the selected mode', async () => {
+    const viewMode = field<HTMLSelectElement>('view-mode');
+
+    expect(Array.from(viewMode.options).map((option) => option.textContent)).toEqual([
+      'Dritte Person',
+      'Erste Person',
+    ]);
+
+    await type(viewMode, 'first');
+
+    expect(settings.viewMode()).toBe('first');
+  });
+
   it('stores a chosen quality tier and hands it to the capability service', async () => {
     await type(field<HTMLSelectElement>('quality'), 'low');
 
@@ -93,6 +106,27 @@ describe('SettingsDialog', () => {
 
     await type(field<HTMLSelectElement>('motion'), 'auto');
     expect(settings.reducedMotionOverride()).toBeNull();
+  });
+
+  it('stores volume and mute choices', async () => {
+    await type(field<HTMLInputElement>('volume'), '0.7');
+
+    const muted = field<HTMLInputElement>('muted');
+    muted.checked = true;
+    muted.dispatchEvent(new Event('input', { bubbles: true }));
+    muted.dispatchEvent(new Event('change', { bubbles: true }));
+    await fixture.whenStable();
+
+    expect(settings.volume()).toBeCloseTo(0.7, 6);
+    expect(settings.muted()).toBe(true);
+  });
+
+  it('labels view mode, volume, and mute in German', () => {
+    expect(host().querySelector('label[for="settings-view-mode"]')?.textContent).toBe('Ansicht');
+    expect(host().querySelector('label[for="settings-volume"]')?.textContent).toContain(
+      'Lautstärke',
+    );
+    expect(host().querySelector('label[for="settings-muted"]')?.textContent).toBe('Stumm');
   });
 
   it('writes nothing just by being opened, so system preferences stay in charge', () => {

@@ -33,6 +33,14 @@ describe('SettingsStore', () => {
     expect(settings.reducedMotionOverride()).toBeNull();
   });
 
+  it('starts with third-person view, moderate volume, and sound enabled', () => {
+    const settings = freshStore();
+
+    expect(settings.viewMode()).toBe('third');
+    expect(settings.volume()).toBe(0.35);
+    expect(settings.muted()).toBe(false);
+  });
+
   it('remembers a chosen quality tier across sessions', () => {
     freshStore().setQualityOverride('low');
 
@@ -67,6 +75,18 @@ describe('SettingsStore', () => {
     expect(reopened.reducedMotionOverride()).toBe(true);
   });
 
+  it('remembers view mode, volume, and mute choice across sessions', () => {
+    const settings = freshStore();
+    settings.setViewMode('first');
+    settings.setVolume(0.8);
+    settings.setMuted(true);
+
+    const reopened = freshStore();
+    expect(reopened.viewMode()).toBe('first');
+    expect(reopened.volume()).toBe(0.8);
+    expect(reopened.muted()).toBe(true);
+  });
+
   it('falls back to defaults when stored data is corrupt', () => {
     localStorage.setItem('gitplore.settings', '{not json');
 
@@ -92,7 +112,14 @@ describe('SettingsStore', () => {
   it('clamps and whitelists tampered stored values before applying them', () => {
     localStorage.setItem(
       'gitplore.settings',
-      JSON.stringify({ qualityOverride: 'ultra', sensitivity: 99, reducedMotionOverride: 'yes' }),
+      JSON.stringify({
+        qualityOverride: 'ultra',
+        sensitivity: 99,
+        reducedMotionOverride: 'yes',
+        viewMode: 'overhead',
+        volume: 99,
+        muted: 'yes',
+      }),
     );
 
     const settings = freshStore();
@@ -100,6 +127,19 @@ describe('SettingsStore', () => {
     expect(settings.qualityOverride()).toBeNull();
     expect(settings.sensitivity()).toBe(MAX_SENSITIVITY);
     expect(settings.reducedMotionOverride()).toBeNull();
+    expect(settings.viewMode()).toBe('third');
+    expect(settings.volume()).toBe(1);
+    expect(settings.muted()).toBe(false);
     expect(TestBed.inject(InputService).sensitivity).toBe(MAX_SENSITIVITY);
+  });
+
+  it('clamps volume changes to the audible range', () => {
+    const settings = freshStore();
+
+    settings.setVolume(2);
+    expect(settings.volume()).toBe(1);
+
+    settings.setVolume(-1);
+    expect(settings.volume()).toBe(0);
   });
 });

@@ -2,7 +2,12 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormField, form, max, min } from '@angular/forms/signals';
 import { CapabilityService, QualityTier } from '@engine/capability.service';
 import { FocusTrapDirective } from '../../shared/a11y/focus-trap.directive';
-import { MAX_SENSITIVITY, MIN_SENSITIVITY, SettingsStore } from '../store/settings.store';
+import {
+  MAX_SENSITIVITY,
+  MIN_SENSITIVITY,
+  SettingsStore,
+  ViewMode,
+} from '../store/settings.store';
 import { WorldStore } from '../store/world.store';
 
 const TIER_LABELS: Record<QualityTier, string> = { low: 'niedrig', medium: 'mittel', high: 'hoch' };
@@ -13,6 +18,9 @@ interface SettingsModel {
   quality: 'auto' | QualityTier;
   sensitivity: number;
   motion: MotionChoice;
+  viewMode: ViewMode;
+  volume: number;
+  muted: boolean;
 }
 
 function motionChoice(override: boolean | null): MotionChoice {
@@ -66,6 +74,29 @@ function motionChoice(override: boolean | null): MotionChoice {
             <option value="reduced">Reduziert (kein Kameraflug, ruhiger Himmel)</option>
             <option value="full">Voll</option>
           </select>
+        </div>
+
+        <div class="row">
+          <label for="settings-view-mode">Ansicht</label>
+          <select id="settings-view-mode" [formField]="settings.viewMode">
+            <option value="third">Dritte Person</option>
+            <option value="first">Erste Person</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <label for="settings-volume">Lautstärke</label>
+          <input
+            id="settings-volume"
+            type="range"
+            step="0.05"
+            [formField]="settings.volume"
+          />
+        </div>
+
+        <div class="row">
+          <input id="settings-muted" type="checkbox" [formField]="settings.muted" />
+          <label for="settings-muted">Stumm</label>
         </div>
 
         <p class="note">Grafikqualität wirkt teils erst nach dem Neuladen der Seite.</p>
@@ -147,12 +178,17 @@ export class SettingsDialog {
     quality: this.store.qualityOverride() ?? 'auto',
     sensitivity: this.store.sensitivity(),
     motion: motionChoice(this.store.reducedMotionOverride()),
+    viewMode: this.store.viewMode(),
+    volume: this.store.volume(),
+    muted: this.store.muted(),
   });
 
   protected readonly settings = form(this.model, (path) => {
     // The range input gets its min/max from here; the store clamps to the same bounds.
     min(path.sensitivity, MIN_SENSITIVITY);
     max(path.sensitivity, MAX_SENSITIVITY);
+    min(path.volume, 0);
+    max(path.volume, 1);
   });
 
   constructor() {
@@ -171,6 +207,15 @@ export class SettingsDialog {
         this.store.setReducedMotionOverride(
           current.motion === 'auto' ? null : current.motion === 'reduced',
         );
+      }
+      if (current.viewMode !== previous.viewMode) {
+        this.store.setViewMode(current.viewMode);
+      }
+      if (current.volume !== previous.volume) {
+        this.store.setVolume(Number(current.volume));
+      }
+      if (current.muted !== previous.muted) {
+        this.store.setMuted(current.muted);
       }
       previous = current;
     });
