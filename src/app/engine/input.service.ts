@@ -2,7 +2,7 @@ import { Service, signal } from '@angular/core';
 import { MoveIntent } from './player/player-controller';
 
 export type InputMode = 'world' | 'ui' | 'demo';
-export type InputAction = 'interact' | 'menu' | 'exit';
+export type InputAction = 'interact' | 'menu' | 'exit' | 'view';
 
 /** Radians of turn per pixel of pointer movement, before the user's sensitivity multiplier. */
 const POINTER_SENSITIVITY = 0.0022;
@@ -22,6 +22,9 @@ const ACTION_KEYS: Record<string, InputAction> = {
   Enter: 'interact',
   KeyM: 'menu',
   Escape: 'exit',
+  // First or third person. The settings dialog holds the same choice; this is the one that is
+  // discoverable without leaving the world.
+  KeyV: 'view',
 };
 
 /** Actions that must work whatever has focus, otherwise an overlay could trap the visitor. */

@@ -3,6 +3,7 @@ import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
 import { WorldContext, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
+import { Explorer } from '../avatar/explorer';
 import { Environment } from '../environments/environment';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { createLandmark } from '../landmarks/create-landmark';
@@ -33,6 +34,8 @@ export class HubScene implements WorldScene {
   readonly landmarks: readonly Landmark[];
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
+  /** Built with the world and disposed with it, cut from this environment's own accent. */
+  readonly avatar: Explorer;
 
   private readonly environment: Environment;
   private readonly onAreaChange: ((area: string) => void) | undefined;
@@ -41,6 +44,10 @@ export class HubScene implements WorldScene {
   constructor(options: HubSceneOptions) {
     this.environment = options.environment;
     this.onAreaChange = options.onAreaChange;
+    this.avatar = new Explorer({
+      mood: options.environment.mood,
+      reducedMotion: options.reducedMotion,
+    });
 
     // Pinned landmarks are placed by hand and never move, so generated anchors have to work around
     // them: without this an anchor can land on top of one.
@@ -96,6 +103,7 @@ export class HubScene implements WorldScene {
   init(ctx: WorldContext): void {
     this.environment.init(ctx);
     this.landmarks.forEach((landmark) => landmark.init(ctx));
+    this.avatar.init(ctx);
   }
 
   update(dt: number, ctx: WorldContext): void {
@@ -106,6 +114,7 @@ export class HubScene implements WorldScene {
 
   dispose(): void {
     this.landmarks.forEach((landmark) => landmark.dispose());
+    this.avatar.dispose();
     this.environment.dispose();
     this.area = null;
   }

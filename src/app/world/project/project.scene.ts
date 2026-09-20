@@ -4,6 +4,7 @@ import { Collider } from '@engine/player/collision';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext, WorldObject, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
+import { Explorer } from '../avatar/explorer';
 import { Environment } from '../environments/environment';
 import { CommitRidge } from '../environments/data/commit-ridge';
 import { LanguagePillars, languageSideOffset } from '../environments/data/language-pillars';
@@ -58,6 +59,8 @@ export class ProjectScene implements WorldScene {
   readonly landmarks: readonly Landmark[];
   /** Where the director puts the player on arrival, and which way they look. */
   readonly arrival: { readonly position: Vector3; readonly yaw: number };
+  /** Built with the world and disposed with it, cut from this environment's own accent. */
+  readonly avatar: Explorer;
 
   protected readonly environment: Environment;
   protected readonly project: Project;
@@ -72,6 +75,10 @@ export class ProjectScene implements WorldScene {
     this.environment = options.environment;
     this.project = options.project;
     this.id = `project:${options.project.slug}`;
+    this.avatar = new Explorer({
+      mood: options.environment.mood,
+      reducedMotion: options.reducedMotion,
+    });
 
     const [anchor] = this.environment.anchors(1);
     this.exhibit = new ScreenLandmark({
@@ -180,6 +187,7 @@ export class ProjectScene implements WorldScene {
   init(ctx: WorldContext): void {
     this.environment.init(ctx);
     this.parts.forEach((part) => part.init(ctx));
+    this.avatar.init(ctx);
   }
 
   update(dt: number, ctx: WorldContext): void {
@@ -189,6 +197,7 @@ export class ProjectScene implements WorldScene {
 
   dispose(): void {
     this.parts.forEach((part) => part.dispose());
+    this.avatar.dispose();
     this.environment.dispose();
   }
 }

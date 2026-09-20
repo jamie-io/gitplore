@@ -8,6 +8,7 @@ import { CapabilityService, DEVICE_CAPABILITIES } from '@engine/capability.servi
 import { ENGINE } from '@engine/engine.service';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
+import { SettingsStore } from '@ui/store/settings.store';
 import { WorldStore } from '@ui/store/world.store';
 import { WorldPage } from './world.page';
 import { SceneDirector } from './scene-director';
@@ -169,6 +170,22 @@ describe('WorldPage', () => {
     store.markStarted();
     press('KeyM');
     expect(store.menuOpen()).toBe(true);
+  });
+
+  it('flips the stored view between the shoulder and the head on V', async () => {
+    await bootWithoutManifest();
+    // Only once the world has the input: until then the start gate is a modal dialog, and the
+    // view key is not one of the actions that reach through one.
+    store.markStarted();
+    TestBed.tick();
+    const settings = TestBed.inject(SettingsStore);
+    expect(settings.viewMode()).toBe('third');
+
+    press('KeyV');
+    expect(settings.viewMode()).toBe('first');
+
+    press('KeyV');
+    expect(settings.viewMode()).toBe('third');
   });
 
   it('marks the world inert while an overlay owns the input', async () => {

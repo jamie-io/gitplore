@@ -191,6 +191,8 @@ export class ShowroomEnvironment implements Environment {
   /** Yaw 0 looks down −Z: into the hall, at the exhibit wall. */
   readonly spawnYaw = 0;
   readonly colliders: readonly Collider[];
+  /** The light and air of this place; the scene reads it to match whatever stands in it. */
+  readonly mood = GALERIE;
   /** Every shader in this world reads these; public so a test can watch time stand still. */
   readonly shared = new SharedUniforms(GALERIE);
 

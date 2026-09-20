@@ -66,6 +66,12 @@ export interface Mood {
     /** Direction the wind blows towards, radians, same convention as the sun azimuth. */
     readonly direction: number;
   };
+  /**
+   * The one colour that is deliberately *not* the place's own: the explorer's coat, picked to read
+   * against this world's greens, tiles or gloom rather than to blend into them. The avatar tints
+   * the rest of the figure from it, so a world changes who walks through it by changing one value.
+   */
+  readonly accent: number;
   readonly grade: ColorGrade;
 }
 
@@ -88,6 +94,8 @@ export const LICHTUNG: Mood = {
   },
   clouds: { coverage: 0.32, softness: 0.4, speed: 0.6, color: 0xfff5e8, shade: 0xd8b6aa },
   wind: { strength: 0.6, gustScale: 0.04, direction: 0.9 },
+  // Red-orange: the one hue the meadow's greens and the low sun's gold leave free.
+  accent: 0xc2452f,
   grade: { saturation: 1.1, contrast: 1.05, warmth: 0.04, vignette: 0.22, bloomStrength: 0.35 },
 };
 
@@ -106,6 +114,8 @@ export const DSCHUNGEL: Mood = {
   },
   clouds: null,
   wind: { strength: 0.25, gustScale: 0.03, direction: 0.3 },
+  // Amber: warm enough to carry through the teal haze that swallows everything else at 40 m.
+  accent: 0xe0a13c,
   grade: { saturation: 1.12, contrast: 1.06, warmth: -0.02, vignette: 0.28, bloomStrength: 0.5 },
 };
 
@@ -132,6 +142,8 @@ export const PLAZA: Mood = {
   // Just under white: at 1.0 the clouds sat on the bloom threshold and veiled the high tier.
   clouds: { coverage: 0.22, softness: 0.3, speed: 0.4, color: 0xf2f6fa, shade: 0xb4c4d6 },
   wind: { strength: 0.4, gustScale: 0.05, direction: -0.6 },
+  // Indigo against warm tiles: the square is all sand and lime, so blue is what stands out on it.
+  accent: 0x2f5aa8,
   grade: { saturation: 1.12, contrast: 1.05, warmth: 0.03, vignette: 0.18, bloomStrength: 0.2 },
 };
 
@@ -145,6 +157,8 @@ export const GALERIE: Mood = {
   fog: { color: 0x1a1d22, near: 60, far: 140, heightDensity: 0, heightFalloff: 0, sunScatter: 0 },
   clouds: null,
   wind: { strength: 0, gustScale: 0, direction: 0 },
+  // Bone: in a dark gallery the figure has to be the pale thing, not another shadow.
+  accent: 0xd8d2c6,
   grade: { saturation: 1.0, contrast: 1.03, warmth: 0.0, vignette: 0.2, bloomStrength: 0.18 },
 };
 

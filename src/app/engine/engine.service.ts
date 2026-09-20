@@ -62,7 +62,8 @@ export class EngineService {
     third: new ThirdPersonRig(this.camera),
   };
   /** Third person by default, matching the stored setting the UI pushes in below. */
-  private rig: CameraRig = this.rigs.third;
+  private viewMode: ViewMode = 'third';
+  private rig: CameraRig = this.rigs[this.viewMode];
   private readonly interaction = new InteractionSystem();
   private readonly tickables = new Set<Tickable>();
 
@@ -135,6 +136,9 @@ export class EngineService {
     this.interaction.reset();
     this.world = world;
     world.init(this.context());
+    // The avatar is built with its world and never shared between two, so the view the visitor
+    // chose has to be applied again to each new figure.
+    world.avatar?.setFirstPerson(this.viewMode === 'first');
   }
 
   /** What the player is currently close to and facing. */
@@ -178,11 +182,15 @@ export class EngineService {
    * engine may not reach into, so the world page pushes it here the way the quality tier travels.
    */
   setViewMode(mode: ViewMode): void {
-    if (this.rigs[mode] === this.rig) {
+    if (mode === this.viewMode) {
       return;
     }
 
+    this.viewMode = mode;
     this.rig = this.rigs[mode];
+    // First person hides the body without taking its shadow away, which is the whole point of
+    // asking the avatar rather than simply not drawing it.
+    this.world?.avatar?.setFirstPerson(mode === 'first');
     // The rig coming in last watched the player wherever the view was switched away from it. On a
     // key press that would be one visible swing of the camera, so it is placed rather than eased.
     this.rig.reset();
@@ -259,6 +267,9 @@ export class EngineService {
       colliders,
       reducedMotion: this.capability.reducedMotion(),
     });
+    // After the camera, because the figure is a consequence of the player exactly as the camera is,
+    // and both have to be reading the same frame's position.
+    this.world?.avatar?.sync(this.player, dt);
     this.interaction.update(this.player, this.world?.interactables ?? []);
 
     this.world?.update(dt, this.context());

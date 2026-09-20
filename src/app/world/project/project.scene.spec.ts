@@ -97,6 +97,17 @@ describe('ProjectScene', () => {
     expect(ctx.scene.children.length).toBe(0);
   });
 
+  it('stands the explorer in the world and takes them away with it', () => {
+    const ctx = stubContext();
+    const target = scene();
+
+    target.init(ctx);
+    expect(ctx.scene.children).toContain(target.avatar.object);
+
+    target.dispose();
+    expect(target.avatar.object.parent).toBeNull();
+  });
+
   it('adds repository data objects to the world', () => {
     const project: Project = {
       ...PROJECT,
