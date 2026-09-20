@@ -1,13 +1,16 @@
 import { Service, inject, signal } from '@angular/core';
 import { CapabilityService, QualityTier } from '@engine/capability.service';
 import { InputService } from '@engine/input.service';
+import { VIEW_MODES, ViewMode } from '../../shared/view-mode';
 
 const STORAGE_KEY = 'gitplore.settings';
 
 export const MIN_SENSITIVITY = 0.2;
 export const MAX_SENSITIVITY = 3;
 
-export type ViewMode = 'first' | 'third';
+// Declared in `shared/` because the engine picks its rig from the same union and may not import
+// this file to get it; re-exported so everything here still reads it from the store it belongs to.
+export type { ViewMode };
 
 interface StoredSettings {
   qualityOverride: QualityTier | null;
@@ -121,7 +124,6 @@ function clampVolume(value: unknown): number {
 }
 
 const TIERS: readonly QualityTier[] = ['low', 'medium', 'high'];
-const VIEW_MODES: readonly ViewMode[] = ['first', 'third'];
 
 /** Stored data is untrusted: it reaches the engine, so every field is validated on the way in. */
 function read(): StoredSettings {

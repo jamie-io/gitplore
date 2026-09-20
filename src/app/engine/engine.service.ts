@@ -3,9 +3,11 @@ import { BufferGeometry, PerspectiveCamera, Scene, Texture } from 'three';
 import { AssetService } from './asset.service';
 import { CapabilityService } from './capability.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
-import { FirstPersonRig } from './player/camera-rig';
-import { HeightField } from './player/collision';
+import { ViewMode } from '../shared/view-mode';
+import { CameraRig, FirstPersonRig } from './player/camera-rig';
+import { Collider, HeightField } from './player/collision';
 import { PlayerController } from './player/player-controller';
+import { ThirdPersonRig } from './player/third-person-rig';
 import { InputService } from './input.service';
 import { Interactable } from './interaction/interactable';
 import { InteractionSystem } from './interaction/interaction.system';
@@ -16,6 +18,7 @@ import { disposeObject3D, forEachResource } from './dispose';
 export const ENGINE_MAX_FRAME_SECONDS = 0.05;
 
 const FLAT_GROUND: HeightField = { heightAt: () => 0 };
+const NO_COLLIDERS: readonly Collider[] = [];
 
 export interface EngineStats {
   readonly fps: number;
@@ -54,7 +57,12 @@ export class EngineService {
   readonly camera = new PerspectiveCamera(70, 1, 0.1, 500);
   readonly player = new PlayerController();
 
-  private readonly rig = new FirstPersonRig(this.camera);
+  private readonly rigs: Record<ViewMode, CameraRig> = {
+    first: new FirstPersonRig(this.camera),
+    third: new ThirdPersonRig(this.camera),
+  };
+  /** Third person by default, matching the stored setting the UI pushes in below. */
+  private rig: CameraRig = this.rigs.third;
   private readonly interaction = new InteractionSystem();
   private readonly tickables = new Set<Tickable>();
 
@@ -165,6 +173,21 @@ export class EngineService {
     return this.pauseReasons.app || this.pauseReasons.hidden || this.pauseReasons.offscreen;
   }
 
+  /**
+   * Picks the rig that places the camera. The visitor's choice lives in `SettingsStore`, which the
+   * engine may not reach into, so the world page pushes it here the way the quality tier travels.
+   */
+  setViewMode(mode: ViewMode): void {
+    if (this.rigs[mode] === this.rig) {
+      return;
+    }
+
+    this.rig = this.rigs[mode];
+    // The rig coming in last watched the player wherever the view was switched away from it. On a
+    // key press that would be one visible swing of the camera, so it is placed rather than eased.
+    this.rig.reset();
+  }
+
   /** Re-applies the current quality settings to the renderer, e.g. after a tier change. */
   refreshQuality(): void {
     this.renderer?.setQuality(this.capability.settings());
@@ -225,9 +248,17 @@ export class EngineService {
     this.capability.sampleFrame(frameMs);
     const dt = Math.min(frameMs / 1000, ENGINE_MAX_FRAME_SECONDS);
 
+    const ground = this.world?.ground ?? FLAT_GROUND;
+    const colliders = this.world?.colliders ?? NO_COLLIDERS;
     const intent = this.input.consumeIntent(dt);
-    this.player.update(dt, intent, this.world?.ground ?? FLAT_GROUND, this.world?.colliders ?? []);
-    this.rig.sync(this.player);
+    this.player.update(dt, intent, ground, colliders);
+    // A boom needs the same world the player walks through, or it would hang inside the scenery.
+    this.rig.sync(this.player, {
+      dt,
+      ground,
+      colliders,
+      reducedMotion: this.capability.reducedMotion(),
+    });
     this.interaction.update(this.player, this.world?.interactables ?? []);
 
     this.world?.update(dt, this.context());

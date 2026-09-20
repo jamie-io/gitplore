@@ -43,6 +43,9 @@ export class StubEngine {
   setThrottle(): void {
     // no renderer
   }
+  setViewMode(): void {
+    // no camera
+  }
   setPaused(): void {
     // no renderer
   }

@@ -1,4 +1,12 @@
-import { Group, PerspectiveCamera, Scene, Vector3 } from 'three';
+import {
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  PerspectiveCamera,
+  PlaneGeometry,
+  Scene,
+  Vector3,
+} from 'three';
 import { qualitySettings } from '@engine/capability.service';
 import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
@@ -6,7 +14,14 @@ import { WorldContext } from '@engine/world-object';
 import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
 import { Project } from '@content/project.model';
 import { LandmarkOptions, SPAWN_DISTANCE } from './landmark';
-import { DOLLY_SECONDS, MODEL_LOAD_RADIUS, PortalLandmark } from './portal.landmark';
+import {
+  DOLLY_SECONDS,
+  MODEL_LOAD_RADIUS,
+  PortalLandmark,
+  VEIL_FADE,
+  VEIL_HIDE,
+  VEIL_OPACITY,
+} from './portal.landmark';
 
 const FLAT = { heightAt: () => 0 };
 
@@ -130,6 +145,85 @@ describe('PortalLandmark', () => {
 
     portal.update(DOLLY_SECONDS / 2, ctx);
     expect(entered).toEqual(['deslopify']);
+  });
+
+  /**
+   * A third-person camera stands 3.6 m behind a player who arrives `SPAWN_DISTANCE` from the
+   * portal, so it ends up on the far side of the glowing surface looking back through it. At that
+   * range the surface covers the whole frame: it has to stop being drawn.
+   */
+  describe('the glowing surface against a camera that comes through it', () => {
+    /** The surface hangs level with the middle of the arch, which is where the fade measures from. */
+    const veilOf = (portal: PortalLandmark) =>
+      portal.group.children.find(
+        (child) => child instanceof Mesh && child.geometry instanceof PlaneGeometry,
+      ) as Mesh<PlaneGeometry, MeshStandardMaterial>;
+
+    /** Puts the camera `distance` metres from the surface's centre, along the arch's axis. */
+    function look(portal: PortalLandmark, ctx: WorldContext, distance: number): void {
+      const centre = veilOf(portal).getWorldPosition(new Vector3());
+      ctx.camera.position.set(centre.x, centre.y, centre.z + distance);
+    }
+
+    it('shows it whole while the camera is still well back', () => {
+      const ctx = context();
+      const portal = new PortalLandmark(options());
+      portal.init(ctx);
+
+      look(portal, ctx, VEIL_FADE + 1);
+      portal.update(0.016, ctx);
+
+      expect(veilOf(portal).visible).toBe(true);
+      expect(veilOf(portal).material.opacity).toBeCloseTo(VEIL_OPACITY, 6);
+    });
+
+    it('fades it as the camera closes on it', () => {
+      const ctx = context();
+      const portal = new PortalLandmark(options());
+      portal.init(ctx);
+
+      look(portal, ctx, (VEIL_FADE + VEIL_HIDE) / 2);
+      portal.update(0.016, ctx);
+
+      expect(veilOf(portal).visible).toBe(true);
+      expect(veilOf(portal).material.opacity).toBeCloseTo(VEIL_OPACITY / 2, 6);
+    });
+
+    it('stops drawing it once the camera is inside the arch', () => {
+      const ctx = context();
+      const portal = new PortalLandmark(options());
+      portal.init(ctx);
+
+      look(portal, ctx, VEIL_HIDE / 2);
+      portal.update(0.016, ctx);
+
+      // Not merely alpha 0: a full-screen double-sided transparent quad costs the same to shade
+      // whether it changes the picture or not, which is the whole point of the fade.
+      expect(veilOf(portal).visible).toBe(false);
+    });
+
+    it('follows the camera, not the player standing a boom away from it', () => {
+      const ctx = context();
+      const portal = new PortalLandmark(options());
+      portal.init(ctx);
+      ctx.player.teleport(portal.spawn.clone().setY(1.7), portal.spawnYaw);
+
+      look(portal, ctx, VEIL_HIDE / 2);
+      portal.update(0.016, ctx);
+
+      expect(veilOf(portal).visible).toBe(false);
+    });
+
+    it('hides it for a visitor who asked for less motion too', () => {
+      const ctx = context();
+      const portal = new PortalLandmark(options({ reducedMotion: () => true }));
+      portal.init(ctx);
+
+      look(portal, ctx, VEIL_HIDE / 2);
+      portal.update(0.016, ctx);
+
+      expect(veilOf(portal).visible).toBe(false);
+    });
   });
 
   it('enters only once per interaction', () => {
