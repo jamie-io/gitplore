@@ -223,6 +223,12 @@ describe('mergeRepo', () => {
     expect(merged.size).toBe(42);
   });
 
+  it('preserves the first commit anchor for lifetime activity text', () => {
+    const merged = mergeRepo(repo({ firstCommitAt: '2026-01-02T03:04:05Z' }), undefined);
+
+    expect(merged.firstCommitAt).toBe('2026-01-02T03:04:05Z');
+  });
+
   it('leaves repository data absent when a thin repository has empty shape', () => {
     const merged = mergeRepo(repo(), undefined);
 

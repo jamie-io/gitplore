@@ -3,11 +3,12 @@ import { RouterLink } from '@angular/router';
 import { ContentService } from '@content/content.service';
 import { MarkdownComponent } from '@content/markdown/markdown.component';
 import { ReadmeService } from '@content/readme.service';
+import { RepositoryData } from '@ui/repository-data/repository-data';
 
 /** Simple-view counterpart of the project panel (IMPLEMENTATION_PLAN.md §7). */
 @Component({
   selector: 'app-project-detail-page',
-  imports: [MarkdownComponent, RouterLink],
+  imports: [MarkdownComponent, RouterLink, RepositoryData],
   template: `
     <main>
       <a data-role="back" routerLink="/projects">← Alle Projekte</a>
@@ -26,6 +27,8 @@ import { ReadmeService } from '@content/readme.service';
             Quellcode
           </a>
         </nav>
+
+        <app-repository-data [project]="project" [topLevel]="2" />
 
         @if (project.readme) {
           @if (readme.isLoading()) {

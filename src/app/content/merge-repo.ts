@@ -120,6 +120,7 @@ export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined):
     ...(repo.stars !== undefined ? { stars: repo.stars } : {}),
     ...(repo.languages !== undefined ? { languages: repo.languages } : {}),
     ...(repo.commitBuckets !== undefined ? { commitBuckets: repo.commitBuckets } : {}),
+    ...(repo.firstCommitAt !== undefined ? { firstCommitAt: repo.firstCommitAt } : {}),
     ...(repo.createdAt !== undefined ? { createdAt: repo.createdAt } : {}),
     ...(repo.license !== undefined ? { license: repo.license } : {}),
     ...(repo.releases !== undefined ? { releases: repo.releases } : {}),
