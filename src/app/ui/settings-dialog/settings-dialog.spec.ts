@@ -123,10 +123,18 @@ describe('SettingsDialog', () => {
 
   it('labels view mode, volume, and mute in German', () => {
     expect(host().querySelector('label[for="settings-view-mode"]')?.textContent).toBe('Ansicht');
-    expect(host().querySelector('label[for="settings-volume"]')?.textContent).toContain(
-      'Lautstärke',
+    expect(host().querySelector('label[for="settings-volume"]')?.textContent).toBe(
+      'Lautstärke (35 %)',
     );
     expect(host().querySelector('label[for="settings-muted"]')?.textContent).toBe('Stumm');
+  });
+
+  it('shows the selected volume as a percentage', async () => {
+    await type(field<HTMLInputElement>('volume'), '0.7');
+
+    expect(host().querySelector('label[for="settings-volume"]')?.textContent).toBe(
+      'Lautstärke (70 %)',
+    );
   });
 
   it('writes nothing just by being opened, so system preferences stay in charge', () => {

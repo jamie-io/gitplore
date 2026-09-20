@@ -85,7 +85,7 @@ function motionChoice(override: boolean | null): MotionChoice {
         </div>
 
         <div class="row">
-          <label for="settings-volume">Lautstärke</label>
+          <label for="settings-volume">Lautstärke ({{ volumePercent() }} %)</label>
           <input
             id="settings-volume"
             type="range"
@@ -182,6 +182,8 @@ export class SettingsDialog {
     volume: this.store.volume(),
     muted: this.store.muted(),
   });
+
+  protected readonly volumePercent = computed(() => Math.round(this.model().volume * 100));
 
   protected readonly settings = form(this.model, (path) => {
     // The range input gets its min/max from here; the store clamps to the same bounds.
