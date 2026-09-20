@@ -209,6 +209,28 @@ test('anchors the window at the minimum of created, committed-first, and returne
   assert.equal(buckets[26], 1);
 });
 
+test('keeps the creation date as the anchor when the first commit came much later', () => {
+  // A repository created long before anyone pushed to it: novaverta was created in April 2025 and
+  // first committed to in September 2026. A later firstCommitAt must never shorten the window, or
+  // that repository's ridge silently re-scales.
+  const buckets = buildCommitBuckets(
+    [
+      { commit: { author: { date: '2026-09-04T00:00:00Z' } } },
+      { commit: { author: { date: '2026-09-03T00:00:00Z' } } },
+    ],
+    '2025-04-23T00:00:00Z',
+    '2026-09-05T00:00:00Z',
+    '2026-09-03T00:00:00Z',
+  );
+
+  assert.equal(buckets.length, 52);
+  assert.equal(
+    buckets.slice(0, 51).reduce((sum, value) => sum + value, 0),
+    0,
+  );
+  assert.equal(buckets[51], 2);
+});
+
 test('returns undefined when commit data cannot produce a valid window', () => {
   assert.equal(buildCommitBuckets([], 'not-a-date', '2026-01-01T00:00:00Z'), undefined);
   assert.equal(buildCommitBuckets([], '2026-01-01T00:00:00Z', '2025-01-01T00:00:00Z'), undefined);

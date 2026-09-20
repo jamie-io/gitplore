@@ -162,7 +162,17 @@ function oldestCommitAt(commits) {
   return oldest?.value;
 }
 
-/** Builds commit buckets and persists the only anchor that a capped fetch cannot rediscover. */
+/**
+ * Builds commit buckets and persists the only anchor that a capped fetch cannot rediscover.
+ *
+ * A truncated fetch keeps whatever anchor is already committed, so a repository that grows past the
+ * page cap keeps meaning its whole lifetime. One case this cannot cover: a repository that is
+ * *already* past the cap the very first time it is synced has no committed anchor to keep, so its
+ * window starts at the oldest commit the cap returned and creeps forward with every push. Adding
+ * such a repository means seeding `firstCommitAt` in `repos.json` by hand once, or reading the true
+ * first commit from the `Link: rel="last"` header of `/commits?per_page=1` at the cost of one extra
+ * call per repository.
+ */
 export function buildCommitEnrichment(
   result,
   createdAt,
