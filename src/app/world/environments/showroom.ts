@@ -186,7 +186,8 @@ function glowGeometry(): BufferGeometry {
 export class ShowroomEnvironment implements Environment {
   readonly id = 'showroom' as const;
   readonly name = 'Showroom';
-  readonly spawn = new Vector3(0, 0, HALF - 6);
+  /** Three metres beyond arrival, leaving a 22 m walk to the hall's first exhibit. */
+  readonly spawn = new Vector3(0, 0, 8);
   /** Yaw 0 looks down −Z: into the hall, at the exhibit wall. */
   readonly spawnYaw = 0;
   readonly colliders: readonly Collider[];

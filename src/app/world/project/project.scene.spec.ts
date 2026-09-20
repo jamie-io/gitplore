@@ -1,7 +1,9 @@
-import { Texture } from 'three';
+import { Mesh, Texture } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
+import { JungleEnvironment } from '../environments/jungle';
+import { PlazaEnvironment } from '../environments/plaza';
 import { ShowroomEnvironment } from '../environments/showroom';
 import { ProjectScene, ProjectSceneOptions } from './project.scene';
 
@@ -93,5 +95,65 @@ describe('ProjectScene', () => {
 
     expect(built).toBeGreaterThan(0);
     expect(ctx.scene.children.length).toBe(0);
+  });
+
+  it('adds repository data objects to the world', () => {
+    const project: Project = {
+      ...PROJECT,
+      languages: { TypeScript: 100 },
+      commitBuckets: Array.from({ length: 52 }, (_, index) => (index === 12 ? 4 : 0)),
+      releases: [{ name: 'v1.0.0', date: '2026-01-01T00:00:00Z' }],
+      stars: 0,
+    };
+    const ctx = stubContext();
+    const target = scene({ project });
+
+    target.init(ctx);
+
+    expect(ctx.scene.getObjectByName('commit-ridge')).toBeDefined();
+    expect(ctx.scene.getObjectByName('language-pillars')).toBeDefined();
+    expect(ctx.scene.getObjectByName('release-markers')).toBeDefined();
+    expect(ctx.scene.getObjectByName('star-lanterns')).toBeDefined();
+
+    target.dispose();
+  });
+
+  it('keeps a capped language row on its side of the walk', () => {
+    const project: Project = {
+      ...PROJECT,
+      languages: Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [
+          `Language ${index.toString().padStart(2, '0')}`,
+          1,
+        ]),
+      ),
+    };
+    const ctx = stubContext();
+    const target = scene({ project });
+
+    target.init(ctx);
+
+    const pillars = ctx.scene.getObjectByName('language-pillars');
+    expect(pillars).toBeInstanceOf(Mesh);
+    expect((pillars as Mesh).geometry.boundingBox?.min.x).toBeGreaterThan(0);
+
+    target.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it.each([
+    ['Showroom', () => new ShowroomEnvironment({ reducedMotion: () => true })],
+    ['Dschungel', () => new JungleEnvironment({ reducedMotion: () => true })],
+    ['Plaza', () => new PlazaEnvironment({ reducedMotion: () => true })],
+  ] as const)('keeps the %s arrival walk at or below 25 metres', (_name, buildEnvironment) => {
+    const target = scene({ environment: buildEnvironment() });
+    const exhibit = target.landmarks.find((landmark) => landmark.id.includes(PROJECT.slug));
+
+    expect(exhibit).toBeDefined();
+    const distance = Math.hypot(
+      target.arrival.position.x - (exhibit?.position.x ?? 0),
+      target.arrival.position.z - (exhibit?.position.z ?? 0),
+    );
+    expect(distance).toBeLessThanOrEqual(25);
   });
 });

@@ -14,6 +14,17 @@ describe('PlazaEnvironment', () => {
     ).toBeGreaterThanOrEqual(3);
   });
 
+  it('faces the first exhibit from the moved arrival', () => {
+    const environment = plaza();
+    const first = environment.anchors(1)[0];
+    const expected = Math.atan2(
+      environment.spawn.x - first.position[0],
+      environment.spawn.z - first.position[2],
+    );
+
+    expect(environment.spawnYaw).toBeCloseTo(expected, 5);
+  });
+
   it('leaves room around every exhibit spot', () => {
     const environment = plaza();
 

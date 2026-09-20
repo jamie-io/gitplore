@@ -200,6 +200,7 @@ describe('mergeRepo', () => {
       repo({
         languages: { TypeScript: 100 },
         commitBuckets,
+        stars: 0,
         createdAt: '2025-01-01T00:00:00Z',
         license: 'MIT',
         releases: [{ name: 'v1', date: '2026-01-01T00:00:00Z' }],
@@ -212,6 +213,8 @@ describe('mergeRepo', () => {
 
     expect(merged.languages).toEqual({ TypeScript: 100 });
     expect(merged.commitBuckets).toEqual(commitBuckets);
+    expect(merged.pushedAt).toBe('2026-03-14T09:00:00Z');
+    expect(merged.stars).toBe(0);
     expect(merged.createdAt).toBe('2025-01-01T00:00:00Z');
     expect(merged.license).toBe('MIT');
     expect(merged.releases).toEqual([{ name: 'v1', date: '2026-01-01T00:00:00Z' }]);
@@ -225,6 +228,8 @@ describe('mergeRepo', () => {
 
     expect('languages' in merged).toBe(false);
     expect('commitBuckets' in merged).toBe(false);
+    expect('pushedAt' in merged).toBe(true);
+    expect(merged.stars).toBe(0);
     expect('createdAt' in merged).toBe(false);
     expect('license' in merged).toBe(false);
     expect('releases' in merged).toBe(false);
@@ -235,12 +240,19 @@ describe('mergeRepo', () => {
 
   it('preserves successful empty repository data shapes', () => {
     const merged = mergeRepo(
-      repo({ languages: {}, commitBuckets: Array(52).fill(0), license: null, releases: [] }),
+      repo({
+        languages: {},
+        commitBuckets: Array(52).fill(0),
+        stars: 0,
+        license: null,
+        releases: [],
+      }),
       undefined,
     );
 
     expect(merged.languages).toEqual({});
     expect(merged.commitBuckets).toEqual(Array(52).fill(0));
+    expect(merged.stars).toBe(0);
     expect(merged.license).toBeNull();
     expect(merged.releases).toEqual([]);
   });
