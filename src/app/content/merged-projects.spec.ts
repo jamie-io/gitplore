@@ -1,8 +1,9 @@
 import { existsSync } from 'node:fs';
 import { mergedProjects, syncedRepos } from '../../../scripts/lib/portfolio.mjs';
-import { repoSlug } from './merge-repo';
+import { mergePortfolio, repoSlug } from './merge-repo';
 import { ENVIRONMENT_IDS } from './project.model';
 import { REPO_OVERRIDES } from './repo-overrides';
+import type { SyncedRepo } from './synced-repo';
 
 const PUBLIC_DIR = 'public/';
 const repos = syncedRepos();
@@ -41,6 +42,27 @@ describe('the merged portfolio', () => {
       expect(project.summary.length).toBeGreaterThan(10);
       expect(project.tags.length).toBeGreaterThan(0);
     }
+  });
+
+  it('accepts a thin repository with no optional GitHub data', () => {
+    const thin: SyncedRepo = {
+      name: 'thin-repository',
+      description: null,
+      language: null,
+      topics: [],
+      repoUrl: 'https://github.com/jamie-io/thin-repository',
+      homepage: null,
+      pushedAt: '2026-03-14T09:00:00Z',
+      stars: 0,
+    };
+    const [project] = mergePortfolio([thin], {});
+
+    expect(project.title).toBe('thin-repository');
+    expect(project.tags).toEqual(['Repository']);
+    expect(project.summary).toContain('Zuletzt aktualisiert');
+    expect('languages' in project).toBe(false);
+    expect('commitBuckets' in project).toBe(false);
+    expect('releases' in project).toBe(false);
   });
 
   it('points every project at a real repository url', () => {

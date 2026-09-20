@@ -1,4 +1,5 @@
 import type { Type } from '@angular/core';
+import type { SyncedRelease } from './synced-repo';
 
 /** Where the README text comes from (IMPLEMENTATION_PLAN.md §4). */
 export type ReadmeSource =
@@ -65,6 +66,15 @@ export interface Project {
   readonly summary: string;
   readonly tags: readonly string[];
   readonly repoUrl: string;
+  /** Optional repository data; thin or older committed records simply omit each field. */
+  readonly languages?: Readonly<Record<string, number>>;
+  readonly commitBuckets?: readonly number[];
+  readonly createdAt?: string;
+  readonly license?: string | null;
+  readonly releases?: readonly SyncedRelease[];
+  readonly forks?: number;
+  readonly openIssues?: number;
+  readonly size?: number;
   readonly year?: number;
   /** Absent when the repository ships no README; the panel then omits the section. */
   readonly readme?: ReadmeSource;

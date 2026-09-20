@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { REPO_LIMIT, selectRepos, toSyncedRepo } from './repos.mjs';
+import {
+  COMMIT_BUCKET_COUNT,
+  buildCommitBuckets,
+  fetchJson,
+  REPO_LIMIT,
+  selectRepos,
+  toSyncedRepo,
+  toSyncedReleases,
+  withRepoData,
+} from './repos.mjs';
 
 const api = (name, extra = {}) => ({
   name,
@@ -44,6 +53,132 @@ test('turns an empty description or homepage into null, never an empty string', 
 
   assert.equal(repo.description, null);
   assert.equal(repo.homepage, null);
+});
+
+test('maps repository metadata and enriched data without renaming API concepts', () => {
+  const repo = toSyncedRepo(
+    api('gitplore', {
+      created_at: '2025-01-01T00:00:00Z',
+      license: { spdx_id: 'MIT' },
+      forks_count: 4,
+      open_issues_count: 2,
+      size: 128,
+    }),
+    {
+      languages: { TypeScript: 900, HTML: 100 },
+      commitBuckets: [3, 1],
+      releases: [{ name: 'v1.0.0', date: '2026-03-01T00:00:00Z' }],
+    },
+  );
+
+  assert.deepEqual(repo, {
+    name: 'gitplore',
+    description: null,
+    language: null,
+    topics: [],
+    repoUrl: 'https://github.com/jamie-io/gitplore',
+    homepage: null,
+    pushedAt: '2026-03-01T12:00:00Z',
+    stars: 0,
+    createdAt: '2025-01-01T00:00:00Z',
+    license: 'MIT',
+    forks: 4,
+    openIssues: 2,
+    size: 128,
+    languages: { TypeScript: 900, HTML: 100 },
+    commitBuckets: [3, 1],
+    releases: [{ name: 'v1.0.0', date: '2026-03-01T00:00:00Z' }],
+  });
+});
+
+test('keeps empty enrichment shapes instead of turning them into missing fields', () => {
+  const repo = toSyncedRepo(api('thin'), {
+    languages: {},
+    commitBuckets: Array(COMMIT_BUCKET_COUNT).fill(0),
+    releases: [],
+  });
+
+  assert.deepEqual(repo.languages, {});
+  assert.equal(repo.commitBuckets.length, COMMIT_BUCKET_COUNT);
+  assert.deepEqual(repo.releases, []);
+});
+
+test('buckets lifetime commits into 52 deterministic bins', () => {
+  const buckets = buildCommitBuckets(
+    [
+      { commit: { author: { date: '2025-01-01T00:00:00Z' } } },
+      { commit: { author: { date: '2025-07-03T00:00:00Z' } } },
+      { commit: { author: { date: '2026-01-01T00:00:00Z' } } },
+    ],
+    '2025-01-01T00:00:00Z',
+    '2026-01-01T00:00:00Z',
+  );
+
+  assert.equal(buckets.length, COMMIT_BUCKET_COUNT);
+  assert.equal(buckets[0], 1);
+  assert.equal(buckets[26], 1);
+  assert.equal(buckets[51], 1);
+  assert.equal(
+    buckets.reduce((sum, count) => sum + count, 0),
+    3,
+  );
+});
+
+test('returns a flat lifetime shape when no commits are available', () => {
+  assert.deepEqual(
+    buildCommitBuckets([], '2025-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
+    Array(COMMIT_BUCKET_COUNT).fill(0),
+  );
+});
+
+test('maps release names and published dates, including tag-only releases', () => {
+  assert.deepEqual(
+    toSyncedReleases([
+      { name: 'First release', tag_name: 'v1', published_at: '2026-01-01T00:00:00Z' },
+      { name: '', tag_name: 'v2', published_at: null, created_at: '2026-02-01T00:00:00Z' },
+      { name: null, tag_name: null, published_at: null, created_at: null },
+    ]),
+    [
+      { name: 'First release', date: '2026-01-01T00:00:00Z' },
+      { name: 'v2', date: '2026-02-01T00:00:00Z' },
+    ],
+  );
+});
+
+test('keeps a committed field when an enrichment request has no value', () => {
+  const previous = {
+    languages: { TypeScript: 10 },
+    commitBuckets: [4],
+    releases: [{ name: 'old', date: '2025-01-01T00:00:00Z' }],
+  };
+
+  const merged = withRepoData(
+    toSyncedRepo(api('thin')),
+    { languages: {}, commitBuckets: undefined, releases: [] },
+    previous,
+  );
+
+  assert.deepEqual(merged.languages, {});
+  assert.deepEqual(merged.commitBuckets, [4]);
+  assert.deepEqual(merged.releases, []);
+});
+
+test('retries accepted stats responses and forwards authorization headers', async () => {
+  const statuses = [202, 202, 200];
+  const seen = [];
+  const result = await fetchJson('https://api.example.test/stats', {
+    headers: { authorization: 'Bearer build-token' },
+    sleep: async () => {},
+    fetchImpl: async (_url, init) => {
+      seen.push(init.headers);
+      return new Response(JSON.stringify({ all: [1] }), { status: statuses.shift() });
+    },
+    retryOnAccepted: true,
+  });
+
+  assert.deepEqual(result, { all: [1] });
+  assert.equal(seen.length, 3);
+  assert.equal(seen[0].authorization, 'Bearer build-token');
 });
 
 test('drops forks and archived repositories', () => {

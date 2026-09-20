@@ -194,6 +194,57 @@ describe('mergeRepo', () => {
     expect(mergeRepo(repo(), { theme }).theme).toEqual(theme);
   });
 
+  it('carries optional repository data through to the project', () => {
+    const commitBuckets = Array.from({ length: 52 }, (_, index) => index);
+    const merged = mergeRepo(
+      repo({
+        languages: { TypeScript: 100 },
+        commitBuckets,
+        createdAt: '2025-01-01T00:00:00Z',
+        license: 'MIT',
+        releases: [{ name: 'v1', date: '2026-01-01T00:00:00Z' }],
+        forks: 2,
+        openIssues: 1,
+        size: 42,
+      }),
+      undefined,
+    );
+
+    expect(merged.languages).toEqual({ TypeScript: 100 });
+    expect(merged.commitBuckets).toEqual(commitBuckets);
+    expect(merged.createdAt).toBe('2025-01-01T00:00:00Z');
+    expect(merged.license).toBe('MIT');
+    expect(merged.releases).toEqual([{ name: 'v1', date: '2026-01-01T00:00:00Z' }]);
+    expect(merged.forks).toBe(2);
+    expect(merged.openIssues).toBe(1);
+    expect(merged.size).toBe(42);
+  });
+
+  it('leaves repository data absent when a thin repository has empty shape', () => {
+    const merged = mergeRepo(repo(), undefined);
+
+    expect('languages' in merged).toBe(false);
+    expect('commitBuckets' in merged).toBe(false);
+    expect('createdAt' in merged).toBe(false);
+    expect('license' in merged).toBe(false);
+    expect('releases' in merged).toBe(false);
+    expect('forks' in merged).toBe(false);
+    expect('openIssues' in merged).toBe(false);
+    expect('size' in merged).toBe(false);
+  });
+
+  it('preserves successful empty repository data shapes', () => {
+    const merged = mergeRepo(
+      repo({ languages: {}, commitBuckets: Array(52).fill(0), license: null, releases: [] }),
+      undefined,
+    );
+
+    expect(merged.languages).toEqual({});
+    expect(merged.commitBuckets).toEqual(Array(52).fill(0));
+    expect(merged.license).toBeNull();
+    expect(merged.releases).toEqual([]);
+  });
+
   it('has no demo when the override does not declare one', () => {
     expect(mergeRepo(repo(), undefined).demo).toEqual({ kind: 'none' });
   });

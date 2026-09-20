@@ -116,6 +116,14 @@ export function mergeRepo(repo: SyncedRepo, override: RepoOverride | undefined):
     summary: override?.summary ?? usefulDescription(repo) ?? factualSummary(repo),
     tags: override?.tags ?? defaultTags(repo),
     repoUrl: repo.repoUrl,
+    ...(repo.languages !== undefined ? { languages: repo.languages } : {}),
+    ...(repo.commitBuckets !== undefined ? { commitBuckets: repo.commitBuckets } : {}),
+    ...(repo.createdAt !== undefined ? { createdAt: repo.createdAt } : {}),
+    ...(repo.license !== undefined ? { license: repo.license } : {}),
+    ...(repo.releases !== undefined ? { releases: repo.releases } : {}),
+    ...(repo.forks !== undefined ? { forks: repo.forks } : {}),
+    ...(repo.openIssues !== undefined ? { openIssues: repo.openIssues } : {}),
+    ...(repo.size !== undefined ? { size: repo.size } : {}),
     ...(override?.year !== undefined ? { year: override.year } : {}),
     ...(repo.hasReadme
       ? { readme: { kind: 'bundled' as const, path: `content/readme/${slug}.md` } }
