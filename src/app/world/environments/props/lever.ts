@@ -1,11 +1,4 @@
-import {
-  BoxGeometry,
-  CylinderGeometry,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  Vector3,
-} from 'three';
+import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { disposeObject3D } from '@engine/dispose';
 import { Collider, HeightField } from '@engine/player/collision';
 import { WorldContext, WorldObject } from '@engine/world-object';

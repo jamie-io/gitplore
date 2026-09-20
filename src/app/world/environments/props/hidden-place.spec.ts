@@ -1,11 +1,12 @@
 import { IcosahedronGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { InteractionSystem } from '@engine/interaction/interaction.system';
+import { resolveCollisions } from '@engine/player/collision';
 import { stubContext } from '@engine/testing/world-context';
 import { HiddenPlace } from './hidden-place';
 
 const ground = { heightAt: () => 0 };
 
-function hiddenPlace(onEnter: () => void = () => undefined): HiddenPlace {
+function hiddenPlace(onEnter: () => void = () => undefined, rotationY = 0): HiddenPlace {
   const thing = new Mesh(
     new IcosahedronGeometry(0.25, 0),
     new MeshStandardMaterial({ color: 0xffcf70 }),
@@ -14,7 +15,7 @@ function hiddenPlace(onEnter: () => void = () => undefined): HiddenPlace {
   return new HiddenPlace({
     id: 'test:hidden-place',
     position: new Vector3(0, 0, -2),
-    rotationY: 0,
+    rotationY,
     ground,
     thing,
     onEnter,
@@ -48,6 +49,17 @@ describe('HiddenPlace', () => {
     target.interactables[0].onInteract();
 
     expect(entered).toBe(2);
+  });
+
+  it('keeps its walls aligned with a rotated nook', () => {
+    const target = hiddenPlace(() => undefined, Math.PI / 2);
+
+    expect(resolveCollisions(0, -2.9, 0.35, target.colliders, -Infinity)).toEqual({
+      x: 0,
+      z: -2.9,
+    });
+
+    target.dispose();
   });
 
   it('removes the place and the hidden thing when disposed', () => {

@@ -221,6 +221,17 @@ describe('Explorer', () => {
       expect(explorer.object.rotation.y).toBeCloseTo(1.2, 6);
     });
 
+    it('places the soles using the controller eye height offset', () => {
+      const explorer = built();
+      const player = new PlayerController();
+      player.setEyeHeightOffset(-0.7);
+      player.teleport(new Vector3(3, 1, -4), 1.2);
+
+      explorer.sync(player, FRAME);
+
+      expect(explorer.object.position.y).toBeCloseTo(0, 6);
+    });
+
     it('smooths a step up instead of popping the figure a whole step', () => {
       const explorer = built();
       const player = standing(explorer);

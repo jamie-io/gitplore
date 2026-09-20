@@ -16,6 +16,16 @@ function door(): Door {
   });
 }
 
+function rotatedDoor(): Door {
+  return new Door({
+    id: 'test:rotated-door',
+    position: new Vector3(0, 0, -2),
+    rotationY: Math.PI / 2,
+    ground,
+    reducedMotion: () => true,
+  });
+}
+
 describe('Door', () => {
   it('opens on approach, disables its collider, and cannot close on the visitor', () => {
     const ctx = stubContext();
@@ -27,6 +37,7 @@ describe('Door', () => {
     target.update(0, ctx);
     interaction.update(ctx.player, target.interactables);
     expect(interaction.nearby).toBe(target.interactables[0]);
+    expect(target.open).toBe(false);
 
     target.interactables[0].onInteract();
     expect(target.open).toBe(true);
@@ -34,6 +45,17 @@ describe('Door', () => {
 
     target.interactables[0].onInteract();
     expect(target.open).toBe(true);
+
+    target.dispose();
+  });
+
+  it('keeps its collider aligned with a rotated door', () => {
+    const target = rotatedDoor();
+
+    expect(resolveCollisions(0.8, -2, 0.35, target.colliders, -Infinity)).toEqual({
+      x: 0.8,
+      z: -2,
+    });
 
     target.dispose();
   });
@@ -53,6 +75,25 @@ describe('Door', () => {
 
     expect(target.open).toBe(false);
     expect(resolveCollisions(0, -2, 0.35, target.colliders, -Infinity).z).toBeLessThan(-2.3);
+
+    target.dispose();
+  });
+
+  it('auto-opens in the doorway and stays open until the visitor clears its radius', () => {
+    const ctx = stubContext();
+    const target = door();
+
+    ctx.player.teleport(new Vector3(0, 1.7, -3), 0);
+    target.update(0, ctx);
+    expect(target.open).toBe(true);
+
+    ctx.player.teleport(new Vector3(0, 1.7, 0), 0);
+    target.update(0, ctx);
+    expect(target.open).toBe(true);
+
+    ctx.player.teleport(new Vector3(0, 1.7, 2), 0);
+    target.update(0, ctx);
+    expect(target.open).toBe(false);
 
     target.dispose();
   });

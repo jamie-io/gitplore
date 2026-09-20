@@ -1,11 +1,4 @@
-import {
-  BoxGeometry,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  Object3D,
-  Vector3,
-} from 'three';
+import { BoxGeometry, Euler, Group, Mesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
 import { disposeObject3D } from '@engine/dispose';
 import { Collider, HeightField } from '@engine/player/collision';
 import { Interactable } from '@engine/interaction/interactable';
@@ -43,29 +36,19 @@ export class HiddenPlace implements WorldObject {
     this.position.y = options.ground.heightAt(this.position.x, this.position.z);
     this.group.name = this.id;
     this.group.position.copy(this.position);
-    this.group.rotation.y = options.rotationY ?? 0;
+    const rotationY = options.rotationY ?? 0;
+    this.group.rotation.y = rotationY;
     this.colliders = [
-      {
-        kind: 'aabb',
-        minX: this.position.x - WIDTH / 2 - WALL,
-        maxX: this.position.x + WIDTH / 2 + WALL,
-        minZ: this.position.z - DEPTH / 2 - WALL,
-        maxZ: this.position.z - DEPTH / 2,
-      },
-      {
-        kind: 'aabb',
-        minX: this.position.x - WIDTH / 2 - WALL,
-        maxX: this.position.x - WIDTH / 2,
-        minZ: this.position.z - DEPTH / 2,
-        maxZ: this.position.z + DEPTH / 2,
-      },
-      {
-        kind: 'aabb',
-        minX: this.position.x + WIDTH / 2,
-        maxX: this.position.x + WIDTH / 2 + WALL,
-        minZ: this.position.z - DEPTH / 2,
-        maxZ: this.position.z + DEPTH / 2,
-      },
+      rotatedAabb(
+        this.position,
+        0,
+        -DEPTH / 2 - WALL / 2,
+        (WIDTH + WALL * 2) / 2,
+        WALL / 2,
+        rotationY,
+      ),
+      rotatedAabb(this.position, -WIDTH / 2 - WALL / 2, 0, WALL / 2, DEPTH / 2, rotationY),
+      rotatedAabb(this.position, WIDTH / 2 + WALL / 2, 0, WALL / 2, DEPTH / 2, rotationY),
     ];
     this.interactables = [
       {
@@ -92,10 +75,7 @@ export class HiddenPlace implements WorldObject {
     right.name = `${this.id}:right`;
     right.position.set(WIDTH / 2 + WALL / 2, HEIGHT / 2, 0);
     right.castShadow = ctx.quality.shadows;
-    const roof = new Mesh(
-      new BoxGeometry(WIDTH + WALL * 2, WALL, DEPTH + WALL),
-      stone,
-    );
+    const roof = new Mesh(new BoxGeometry(WIDTH + WALL * 2, WALL, DEPTH + WALL), stone);
     roof.name = `${this.id}:roof`;
     roof.position.y = HEIGHT;
     roof.castShadow = ctx.quality.shadows;
@@ -117,4 +97,28 @@ export class HiddenPlace implements WorldObject {
     disposeObject3D(this.group);
     this.group.clear();
   }
+}
+
+function rotatedAabb(
+  origin: Vector3,
+  centreX: number,
+  centreZ: number,
+  halfWidth: number,
+  halfDepth: number,
+  rotationY: number,
+): Extract<Collider, { kind: 'aabb' }> {
+  const rotation = new Euler(0, rotationY, 0);
+  const corners = [-halfWidth, halfWidth].flatMap((x) =>
+    [-halfDepth, halfDepth].map((z) =>
+      new Vector3(centreX + x, 0, centreZ + z).applyEuler(rotation).add(origin),
+    ),
+  );
+
+  return {
+    kind: 'aabb',
+    minX: Math.min(...corners.map((corner) => corner.x)),
+    maxX: Math.max(...corners.map((corner) => corner.x)),
+    minZ: Math.min(...corners.map((corner) => corner.z)),
+    maxZ: Math.max(...corners.map((corner) => corner.z)),
+  };
 }

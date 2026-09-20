@@ -1,4 +1,4 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import { BoxGeometry, Euler, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { disposeObject3D } from '@engine/dispose';
 import type { InputCapture } from '@engine/input.service';
 import { Collider, HeightField } from '@engine/player/collision';
@@ -10,6 +10,9 @@ const INTERACT_RADIUS = 2.8;
 const HALF_WIDTH = 1.05;
 const HALF_DEPTH = 0.42;
 const SEAT_HEIGHT = 0.48;
+const SEAT_OFFSET = HALF_DEPTH * 0.5;
+const SEATED_EYE_HEIGHT = 1;
+const SEATED_EYE_OFFSET = SEATED_EYE_HEIGHT - PLAYER_EYE_HEIGHT;
 
 export interface SittableOptions {
   readonly id: string;
@@ -40,19 +43,20 @@ export class Sittable implements WorldObject {
     this.id = options.id;
     this.position = options.position.clone();
     this.position.y = options.ground.heightAt(this.position.x, this.position.z);
-    const front = new Vector3(Math.sin(options.rotationY ?? 0), 0, -Math.cos(options.rotationY ?? 0));
-    this.seat = this.position.clone().addScaledVector(front, 0.78);
+    const front = new Vector3(
+      Math.sin(options.rotationY ?? 0),
+      0,
+      -Math.cos(options.rotationY ?? 0),
+    );
+    this.seat = this.position.clone().addScaledVector(front, SEAT_OFFSET);
     this.seat.y = options.ground.heightAt(this.seat.x, this.seat.z);
     this.group.name = this.id;
     this.group.position.copy(this.position);
-    this.group.rotation.y = options.rotationY ?? 0;
+    const rotationY = options.rotationY ?? 0;
+    this.group.rotation.y = rotationY;
     this.colliders = [
       {
-        kind: 'aabb',
-        minX: this.position.x - HALF_WIDTH,
-        maxX: this.position.x + HALF_WIDTH,
-        minZ: this.position.z - HALF_DEPTH,
-        maxZ: this.position.z + HALF_DEPTH,
+        ...rotatedAabb(this.position, HALF_WIDTH, HALF_DEPTH, rotationY),
         top: this.position.y + SEAT_HEIGHT,
       },
     ];
@@ -67,8 +71,7 @@ export class Sittable implements WorldObject {
     ];
     this.stopCapture = options.input.addCaptureListener((captured) => {
       if (!captured && this.seatedValue) {
-        this.seatedValue = false;
-        this.options.onStand?.();
+        this.stand();
       }
     });
   }
@@ -109,8 +112,8 @@ export class Sittable implements WorldObject {
     if (this.seatedValue) {
       this.options.input.releaseCapture();
     }
+    this.stand();
     this.stopCapture();
-    this.seatedValue = false;
     this.player = null;
     disposeObject3D(this.group);
     this.group.clear();
@@ -122,8 +125,42 @@ export class Sittable implements WorldObject {
     }
 
     this.seatedValue = true;
-    this.player?.teleport(this.seat.clone().setY(this.seat.y + PLAYER_EYE_HEIGHT), this.options.rotationY ?? 0);
+    this.player?.setEyeHeightOffset(SEATED_EYE_OFFSET);
+    this.player?.teleport(
+      this.seat.clone().setY(this.seat.y + SEATED_EYE_HEIGHT),
+      this.options.rotationY ?? 0,
+    );
     this.options.input.capture('Aufstehen');
     this.options.onSit?.();
   }
+
+  private stand(): void {
+    if (!this.seatedValue) {
+      return;
+    }
+
+    this.seatedValue = false;
+    this.player?.setEyeHeightOffset(0);
+    this.options.onStand?.();
+  }
+}
+
+function rotatedAabb(
+  origin: Vector3,
+  halfWidth: number,
+  halfDepth: number,
+  rotationY: number,
+): Extract<Collider, { kind: 'aabb' }> {
+  const rotation = new Euler(0, rotationY, 0);
+  const corners = [-halfWidth, halfWidth].flatMap((x) =>
+    [-halfDepth, halfDepth].map((z) => new Vector3(x, 0, z).applyEuler(rotation).add(origin)),
+  );
+
+  return {
+    kind: 'aabb',
+    minX: Math.min(...corners.map((corner) => corner.x)),
+    maxX: Math.max(...corners.map((corner) => corner.x)),
+    minZ: Math.min(...corners.map((corner) => corner.z)),
+    maxZ: Math.max(...corners.map((corner) => corner.z)),
+  };
 }

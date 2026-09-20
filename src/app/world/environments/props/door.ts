@@ -1,10 +1,4 @@
-import {
-  BoxGeometry,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  Vector3,
-} from 'three';
+import { BoxGeometry, Euler, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { disposeObject3D } from '@engine/dispose';
 import { Collider, HeightField } from '@engine/player/collision';
 import { PlayerController } from '@engine/player/player-controller';
@@ -12,6 +6,7 @@ import { Interactable } from '@engine/interaction/interactable';
 import { WorldContext, WorldObject } from '@engine/world-object';
 
 const INTERACT_RADIUS = 2.5;
+const AUTO_OPEN_RADIUS = 1.2;
 const WIDTH = 1.2;
 const HEIGHT = 2.2;
 const DEPTH = 0.16;
@@ -47,12 +42,18 @@ export class Door implements WorldObject {
     this.group.name = this.id;
     this.group.position.copy(this.position);
     this.group.rotation.y = options.rotationY ?? 0;
+    const rotation = new Euler(0, options.rotationY ?? 0, 0);
+    const corners = [-WIDTH / 2, WIDTH / 2].flatMap((x) =>
+      [-DEPTH / 2, DEPTH / 2].map((z) =>
+        new Vector3(x, 0, z).applyEuler(rotation).add(this.position),
+      ),
+    );
     this.collider = {
       kind: 'aabb',
-      minX: this.position.x - WIDTH / 2,
-      maxX: this.position.x + WIDTH / 2,
-      minZ: this.position.z - DEPTH / 2,
-      maxZ: this.position.z + DEPTH / 2,
+      minX: Math.min(...corners.map((corner) => corner.x)),
+      maxX: Math.max(...corners.map((corner) => corner.x)),
+      minZ: Math.min(...corners.map((corner) => corner.z)),
+      maxZ: Math.max(...corners.map((corner) => corner.z)),
       enabled: true,
     };
     this.colliders = [this.collider];
@@ -96,9 +97,9 @@ export class Door implements WorldObject {
 
   update(dt: number, ctx: WorldContext): void {
     this.player = ctx.player;
-    if (this.isVisitorInside()) {
+    if (this.isVisitorWithin(AUTO_OPEN_RADIUS)) {
       this.setOpen(true);
-    } else if (this.openValue) {
+    } else if (this.openValue && !this.isVisitorWithin(INTERACT_RADIUS)) {
       this.setOpen(false);
     }
 
@@ -115,7 +116,7 @@ export class Door implements WorldObject {
   }
 
   private toggle(): void {
-    if (this.openValue && this.isVisitorInside()) {
+    if (this.openValue && this.isVisitorWithin(INTERACT_RADIUS)) {
       return;
     }
     this.setOpen(!this.openValue);
@@ -126,14 +127,16 @@ export class Door implements WorldObject {
     this.collider.enabled = !open;
   }
 
-  private isVisitorInside(): boolean {
+  private isVisitorWithin(radius: number): boolean {
     if (!this.player) {
       return false;
     }
-    return Math.hypot(
-      this.player.position.x - this.position.x,
-      this.player.position.z - this.position.z,
-    ) <= INTERACT_RADIUS;
+    return (
+      Math.hypot(
+        this.player.position.x - this.position.x,
+        this.player.position.z - this.position.z,
+      ) <= radius
+    );
   }
 }
 
