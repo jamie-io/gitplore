@@ -1,39 +1,34 @@
 import type { LandmarkPlacement } from '../landmarks/base/landmark';
 
-/** Metres from the spawn to an unpinned landmark. Far enough to walk to, near enough to see. */
-export const RING_RADIUS = 30;
+/** Metres from the spawn to the first landmark arc. */
+export const RING_RADIUS = 20;
 
-/** Where the ring starts, so the first landmark stands ahead of a player looking down −Z. */
-const START_ANGLE = Math.PI;
+/** Metres from the spawn to the overflow landmark arc. */
+export const OUTER_RING_RADIUS = 30;
 
 /**
  * How far apart two landmarks have to stand. Below this they read as one cluttered object from
  * the spawn — the near one's glow plane covers the far one — and walking up to either is fiddly.
  */
-export const MIN_LANDMARK_SEPARATION = 12;
+export const MIN_LANDMARK_SEPARATION = 9;
 
 /**
- * The densest the ring may get before its own spots break `MIN_LANDMARK_SEPARATION`: the chord
- * between neighbours on a circle of `RING_RADIUS` is `2 · r · sin(π / slots)`.
+ * Both arcs are centred on −Z and span ±0.45π. Their capacity comes from the chord between
+ * neighbours, not from a hard-coded project count.
  */
-const MAX_RING_SLOTS = Math.floor(
-  Math.PI / Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * RING_RADIUS))),
-);
+const FRONT_ARC = Math.PI * 0.9;
+
+function arcCapacity(radius: number): number {
+  const minimumAngle = 2 * Math.asin(Math.min(1, MIN_LANDMARK_SEPARATION / (2 * radius)));
+  return Math.floor(FRONT_ARC / minimumAngle) + 1;
+}
+
+const NEAR_RING_CAPACITY = arcCapacity(RING_RADIUS);
+const OUTER_RING_CAPACITY = arcCapacity(OUTER_RING_RADIUS);
+const MAX_RING_SLOTS = NEAR_RING_CAPACITY + OUTER_RING_CAPACITY;
 
 /** A pinned landmark position, exactly as `ProjectLandmark.position` spells it. */
 export type Position = readonly [number, number, number];
-
-/** `slots` evenly spaced spots, the first one straight ahead of a player looking down −Z. */
-function evenlySpaced(slots: number): LandmarkPlacement[] {
-  return Array.from({ length: slots }, (_, index) => {
-    const angle = START_ANGLE + (index / Math.max(slots, 1)) * Math.PI * 2;
-    const x = Math.sin(angle) * RING_RADIUS;
-    const z = Math.cos(angle) * RING_RADIUS;
-
-    // The front direction is (sin r, cos r); facing the spawn means pointing at the origin.
-    return { position: [x, 0, z] as const, rotationY: angle + Math.PI };
-  });
-}
 
 function clears(spot: LandmarkPlacement, taken: readonly Position[]): boolean {
   return taken.every(
@@ -44,12 +39,8 @@ function clears(spot: LandmarkPlacement, taken: readonly Position[]): boolean {
 }
 
 /**
- * Evenly spaced spots on a ring around the spawn, each turned to face it, skipping any spot that
- * would stand within `MIN_LANDMARK_SEPARATION` of a landmark in `avoid`.
- *
- * Skipping is why the ring is grown rather than rotated: an offset start angle only moves the
- * collision to a different pair. Asking for one more slot at a time and taking the first `count`
- * survivors keeps the spots that do get used spread evenly around the whole ring.
+ * Evenly spaced spots on two front arcs around the spawn, each turned to face it. The near arc fills
+ * first; the outer arc carries overflow. Pinned landmarks and already selected spots are skipped.
  *
  * Deterministic on purpose: the world is rebuilt whenever the visitor returns to it, and a
  * landmark that moved between visits would read as a bug. Projects that must never move pin
@@ -63,17 +54,26 @@ export function ringPlacements(
     return [];
   }
 
-  for (let slots = count; slots <= MAX_RING_SLOTS; slots++) {
-    const usable = evenlySpaced(slots).filter((spot) => clears(spot, avoid));
+  const target = Math.min(count, MAX_RING_SLOTS);
+  const near = arcAnchors(NEAR_RING_CAPACITY, [], RING_RADIUS, FRONT_ARC).filter((spot) =>
+    clears(spot, avoid),
+  );
+  const selectedNear = near.slice(0, Math.min(target, near.length));
+  const taken = [...avoid, ...selectedNear.map(({ position }) => position)];
+  const far = arcAnchors(OUTER_RING_CAPACITY, [], OUTER_RING_RADIUS, FRONT_ARC).filter((spot) =>
+    clears(spot, taken),
+  );
+  const selected = [...selectedNear, ...far.slice(0, target - selectedNear.length)];
 
-    if (usable.length >= count) {
-      return usable.slice(0, count);
-    }
+  if (selected.length >= target && target === count) {
+    return selected;
   }
 
-  // Nothing on the ring is clear — every slot is blocked, or there are more projects than the
-  // ring has room for. A tight fit is still better than dropping a project out of the world.
-  return evenlySpaced(count);
+  // Nothing on either arc is clear, or there are more projects than the arcs can hold. A tight fit
+  // is still better than dropping a project out of the world.
+  return avoid.length === 0 || count > MAX_RING_SLOTS
+    ? arcAnchors(count, [], RING_RADIUS, FRONT_ARC)
+    : ringPlacements(count);
 }
 
 /**

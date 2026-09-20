@@ -7,6 +7,34 @@ import { HubScene } from '../hub/hub.scene';
 import { ClearingEnvironment } from './clearing';
 import { MIN_LANDMARK_SEPARATION } from './placement';
 
+interface PlacedLandmark {
+  readonly slug: string;
+  readonly x: number;
+  readonly z: number;
+}
+
+function expectFrontArc(placed: readonly PlacedLandmark[]): void {
+  for (const landmark of placed) {
+    expect(landmark.z, `${landmark.slug} must stand in front of the spawn`).toBeLessThan(0);
+    expect(
+      Math.abs(Math.atan2(landmark.x, -landmark.z)),
+      `${landmark.slug} must stay within 0.45π of −Z`,
+    ).toBeLessThanOrEqual(Math.PI * 0.45);
+  }
+}
+
+function expectSeparated(placed: readonly PlacedLandmark[]): void {
+  for (let i = 0; i < placed.length; i++) {
+    for (let j = i + 1; j < placed.length; j++) {
+      const distance = Math.hypot(placed[i].x - placed[j].x, placed[i].z - placed[j].z);
+
+      expect(distance, `${placed[i].slug} ↔ ${placed[j].slug}`).toBeGreaterThanOrEqual(
+        MIN_LANDMARK_SEPARATION,
+      );
+    }
+  }
+}
+
 /**
  * The committed portfolio, placed exactly as the deployed hub places it.
  *
@@ -27,21 +55,28 @@ describe('the committed portfolio in the hub', () => {
     textures: { load: () => new Texture(), release: () => undefined },
   });
 
-  it('keeps every pair of landmarks at least a minimum separation apart', () => {
-    const placed = scene.landmarks.map((landmark) => ({
+  it('keeps today’s landmarks in the front arc and separated', () => {
+    const placed: PlacedLandmark[] = scene.landmarks.map((landmark) => ({
       slug: landmark.project.slug,
       x: landmark.position.x,
       z: landmark.position.z,
     }));
 
-    for (let i = 0; i < placed.length; i++) {
-      for (let j = i + 1; j < placed.length; j++) {
-        const distance = Math.hypot(placed[i].x - placed[j].x, placed[i].z - placed[j].z);
+    expectFrontArc(placed);
+    expectSeparated(placed);
+  });
 
-        expect(distance, `${placed[i].slug} ↔ ${placed[j].slug}`).toBeGreaterThanOrEqual(
-          MIN_LANDMARK_SEPARATION,
-        );
-      }
-    }
+  it('fits nine future landmarks in the same front arc without shrinking separation', () => {
+    const placed: PlacedLandmark[] = new ClearingEnvironment({ reducedMotion: () => false })
+      .anchors(9)
+      .map((anchor, index) => ({
+        slug: `future-${index}`,
+        x: anchor.position[0],
+        z: anchor.position[2],
+      }));
+
+    expect(placed).toHaveLength(9);
+    expectFrontArc(placed);
+    expectSeparated(placed);
   });
 });
