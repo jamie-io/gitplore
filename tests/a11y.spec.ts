@@ -1,11 +1,24 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
+import { startWorld } from './helpers';
 
 /** Spec §8: a repo world and the panel over it must both survive an axe pass. */
 test.describe('accessibility', () => {
   test('a repo world has no automatically detectable violations', async ({ page }) => {
     await page.goto('/p/novaverta');
     await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
+  });
+
+  test('the settings dialog has no automatically detectable violations', async ({ page }) => {
+    await startWorld(page);
+    await page.locator('button[data-role="settings"]').click();
+    await expect(page.getByRole('dialog', { name: 'Einstellungen' })).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

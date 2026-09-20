@@ -86,4 +86,22 @@ test.describe('focus management', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.locator('app-world-page canvas')).toBeFocused();
   });
+
+  test('persists selected view mode after reload', async ({ page }) => {
+    await startWorld(page);
+
+    await page.locator('button[data-role="settings"]').click();
+    const dialog = page.getByRole('dialog', { name: 'Einstellungen' });
+    await dialog.locator('#settings-view-mode').selectOption('first');
+    await expect(dialog.locator('#settings-view-mode')).toHaveValue('first');
+
+    await page.reload();
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
+    await page.locator('button[data-role="start"]').click();
+    await page.locator('button[data-role="settings"]').click();
+
+    await expect(page.getByRole('dialog', { name: 'Einstellungen' }).locator('#settings-view-mode'))
+      .toHaveValue('first');
+    // T1 owns the companion assertion that this setting switches the active camera rig.
+  });
 });
