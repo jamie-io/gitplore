@@ -19,7 +19,7 @@ import {
   WALK_SPEED,
 } from '@engine/player/player-controller';
 import { PlayerVisual } from '@engine/player/player-visual';
-import { MAX_RISE_LAG, RISE_LAG } from '@engine/player/third-person-rig';
+import { MAX_RISE_LAG, RISE_LAG, TELEPORT_DISTANCE } from '@engine/player/third-person-rig';
 import { WorldContext } from '@engine/world-object';
 import type { Mood } from '../environments/mood';
 
@@ -233,10 +233,14 @@ export class Explorer implements PlayerVisual {
 
     const dx = player.position.x - this.previous.x;
     const dz = player.position.z - this.previous.z;
+    const dy = sole - this.previous.y;
     const covered = Math.hypot(dx, dz);
+    // The rig's own test, from the rig's own constant: ground no run and no jump together could
+    // cover in one capped frame was not walked, it was a teleport somewhere else.
+    const teleported = Math.hypot(dx, dy, dz) > TELEPORT_DISTANCE;
     // Capped at a walk: running cycles the legs faster, through `stridePhase`, rather than
-    // swinging them further, and a teleport's impossible step is held to the same ceiling.
-    const pace = Math.min(covered / (dt * WALK_SPEED), 1);
+    // swinging them further. A teleport walked no ground at all, so it moves nothing.
+    const pace = teleported ? 0 : Math.min(covered / (dt * WALK_SPEED), 1);
     // The movement direction in the body's own frame, so the legs scissor sideways when the player
     // strafes and swing backwards when they walk backwards — with nothing to flicker at the
     // crossover, because both components simply pass through zero.
@@ -253,7 +257,14 @@ export class Explorer implements PlayerVisual {
       this.descent = 0;
     }
     this.airborne = !player.grounded;
-    this.soleY.step(sole, reduced ? 0 : RISE_LAG, dt, MAX_RISE_LAG);
+    if (teleported) {
+      // Placed, exactly as the rig places its anchor. Easing after a teleport would leave the
+      // figure `MAX_RISE_LAG` behind a camera that has already arrived — and on a drop that puts
+      // the head above the boom's anchor, which is the camera looking out from inside it.
+      this.soleY.reset(sole);
+    } else {
+      this.soleY.step(sole, reduced ? 0 : RISE_LAG, dt, MAX_RISE_LAG);
+    }
     this.remember(player, sole);
 
     this.object.position.set(player.position.x, this.soleY.value, player.position.z);

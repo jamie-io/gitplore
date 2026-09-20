@@ -48,8 +48,12 @@ export const MAX_RISE_LAG = STEP_HEIGHT;
  * Further than a full-speed run and a jump together could cover in one capped frame: 8.55 m/s
  * sideways and 7 m/s up, over 0.05 s, is 0.55 m. Only a teleport into another world moves the
  * player this far, and the boom snaps there instead of flying across the map to reach it.
+ *
+ * Exported because the player's avatar has to snap on the same frames the camera does, from the
+ * same number: the two are only ever in the same place because they smooth the same target, and a
+ * second threshold of its own would let them come apart the day this one is retuned.
  */
-const TELEPORT_DISTANCE = 2;
+export const TELEPORT_DISTANCE = 2;
 
 /**
  * Third-person view: the camera hangs on a boom behind the player's head, orbited by pitch and

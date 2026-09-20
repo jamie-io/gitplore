@@ -17,6 +17,7 @@ import {
   PLAYER_EYE_HEIGHT,
   PlayerController,
 } from '@engine/player/player-controller';
+import { MAX_RISE_LAG, TELEPORT_DISTANCE } from '@engine/player/third-person-rig';
 import { StubAssets } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
 import { LICHTUNG } from '../environments/mood';
@@ -235,6 +236,31 @@ describe('Explorer', () => {
         explorer.sync(player, FRAME);
       }
       expect(explorer.object.position.y).toBeCloseTo(STEP_HEIGHT, 2);
+    });
+
+    it('places the soles on a teleport instead of easing after it', () => {
+      const explorer = built();
+      const player = standing(explorer);
+
+      // Dropped further than a run and a jump together could cover in one capped frame, which is
+      // the same test `ThirdPersonRig` snaps its anchor on. Easing here would leave the figure a
+      // whole `MAX_RISE_LAG` above the ground it now stands on — and above the boom's anchor.
+      player.position.y -= TELEPORT_DISTANCE + 1;
+      explorer.sync(player, FRAME);
+
+      const sole = player.position.y - PLAYER_EYE_HEIGHT;
+      expect(explorer.object.position.y).toBeCloseTo(sole, 6);
+      expect(explorer.object.position.y - sole).toBeLessThan(MAX_RISE_LAG);
+    });
+
+    it('walks no legs on the frame it was teleported, because it covered no ground', () => {
+      const explorer = built();
+      const player = standing(explorer, Math.PI / 2);
+
+      step(explorer, player, TELEPORT_DISTANCE + 1, 0);
+
+      expect(joint(explorer, 'explorer-hip-left').rotation.x).toBe(0);
+      expect(joint(explorer, 'explorer-hip-left').rotation.z).toBe(0);
     });
   });
 
