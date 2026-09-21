@@ -119,11 +119,13 @@ test.describe('memory', () => {
 
     // Walk up to the lever as a visitor does. It stands 4.5 m left of the walk, 70 % of the way
     // to the exhibit (`toyPlacements`). Forward-left runs at exactly 45°, so once the visitor is
-    // 4.5 m to the left, straight on brings the lever into reach, ahead of the eyes.
+    // 3.5 m to the left, straight on brings the lever into reach, ahead of the eyes. Not the full
+    // 4.5 m: the first mistranslation sign's board ends at x −4.6, between the arrival and the
+    // lever, and a body of radius 0.35 m walking at x −4.5 catches its edge and never arrives.
     await page.keyboard.down('KeyW');
     await page.keyboard.down('KeyA');
-    // 4.5 m sideways at 45° of the 4.5 m/s walk, plus half the 0.16 s ramp up to it.
-    await simulate(page, 4.5 / (4.5 * Math.SQRT1_2) + 0.08);
+    // 3.5 m sideways at 45° of the 4.5 m/s walk, plus half the 0.16 s ramp up to it.
+    await simulate(page, 3.5 / (4.5 * Math.SQRT1_2) + 0.08);
     await page.keyboard.up('KeyA');
     await untilPrompt(page, 'Dekoration neu würfeln');
     await page.keyboard.up('KeyW');
