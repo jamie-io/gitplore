@@ -11,6 +11,7 @@ import {
 } from './placement';
 import { LICHTUNG_SIGNPOST_APPROACH, LICHTUNG_SIGNPOST_POSITION } from './signpost';
 import { ClearingEnvironment } from './clearing';
+import { clearance } from './testing/clearance';
 
 describe('ringPlacements', () => {
   it('returns exactly as many spots as asked for', () => {
@@ -195,6 +196,22 @@ describe('Lichtung 404 signpost placement', () => {
         ({ position }) => Math.hypot(x - position[0], z - position[2]) >= MIN_LANDMARK_SEPARATION,
       ),
     ).toBe(true);
+  });
+
+  it('stands the sign solid, and clear of every tree, boulder and the pond', () => {
+    const environment = new ClearingEnvironment({ reducedMotion: () => false });
+    const [x, , z] = LICHTUNG_SIGNPOST_POSITION;
+    const own = environment.colliders.filter(
+      (collider) =>
+        collider.kind === 'aabb' &&
+        collider.minX <= x &&
+        x <= collider.maxX &&
+        collider.minZ <= z &&
+        z <= collider.maxZ,
+    );
+    expect(own).toHaveLength(1);
+    const others = environment.colliders.filter((collider) => !own.includes(collider));
+    expect(clearance(x, z, others)).toBeGreaterThan(2.5);
   });
 
   it('leaves a walkable route from spawn to the signpost', () => {

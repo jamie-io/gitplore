@@ -1,6 +1,6 @@
 import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { disposeObject3D } from '@engine/dispose';
-import { HeightField } from '@engine/player/collision';
+import { Collider, HeightField } from '@engine/player/collision';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import { createLabel } from '../landmarks/base/label';
 
@@ -10,6 +10,7 @@ export const LICHTUNG_SIGNPOST_POSITION = [0, 0, 24] as const;
 export const LICHTUNG_SIGNPOST_APPROACH = [0, 22.5] as const;
 
 const SIGN_TEXT = 'Dieser Pfad führt nirgendwohin · HTTP 404';
+const BOARD = { width: 3.8, height: 0.85, depth: 0.16 } as const;
 export const SIGNPOST_LABEL_ROTATION_Y = Math.PI;
 
 export function createSignpostLabel() {
@@ -24,7 +25,16 @@ export function createSignpostLabel() {
 export class LichtungSignpost implements WorldObject {
   readonly id = 'lichtung-404-signpost';
   readonly position = new Vector3(...LICHTUNG_SIGNPOST_POSITION);
-  readonly colliders: readonly [] = [];
+  /** The board hangs at head height, so it blocks across its whole width, not just at the pole. */
+  readonly colliders: readonly Collider[] = [
+    {
+      kind: 'aabb',
+      minX: LICHTUNG_SIGNPOST_POSITION[0] - BOARD.width / 2,
+      maxX: LICHTUNG_SIGNPOST_POSITION[0] + BOARD.width / 2,
+      minZ: LICHTUNG_SIGNPOST_POSITION[2] - BOARD.depth / 2,
+      maxZ: LICHTUNG_SIGNPOST_POSITION[2] + BOARD.depth / 2,
+    },
+  ];
 
   private readonly group = new Group();
   private initialized = false;
@@ -52,7 +62,7 @@ export class LichtungSignpost implements WorldObject {
     pole.name = 'lichtung-404-pole';
 
     const board = new Mesh(
-      new BoxGeometry(3.8, 0.85, 0.16),
+      new BoxGeometry(BOARD.width, BOARD.height, BOARD.depth),
       new MeshStandardMaterial({ color: 0x8b5e34, roughness: 0.9 }),
     );
     board.position.set(0, 1.85, 0);

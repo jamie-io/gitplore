@@ -346,6 +346,7 @@ export class ClearingEnvironment implements Environment {
     this.preparedColliders = [
       ...this.monument.colliders,
       { kind: 'cylinder', x: POND.x, z: POND.z, radius: POND.radius * 0.95 },
+      ...this.signpost.colliders,
       ...cylinderColliders(this.groves.broadleaf, 0.3),
       ...cylinderColliders(this.groves.birch, 0.18),
       ...cylinderColliders(this.groves.pine, 0.25),

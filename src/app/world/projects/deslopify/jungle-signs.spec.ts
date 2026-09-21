@@ -1,3 +1,4 @@
+import { clearance } from '../../environments/testing/clearance';
 import { EXAMPLE_VIDEOS } from './video-wall';
 import { JungleSigns } from './jungle-signs';
 
@@ -11,5 +12,14 @@ describe('JungleSigns', () => {
     expect(new Set(signs.positions.map(({ x, z }) => `${x}:${z}`)).size).toBe(
       EXAMPLE_VIDEOS.length,
     );
+  });
+
+  it('blocks the visitor at every board, with one fixed collider per sign', () => {
+    const signs = new JungleSigns();
+
+    expect(signs.colliders).toHaveLength(EXAMPLE_VIDEOS.length);
+    signs.positions.forEach(({ x, z }, index) => {
+      expect(clearance(x, z, [signs.colliders[index]])).toBeLessThan(0);
+    });
   });
 });

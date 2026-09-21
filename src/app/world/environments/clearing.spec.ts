@@ -102,12 +102,12 @@ describe('ClearingEnvironment', () => {
 
 describe('ClearingEnvironment surroundings', () => {
   it('keeps trees and boulders out of the meadow, the portal ring, the spoke and the pond', () => {
-    // The first two colliders are the monument's and the pond's.
+    // The first three colliders are the monument's, the pond's and the 404 signpost's.
     const environment = clearing();
     environment.anchors(3);
-    for (const collider of environment.colliders.slice(2)) {
+    for (const collider of environment.colliders.slice(3)) {
       if (collider.kind !== 'cylinder') {
-        throw new Error('expected only trunk and boulder cylinders after the first two');
+        throw new Error('expected only trunk and boulder cylinders after the first three');
       }
       expect(isExcluded(collider.x, collider.z, environment.openGround)).toBe(false);
     }
