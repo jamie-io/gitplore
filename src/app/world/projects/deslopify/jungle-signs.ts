@@ -6,10 +6,10 @@ import { createLabel } from '../../landmarks/base/label';
 import { EXAMPLE_VIDEOS } from './video-wall';
 
 const SIGN_POSITIONS = [
-  [-3.8, -11],
-  [3.8, -17],
-  [-3.8, -24],
-  [3.8, -31],
+  [-6, -11],
+  [6, -27],
+  [-6, -34],
+  [6, -41],
 ] as const;
 
 export interface JungleSignsOptions {

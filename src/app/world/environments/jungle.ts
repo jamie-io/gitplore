@@ -55,8 +55,14 @@ const EDGE = SIZE / 2 - 6;
 
 /** The rock face behind the stage, and the notch (x relative to the face) its waterfall pours from. */
 const CLIFF = { x: 0, z: -52, width: 60, height: 16, notch: { x: 9, width: 6 } } as const;
+const CLIFF_COLLIDER_MIN_X = CLIFF.x - CLIFF.width / 2 - 1;
+const CLIFF_COLLIDER_MAX_X = CLIFF.x + CLIFF.width / 2 + 1;
+const CLIFF_NOTCH_MIN_X = CLIFF.x + CLIFF.notch.x - CLIFF.notch.width / 2;
+const CLIFF_NOTCH_MAX_X = CLIFF.x + CLIFF.notch.x + CLIFF.notch.width / 2;
 /** The plunge pool at the waterfall's foot. */
 export const POOL: Basin = { x: CLIFF.x + CLIFF.notch.x, z: CLIFF.z + 6.5, radius: 5, depth: 1.2 };
+/** Keep the visual pool full-sized while leaving a capsule-width approach to the waterfall. */
+const POOL_COLLIDER_RADIUS = POOL.radius * 0.7;
 
 function relief(x: number, z: number): number {
   return 1.4 * Math.sin(x * 0.09) * Math.cos(z * 0.07) + 0.55 * Math.sin((x - z) * 0.21);
@@ -307,14 +313,22 @@ export class JungleEnvironment implements Environment {
     };
 
     this.colliders = [
+      // Match the cliff mesh's notch so the visitor can pass through the waterfall into the cave.
       {
         kind: 'aabb',
-        minX: CLIFF.x - CLIFF.width / 2 - 1,
-        maxX: CLIFF.x + CLIFF.width / 2 + 1,
+        minX: CLIFF_COLLIDER_MIN_X,
+        maxX: CLIFF_NOTCH_MIN_X,
         minZ: CLIFF.z - 4,
         maxZ: CLIFF.z + 2.5,
       },
-      { kind: 'cylinder', x: POOL.x, z: POOL.z, radius: POOL.radius * 0.9 },
+      {
+        kind: 'aabb',
+        minX: CLIFF_NOTCH_MAX_X,
+        maxX: CLIFF_COLLIDER_MAX_X,
+        minZ: CLIFF.z - 4,
+        maxZ: CLIFF.z + 2.5,
+      },
+      { kind: 'cylinder', x: POOL.x, z: POOL.z, radius: POOL_COLLIDER_RADIUS },
       ...cylinderColliders(this.groves.kapok, 0.9),
       ...cylinderColliders(this.groves.palms, 0.25),
       ...cylinderColliders(this.groves.ferns, 0.22),

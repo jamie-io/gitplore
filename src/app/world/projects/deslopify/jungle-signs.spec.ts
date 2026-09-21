@@ -7,6 +7,7 @@ describe('JungleSigns', () => {
 
     expect(signs.pairCount).toBe(EXAMPLE_VIDEOS.length);
     expect(signs.positions).toHaveLength(EXAMPLE_VIDEOS.length);
+    expect(signs.positions.every(({ x }) => Math.abs(x) - 1.4 > 4)).toBe(true);
     expect(new Set(signs.positions.map(({ x, z }) => `${x}:${z}`)).size).toBe(
       EXAMPLE_VIDEOS.length,
     );

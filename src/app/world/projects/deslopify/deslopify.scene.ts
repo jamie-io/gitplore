@@ -35,8 +35,8 @@ export class DeslopifyScene extends ProjectScene {
     });
     this.cave = new HiddenPlace({
       id: 'dschungel-wasserfall-hoehle',
-      position: new Vector3(14, 0, -44),
-      rotationY: Math.PI / 2,
+      position: new Vector3(9, 0, -50.6),
+      rotationY: 0,
       ground: this.environment.ground,
       thing: new Mesh(
         new IcosahedronGeometry(0.45, 1),

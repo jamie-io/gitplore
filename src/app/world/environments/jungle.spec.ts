@@ -25,13 +25,20 @@ const original = (x: number, z: number) =>
 
 describe('JungleEnvironment', () => {
   it('keeps every tree, fern and boulder off the stage', () => {
-    // The first two colliders are the cliff's and the pool's.
-    for (const collider of jungle().colliders.slice(2)) {
+    // The first three colliders are the two cliff sides and the pool.
+    for (const collider of jungle().colliders.slice(3)) {
       if (collider.kind !== 'cylinder') {
         throw new Error('expected plant and boulder cylinders after the cliff and the pool');
       }
       expect(isExcluded(collider.x, collider.z, STAGE)).toBe(false);
     }
+  });
+
+  it('leaves the waterfall notch open for a walk-through cave', () => {
+    const environment = jungle();
+
+    expect(clearance(POOL.x, -49.5, environment.colliders)).toBeGreaterThanOrEqual(0.35);
+    expect(clearance(0, -49.5, environment.colliders)).toBeLessThanOrEqual(0);
   });
 
   it('leaves room at every exhibit spot and 6.5 m to either side, where bespoke furniture stands', () => {
