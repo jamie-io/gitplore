@@ -188,7 +188,10 @@ export class ProjectScene implements WorldScene {
   }
 
   get interactables(): readonly Interactable[] {
-    return (this.cachedInteractables ??= this.parts.flatMap((part) => part.interactables ?? []));
+    return (this.cachedInteractables ??= [
+      ...(this.environment.interactables ?? []),
+      ...this.parts.flatMap((part) => part.interactables ?? []),
+    ]);
   }
 
   init(ctx: WorldContext): void {

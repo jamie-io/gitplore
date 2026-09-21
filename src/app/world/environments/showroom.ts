@@ -10,6 +10,7 @@ import {
   Vector3,
 } from 'three';
 import { Collider } from '@engine/player/collision';
+import { Interactable } from '@engine/interaction/interactable';
 import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import type { EnvironmentOptions } from './create-environment';
@@ -24,6 +25,8 @@ import { SharedUniforms } from './shaders/shared-uniforms';
 import { withTiles } from './shaders/tiles';
 import { withWallWash } from './shaders/wall-wash';
 import { Sun } from './sun';
+import { Door } from './props/door';
+import { HiddenPlace } from './props/hidden-place';
 
 /** Half the hall's floor, in metres. */
 export const HALF = 24;
@@ -65,6 +68,9 @@ const PILASTER = 0xdedad3;
 const TRIM = 0x2b3038;
 const CEILING = 0xf1efeb;
 const FITTING = 0x1d2127;
+const DOOR_X = 16;
+const DOOR_Z = -24.4;
+const BACK_ROOM_Z = -26.2;
 
 /** Spots on the rail in front of the exhibits tip back towards them, and the ones behind tip forward. */
 function spotTilt(row: number): number {
@@ -191,6 +197,9 @@ export class ShowroomEnvironment implements Environment {
   /** Yaw 0 looks down −Z: into the hall, at the exhibit wall. */
   readonly spawnYaw = 0;
   readonly colliders: readonly Collider[];
+  readonly door: Door;
+  readonly backRoom: HiddenPlace;
+  readonly interactables: readonly Interactable[];
   /** The light and air of this place; the scene reads it to match whatever stands in it. */
   readonly mood = GALERIE;
   /** Every shader in this world reads these; public so a test can watch time stand still. */
@@ -232,11 +241,26 @@ export class ShowroomEnvironment implements Environment {
 
   constructor(private readonly options: EnvironmentOptions) {
     this.colliders = [
-      { kind: 'aabb', minX: -HALF, maxX: HALF, minZ: -HALF - WALL_THICKNESS, maxZ: -HALF },
+      { kind: 'aabb', minX: -HALF, maxX: DOOR_X - 1, minZ: -HALF - WALL_THICKNESS, maxZ: -HALF },
+      { kind: 'aabb', minX: DOOR_X + 1, maxX: HALF, minZ: -HALF - WALL_THICKNESS, maxZ: -HALF },
       { kind: 'aabb', minX: -HALF, maxX: HALF, minZ: HALF, maxZ: HALF + WALL_THICKNESS },
       { kind: 'aabb', minX: -HALF - WALL_THICKNESS, maxX: -HALF, minZ: -HALF, maxZ: HALF },
       { kind: 'aabb', minX: HALF, maxX: HALF + WALL_THICKNESS, minZ: -HALF, maxZ: HALF },
     ];
+    this.door = new Door({
+      id: 'showroom:back-room-door',
+      position: new Vector3(DOOR_X, 0, DOOR_Z),
+      ground: this.floor,
+      reducedMotion: options.reducedMotion,
+    });
+    this.backRoom = new HiddenPlace({
+      id: 'showroom:back-room',
+      position: new Vector3(DOOR_X, 0, BACK_ROOM_Z),
+      ground: this.floor,
+      thing: new Object3D(),
+    });
+    this.interactables = [...this.door.interactables, ...this.backRoom.interactables];
+    this.colliders = [...this.colliders, ...this.door.colliders, ...this.backRoom.colliders];
   }
 
   get ground() {
@@ -273,7 +297,8 @@ export class ShowroomEnvironment implements Environment {
       wash,
     );
     const spans: readonly [number, number, number, number][] = [
-      [0, -HALF, HALF * 2, WALL_THICKNESS],
+      [(-HALF + DOOR_X - 1) / 2, -HALF, HALF + DOOR_X - 1, WALL_THICKNESS],
+      [(DOOR_X + 1 + HALF) / 2, -HALF, HALF - DOOR_X - 1, WALL_THICKNESS],
       [0, HALF, HALF * 2, WALL_THICKNESS],
       [-HALF, 0, WALL_THICKNESS, HALF * 2],
       [HALF, 0, WALL_THICKNESS, HALF * 2],
@@ -328,17 +353,31 @@ export class ShowroomEnvironment implements Environment {
     glow.name = 'fittings-glow';
     this.added.push(glow);
 
+    const roomFloor = new Mesh(
+      new BoxGeometry(5.2, 0.04, 4.2),
+      new MeshStandardMaterial({ color: FLOOR, roughness: 0.3 }),
+    );
+    roomFloor.name = 'showroom:back-room-floor';
+    roomFloor.position.set(DOOR_X, -0.02, BACK_ROOM_Z);
+    this.added.push(roomFloor);
+
     this.added.forEach((object) => ctx.scene.add(object));
+    this.door.init(ctx);
+    this.backRoom.init(ctx);
   }
 
   update(dt: number, ctx: WorldContext): void {
     this.shared.update(dt, ctx.player.position, this.options.reducedMotion());
     this.sun.update(dt, ctx);
+    this.door.update(dt, ctx);
+    this.backRoom.update();
   }
 
   dispose(): void {
     this.added.forEach(disposeObject3D);
     this.added.length = 0;
+    this.door.dispose();
+    this.backRoom.dispose();
     this.sun.dispose();
     this.pools.dispose();
     this.reflection.dispose();

@@ -6,10 +6,44 @@ const showroom = (reducedMotion = false) =>
   new ShowroomEnvironment({ reducedMotion: () => reducedMotion });
 
 describe('ShowroomEnvironment', () => {
+  it('places a reachable door and back room clear of the hall arrival and exhibit row', () => {
+    const environment = showroom();
+    const interactables = (environment as unknown as {
+      readonly interactables: readonly { readonly id: string }[];
+    }).interactables;
+
+    expect(interactables).toHaveLength(2);
+    expect(interactables[0].id).toBe('showroom:back-room-door:open');
+    expect(interactables[1].id).toBe('showroom:back-room:enter');
+    expect(environment.colliders).toHaveLength(9);
+
+    const door = (environment as unknown as {
+      readonly door: { readonly position: Vector3 };
+    }).door;
+    const room = (environment as unknown as {
+      readonly backRoom: { readonly position: Vector3; readonly colliders: readonly unknown[] };
+    }).backRoom;
+    expect(door.position.z).toBeLessThan(-23);
+    expect(room.position.z).toBeLessThan(door.position.z - 1);
+    expect(Math.hypot(room.position.x, room.position.z - 8)).toBeGreaterThan(8);
+    expect(room.colliders).toHaveLength(3);
+  });
+
+  it('disposes its door and back room with the environment', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+
+    environment.init(ctx);
+    environment.dispose();
+
+    expect(ctx.scene.getObjectByName('showroom:back-room-door')).toBeUndefined();
+    expect(ctx.scene.getObjectByName('showroom:back-room')).toBeUndefined();
+  });
+
   it('blocks only its four walls, so the bespoke scenes own the floor', () => {
     const colliders = showroom().colliders;
 
-    expect(colliders.length).toBe(4);
+    expect(colliders.length).toBe(9);
     expect(colliders.every((collider) => collider.kind === 'aabb')).toBe(true);
   });
 
