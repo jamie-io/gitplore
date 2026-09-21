@@ -1,9 +1,17 @@
 import { Collider } from '@engine/player/collision';
 
-/** Metres from (x, z) to the nearest collider's surface; negative inside one. For specs. */
-export function clearance(x: number, z: number, colliders: readonly Collider[]): number {
+/** Metres from (x, z) to nearest relevant collider surface; negative means inside one. */
+export function clearance(
+  x: number,
+  z: number,
+  colliders: readonly Collider[],
+  cameraY?: number,
+): number {
+  const relevant = colliders.filter(
+    (collider) => cameraY === undefined || collider.top === undefined || collider.top > cameraY,
+  );
   return Math.min(
-    ...colliders.map((collider) =>
+    ...relevant.map((collider) =>
       collider.kind === 'cylinder'
         ? Math.hypot(x - collider.x, z - collider.z) - collider.radius
         : boxClearance(x, z, collider),

@@ -10,6 +10,10 @@ const AUTO_OPEN_RADIUS = 1.2;
 const WIDTH = 1.2;
 const HEIGHT = 2.2;
 const DEPTH = 0.16;
+const JAMB = 0.15;
+
+/** Outer size of the frame, so a wall can leave exactly the hole it fills. */
+export const DOOR_FRAME = { width: WIDTH + JAMB * 2, height: HEIGHT + 0.25 } as const;
 
 export interface DoorOptions {
   readonly id: string;
@@ -73,13 +77,23 @@ export class Door implements WorldObject {
   }
 
   init(ctx: WorldContext): void {
-    const frame = new Mesh(
-      new BoxGeometry(WIDTH + 0.3, HEIGHT + 0.25, 0.18),
-      new MeshStandardMaterial({ color: 0x59616a, roughness: 0.75 }),
-    );
+    // Two jambs and a head, not a slab: an open door has to show the way through it.
+    const frameMaterial = new MeshStandardMaterial({ color: 0x59616a, roughness: 0.75 });
+    const frame = new Group();
     frame.name = `${this.id}:frame`;
-    frame.position.y = HEIGHT / 2;
-    frame.castShadow = ctx.quality.shadows;
+    for (const side of [-1, 1]) {
+      const jamb = new Mesh(new BoxGeometry(JAMB, DOOR_FRAME.height, 0.18), frameMaterial);
+      jamb.position.set((side * (WIDTH + JAMB)) / 2, DOOR_FRAME.height / 2, 0);
+      jamb.castShadow = ctx.quality.shadows;
+      frame.add(jamb);
+    }
+    const head = new Mesh(
+      new BoxGeometry(DOOR_FRAME.width, DOOR_FRAME.height - HEIGHT, 0.18),
+      frameMaterial,
+    );
+    head.position.y = (HEIGHT + DOOR_FRAME.height) / 2;
+    head.castShadow = ctx.quality.shadows;
+    frame.add(head);
     this.group.add(frame);
 
     const slab = new Mesh(

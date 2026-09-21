@@ -23,6 +23,17 @@ function hiddenPlace(onEnter: () => void = () => undefined, rotationY = 0): Hidd
 }
 
 describe('HiddenPlace', () => {
+  it('offers no prompt when entering does nothing', () => {
+    const target = new HiddenPlace({
+      id: 'test:hidden-place',
+      position: new Vector3(0, 0, -2),
+      ground,
+      thing: new Mesh(new IcosahedronGeometry(0.25, 0), new MeshStandardMaterial()),
+    });
+
+    expect(target.interactables).toEqual([]);
+  });
+
   it('offers a real place and its thing when the visitor reaches it', () => {
     const ctx = stubContext();
     const target = hiddenPlace();

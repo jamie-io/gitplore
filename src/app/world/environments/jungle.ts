@@ -1,4 +1,12 @@
-import { Color, InstancedMesh, MeshStandardMaterial, Vector3 } from 'three';
+import {
+  Color,
+  IcosahedronGeometry,
+  InstancedMesh,
+  Mesh,
+  MeshStandardMaterial,
+  Vector3,
+} from 'three';
+import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
 import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
@@ -18,6 +26,7 @@ import {
   treeFern,
 } from './flora';
 import { ProceduralGround } from './ground';
+import { HIDDEN_PLACE_SHELL, HiddenPlace } from './props/hidden-place';
 import { LightShafts } from './light-shafts';
 import { DSCHUNGEL, applyMood, clearMood } from './mood';
 import { Motes } from './motes';
@@ -55,8 +64,12 @@ const EDGE = SIZE / 2 - 6;
 
 /** The rock face behind the stage, and the notch (x relative to the face) its waterfall pours from. */
 const CLIFF = { x: 0, z: -52, width: 60, height: 16, notch: { x: 9, width: 6 } } as const;
+/** The cave behind the waterfall: its back wall sits in the rock, its mouth at the rock's face. */
+export const CAVE = { x: CLIFF.x + CLIFF.notch.x, z: CLIFF.z + 1.4 } as const;
 /** The plunge pool at the waterfall's foot. */
 export const POOL: Basin = { x: CLIFF.x + CLIFF.notch.x, z: CLIFF.z + 6.5, radius: 5, depth: 1.2 };
+/** Keep the visual pool full-sized while leaving a capsule-width approach to the waterfall. */
+const POOL_COLLIDER_RADIUS = POOL.radius * 0.7;
 
 function relief(x: number, z: number): number {
   return 1.4 * Math.sin(x * 0.09) * Math.cos(z * 0.07) + 0.55 * Math.sin((x - z) * 0.21);
@@ -156,6 +169,9 @@ export class JungleEnvironment implements Environment {
   /** Every shader in this world reads these; public so a test can watch time stand still. */
   readonly shared = new SharedUniforms(DSCHUNGEL);
   readonly colliders: readonly Collider[];
+  /** A nook behind the waterfall. It holds a stone and nothing else: no text, no tally. */
+  readonly cave: HiddenPlace;
+  readonly interactables: readonly Interactable[];
 
   private readonly floor = new ProceduralGround({
     id: 'jungle-floor',
@@ -306,19 +322,46 @@ export class JungleEnvironment implements Environment {
       ),
     };
 
+    this.cave = new HiddenPlace({
+      id: 'dschungel-wasserfall-hoehle',
+      position: new Vector3(CAVE.x, 0, CAVE.z),
+      ground: this.floor,
+      thing: new Mesh(
+        new IcosahedronGeometry(0.45, 1),
+        new MeshStandardMaterial({ color: 0x79a89b, roughness: 0.55, metalness: 0.15 }),
+      ),
+    });
+    this.interactables = this.cave.interactables;
+
     this.colliders = [
+      // The rock face, open only between the cave's side walls and only as deep as the cave.
       {
         kind: 'aabb',
         minX: CLIFF.x - CLIFF.width / 2 - 1,
+        maxX: CAVE.x - HIDDEN_PLACE_SHELL.innerWidth / 2,
+        minZ: CLIFF.z - 4,
+        maxZ: CLIFF.z + 2.5,
+      },
+      {
+        kind: 'aabb',
+        minX: CAVE.x + HIDDEN_PLACE_SHELL.innerWidth / 2,
         maxX: CLIFF.x + CLIFF.width / 2 + 1,
         minZ: CLIFF.z - 4,
         maxZ: CLIFF.z + 2.5,
       },
-      { kind: 'cylinder', x: POOL.x, z: POOL.z, radius: POOL.radius * 0.9 },
+      {
+        kind: 'aabb',
+        minX: CAVE.x - HIDDEN_PLACE_SHELL.innerWidth / 2,
+        maxX: CAVE.x + HIDDEN_PLACE_SHELL.innerWidth / 2,
+        minZ: CLIFF.z - 4,
+        maxZ: CAVE.z + HIDDEN_PLACE_SHELL.back,
+      },
+      { kind: 'cylinder', x: POOL.x, z: POOL.z, radius: POOL_COLLIDER_RADIUS },
       ...cylinderColliders(this.groves.kapok, 0.9),
       ...cylinderColliders(this.groves.palms, 0.25),
       ...cylinderColliders(this.groves.ferns, 0.22),
       ...cylinderColliders(this.groves.boulders, 0.95),
+      ...this.cave.colliders,
     ];
   }
 
@@ -344,6 +387,7 @@ export class JungleEnvironment implements Environment {
     this.spores.init(ctx);
     this.fireflies.init(ctx);
     this.backdrop.init(ctx);
+    this.cave.init(ctx);
 
     this.props = this.buildProps(ctx);
     this.props.forEach((mesh) => ctx.scene.add(mesh));
@@ -363,6 +407,7 @@ export class JungleEnvironment implements Environment {
   dispose(): void {
     this.props.forEach(disposeObject3D);
     this.props = [];
+    this.cave.dispose();
     this.backdrop.dispose();
     this.fireflies.dispose();
     this.spores.dispose();
@@ -435,7 +480,12 @@ export class JungleEnvironment implements Environment {
       }),
     );
     const cliff = buildInstanced(
-      cliffWall(71, CLIFF.width, CLIFF.height, CLIFF.notch),
+      cliffWall(71, CLIFF.width, CLIFF.height, CLIFF.notch, {
+        x: CAVE.x - CLIFF.x,
+        width: HIDDEN_PLACE_SHELL.width,
+        height: this.cave.position.y + HIDDEN_PLACE_SHELL.height - this.cliffBase,
+        back: CAVE.z + HIDDEN_PLACE_SHELL.back - CLIFF.z,
+      }),
       still,
       [{ x: CLIFF.x, y: this.cliffBase, z: CLIFF.z, scale: 1, rotation: 0, tint: 0 }],
       { name: 'cliff', castShadow: shadows, receiveShadow: shadows },

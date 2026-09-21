@@ -1,15 +1,153 @@
-import { Mesh, Vector3 } from 'three';
+import { Box3, Mesh, Vector3 } from 'three';
+import { Collider, resolveCollisions } from '@engine/player/collision';
 import { stubContext } from '@engine/testing/world-context';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { HALF, INTERIOR_CEILING, ShowroomEnvironment } from './showroom';
+import { ProjectScene } from '../project/project.scene';
 
 const showroom = (reducedMotion = false) =>
   new ShowroomEnvironment({ reducedMotion: () => reducedMotion });
 
 describe('ShowroomEnvironment', () => {
+  it('places a reachable door and back room clear of the hall arrival and exhibit row', () => {
+    const environment = showroom();
+    const interactables = (
+      environment as unknown as {
+        readonly interactables: readonly { readonly id: string }[];
+      }
+    ).interactables;
+
+    // The back room is a place, not a message, so it offers no prompt of its own.
+    expect(interactables).toHaveLength(1);
+    expect(interactables[0].id).toBe('showroom:back-room-door:open');
+    expect(environment.colliders).toHaveLength(10);
+
+    const door = (
+      environment as unknown as {
+        readonly door: { readonly position: Vector3 };
+      }
+    ).door;
+    const room = (
+      environment as unknown as {
+        readonly backRoom: { readonly position: Vector3; readonly colliders: readonly unknown[] };
+      }
+    ).backRoom;
+    expect(door.position.z).toBeLessThan(-23);
+    expect(room.position.z).toBeLessThan(door.position.z - 1);
+    expect(Math.hypot(room.position.x, room.position.z - 8)).toBeGreaterThan(8);
+    expect(room.colliders).toHaveLength(3);
+  });
+
+  it('closes the wall above the door with a lintel and matching closed-state collider', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+
+    environment.init(ctx);
+
+    const lintel = ctx.scene.getObjectByName('showroom:back-room-lintel');
+    expect(lintel).toBeInstanceOf(Mesh);
+    expect(lintel?.position.y).toBeCloseTo(4.725, 5);
+    expect(
+      environment.colliders.some(
+        (collider) =>
+          collider.kind === 'aabb' &&
+          collider.minX === 15.25 &&
+          collider.maxX === 16.75 &&
+          collider.minZ === -24.8 &&
+          collider.maxZ === -24,
+      ),
+    ).toBe(true);
+
+    environment.dispose();
+  });
+
+  it('keeps route closed until door opens, then lets visitor reach room', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+    environment.init(ctx);
+
+    expect(resolveCollisions(16, -24.5, 0.35, environment.colliders, -Infinity).z).toBeLessThan(
+      -24.5,
+    );
+
+    ctx.player.teleport(new Vector3(16, 1.7, -23.3), 0);
+    environment.update(0, ctx);
+
+    expect(environment.door.open).toBe(true);
+    expect(resolveCollisions(16, -24.5, 0.35, environment.colliders, -Infinity)).toEqual({
+      x: 16,
+      z: -24.5,
+    });
+
+    environment.dispose();
+  });
+
+  it('keeps back room clear of exhibit, portal, path and repository data objects', () => {
+    const environment = showroom(true);
+    const scene = new ProjectScene({
+      environment,
+      project: PROJECT_FIXTURES[0],
+      reducedMotion: () => true,
+      onOpenInfo: () => undefined,
+      onLeave: () => undefined,
+    });
+    const room = environment.backRoom.position;
+    const projectColliders = scene.colliders.slice(environment.colliders.length);
+
+    for (const collider of projectColliders) {
+      const distance =
+        collider.kind === 'cylinder'
+          ? Math.hypot(room.x - collider.x, room.z - collider.z) - collider.radius
+          : Math.max(collider.minX - room.x, 0, room.x - collider.maxX) +
+            Math.max(collider.minZ - room.z, 0, room.z - collider.maxZ);
+      expect(distance).toBeGreaterThan(2);
+    }
+  });
+
+  it('fits the door frame to the wall hole and the back room to the wall, leaving no gap', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+    environment.init(ctx);
+    ctx.scene.updateMatrixWorld(true);
+
+    const frame = new Box3().setFromObject(
+      ctx.scene.getObjectByName('showroom:back-room-door:frame')!,
+    );
+    const room = new Box3().setFromObject(ctx.scene.getObjectByName('showroom:back-room')!);
+    const lintel = new Box3().setFromObject(
+      ctx.scene.getObjectByName('showroom:back-room-lintel')!,
+    );
+    const [left, right] = environment.colliders.filter(
+      (collider): collider is Extract<Collider, { kind: 'aabb' }> =>
+        collider.kind === 'aabb' && collider.maxZ === -HALF && collider.minZ < -HALF,
+    );
+
+    expect(frame.min.x).toBeCloseTo(left.maxX, 5);
+    expect(frame.max.x).toBeCloseTo(right.minX, 5);
+    expect(frame.max.y).toBeCloseTo(lintel.min.y, 5);
+    // The room's open front reaches the wall's outer face, and its roof tucks under the wall.
+    expect(room.max.z).toBeGreaterThanOrEqual(left.minZ);
+    expect(room.min.x).toBeLessThan(frame.min.x);
+    expect(room.max.x).toBeGreaterThan(frame.max.x);
+
+    environment.dispose();
+  });
+
+  it('disposes its door and back room with the environment', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+
+    environment.init(ctx);
+    environment.dispose();
+
+    expect(ctx.scene.getObjectByName('showroom:back-room-door')).toBeUndefined();
+    expect(ctx.scene.getObjectByName('showroom:back-room')).toBeUndefined();
+  });
+
   it('blocks only its four walls, so the bespoke scenes own the floor', () => {
     const colliders = showroom().colliders;
 
-    expect(colliders.length).toBe(4);
+    expect(colliders.length).toBe(10);
     expect(colliders.every((collider) => collider.kind === 'aabb')).toBe(true);
   });
 

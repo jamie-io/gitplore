@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import { Interactable } from '@engine/interaction/interactable';
 import { Collider, HeightField } from '@engine/player/collision';
 import { WorldObject } from '@engine/world-object';
 import type { EnvironmentId } from '@content/project.model';
@@ -37,6 +38,7 @@ export interface Environment extends WorldObject {
   readonly spawnYaw: number;
   /** What the environment itself blocks — walls, trees, a fountain. */
   readonly colliders: readonly Collider[];
+  readonly interactables?: readonly Interactable[];
   /**
    * `count` places to stand a landmark, turned to face an approaching visitor. Layout is the
    * environment's business: a clearing scatters differently from a plaza.

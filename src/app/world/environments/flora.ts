@@ -429,6 +429,7 @@ export function cliffWall(
   width: number,
   height: number,
   notch: { readonly x: number; readonly width: number },
+  opening?: CliffOpening,
 ): BufferGeometry {
   const random = seededRandom(seed);
   const rocks = [0x6f6a5f, 0x7d776a, 0x5f5a50] as const;
@@ -443,11 +444,75 @@ export function cliffWall(
     const depth = between(random, 3.5, 5);
     const setBack = between(random, 0, 1.2);
     const column = new BoxGeometry(step * 1.15, top + 2, depth).translate(x, top / 2 - 1, -setBack);
-    parts.push(paint(jitter(column, 0.35, random), rocks[i % rocks.length]));
+    // Jitter even a column the opening replaces, so every later column draws the same numbers.
+    const rock = jitter(column, 0.35, random);
+    const around = opening && openingPieces(x, step * 1.15, top, depth, setBack, opening);
+    if (around) {
+      rock.dispose();
+      parts.push(...around.map((piece) => paint(piece, rocks[i % rocks.length])));
+    } else {
+      parts.push(paint(rock, rocks[i % rocks.length]));
+    }
     if (!inNotch) {
       const moss = jitter(new IcosahedronGeometry(step * 0.6, 0), 0.15, random).scale(1, 0.3, 0.9);
       parts.push(paint(moss.translate(x, top + 0.1, -setBack), 0x3f6f35));
     }
   }
   return assemble(parts);
+}
+
+/**
+ * A walk-in mouth at the foot of a cliff, in the cliff's own frame: `x` is its centre, `width` its
+ * outer width, `height` how far above the cliff's origin its roof reaches and `back` the Z where the
+ * rock behind it resumes.
+ */
+export interface CliffOpening {
+  readonly x: number;
+  readonly width: number;
+  readonly height: number;
+  readonly back: number;
+}
+
+/**
+ * The rock of one column around an opening: a block above it, the parts either side and the rock
+ * behind it. Unjittered, so no stray vertex pokes into the mouth. `null` when the column misses it.
+ */
+function openingPieces(
+  x: number,
+  columnWidth: number,
+  top: number,
+  depth: number,
+  setBack: number,
+  opening: CliffOpening,
+): BufferGeometry[] | null {
+  const minX = x - columnWidth / 2;
+  const maxX = x + columnWidth / 2;
+  const openMinX = opening.x - opening.width / 2;
+  const openMaxX = opening.x + opening.width / 2;
+  if (maxX <= openMinX || minX >= openMaxX) {
+    return null;
+  }
+
+  const back = -setBack - depth / 2;
+  const front = -setBack + depth / 2;
+  const box = (x0: number, x1: number, y0: number, y1: number, z0: number, z1: number) =>
+    new BoxGeometry(x1 - x0, y1 - y0, z1 - z0).translate(
+      (x0 + x1) / 2,
+      (y0 + y1) / 2,
+      (z0 + z1) / 2,
+    );
+  const pieces = [box(minX, maxX, opening.height, top, back, front)];
+  if (minX < openMinX) {
+    pieces.push(box(minX, openMinX, -2, opening.height, back, front));
+  }
+  if (maxX > openMaxX) {
+    pieces.push(box(openMaxX, maxX, -2, opening.height, back, front));
+  }
+  if (back < opening.back) {
+    const behind = Math.min(opening.back, front);
+    pieces.push(
+      box(Math.max(minX, openMinX), Math.min(maxX, openMaxX), -2, opening.height, back, behind),
+    );
+  }
+  return pieces;
 }

@@ -10,6 +10,7 @@ import {
   Vector3,
 } from 'three';
 import { Collider } from '@engine/player/collision';
+import { Interactable } from '@engine/interaction/interactable';
 import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import type { EnvironmentOptions } from './create-environment';
@@ -24,6 +25,8 @@ import { SharedUniforms } from './shaders/shared-uniforms';
 import { withTiles } from './shaders/tiles';
 import { withWallWash } from './shaders/wall-wash';
 import { Sun } from './sun';
+import { DOOR_FRAME, Door } from './props/door';
+import { HIDDEN_PLACE_SHELL, HiddenPlace } from './props/hidden-place';
 
 /** Half the hall's floor, in metres. */
 export const HALF = 24;
@@ -65,6 +68,13 @@ const PILASTER = 0xdedad3;
 const TRIM = 0x2b3038;
 const CEILING = 0xf1efeb;
 const FITTING = 0x1d2127;
+const DOOR_X = 16;
+const DOOR_Z = -24.4;
+/** The hole in the wall is exactly the door's frame, so nothing shows beside or above it. */
+const DOOR_OPENING_HALF = DOOR_FRAME.width / 2;
+const DOOR_HEIGHT = DOOR_FRAME.height;
+/** The back room's open front meets the wall's outer face, leaving no gap to see out through. */
+const BACK_ROOM_Z = -HALF - WALL_THICKNESS - HIDDEN_PLACE_SHELL.innerDepth / 2;
 
 /** Spots on the rail in front of the exhibits tip back towards them, and the ones behind tip forward. */
 function spotTilt(row: number): number {
@@ -191,6 +201,9 @@ export class ShowroomEnvironment implements Environment {
   /** Yaw 0 looks down −Z: into the hall, at the exhibit wall. */
   readonly spawnYaw = 0;
   readonly colliders: readonly Collider[];
+  readonly door: Door;
+  readonly backRoom: HiddenPlace;
+  readonly interactables: readonly Interactable[];
   /** The light and air of this place; the scene reads it to match whatever stands in it. */
   readonly mood = GALERIE;
   /** Every shader in this world reads these; public so a test can watch time stand still. */
@@ -228,14 +241,55 @@ export class ShowroomEnvironment implements Environment {
   });
   private readonly sun = new Sun({ mood: GALERIE, shared: this.shared });
   private readonly added: Object3D[] = [];
+  private readonly lintelCollider: Extract<Collider, { kind: 'aabb' }> & { enabled: boolean };
   private scene: WorldContext['scene'] | null = null;
 
   constructor(private readonly options: EnvironmentOptions) {
     this.colliders = [
-      { kind: 'aabb', minX: -HALF, maxX: HALF, minZ: -HALF - WALL_THICKNESS, maxZ: -HALF },
+      {
+        kind: 'aabb',
+        minX: -HALF,
+        maxX: DOOR_X - DOOR_OPENING_HALF,
+        minZ: -HALF - WALL_THICKNESS,
+        maxZ: -HALF,
+      },
+      {
+        kind: 'aabb',
+        minX: DOOR_X + DOOR_OPENING_HALF,
+        maxX: HALF,
+        minZ: -HALF - WALL_THICKNESS,
+        maxZ: -HALF,
+      },
       { kind: 'aabb', minX: -HALF, maxX: HALF, minZ: HALF, maxZ: HALF + WALL_THICKNESS },
       { kind: 'aabb', minX: -HALF - WALL_THICKNESS, maxX: -HALF, minZ: -HALF, maxZ: HALF },
       { kind: 'aabb', minX: HALF, maxX: HALF + WALL_THICKNESS, minZ: -HALF, maxZ: HALF },
+    ];
+    this.lintelCollider = {
+      kind: 'aabb',
+      minX: DOOR_X - DOOR_OPENING_HALF,
+      maxX: DOOR_X + DOOR_OPENING_HALF,
+      minZ: -HALF - WALL_THICKNESS,
+      maxZ: -HALF,
+      enabled: true,
+    };
+    this.door = new Door({
+      id: 'showroom:back-room-door',
+      position: new Vector3(DOOR_X, 0, DOOR_Z),
+      ground: this.floor,
+      reducedMotion: options.reducedMotion,
+    });
+    this.backRoom = new HiddenPlace({
+      id: 'showroom:back-room',
+      position: new Vector3(DOOR_X, 0, BACK_ROOM_Z),
+      ground: this.floor,
+      thing: new Object3D(),
+    });
+    this.interactables = [...this.door.interactables, ...this.backRoom.interactables];
+    this.colliders = [
+      ...this.colliders,
+      this.lintelCollider,
+      ...this.door.colliders,
+      ...this.backRoom.colliders,
     ];
   }
 
@@ -273,7 +327,18 @@ export class ShowroomEnvironment implements Environment {
       wash,
     );
     const spans: readonly [number, number, number, number][] = [
-      [0, -HALF, HALF * 2, WALL_THICKNESS],
+      [
+        (-HALF + DOOR_X - DOOR_OPENING_HALF) / 2,
+        -HALF,
+        HALF + DOOR_X - DOOR_OPENING_HALF,
+        WALL_THICKNESS,
+      ],
+      [
+        (DOOR_X + DOOR_OPENING_HALF + HALF) / 2,
+        -HALF,
+        HALF - DOOR_X - DOOR_OPENING_HALF,
+        WALL_THICKNESS,
+      ],
       [0, HALF, HALF * 2, WALL_THICKNESS],
       [-HALF, 0, WALL_THICKNESS, HALF * 2],
       [HALF, 0, WALL_THICKNESS, HALF * 2],
@@ -286,6 +351,16 @@ export class ShowroomEnvironment implements Environment {
       mesh.receiveShadow = shadows;
       this.added.push(mesh);
     }
+
+    const lintel = new Mesh(
+      new BoxGeometry(DOOR_OPENING_HALF * 2, WALL_HEIGHT - DOOR_HEIGHT, WALL_THICKNESS),
+      wall,
+    );
+    lintel.name = 'showroom:back-room-lintel';
+    lintel.position.set(DOOR_X, DOOR_HEIGHT + (WALL_HEIGHT - DOOR_HEIGHT) / 2, -HALF);
+    lintel.castShadow = shadows;
+    lintel.receiveShadow = shadows;
+    this.added.push(lintel);
 
     // The ceiling never casts: the sun lights the hall "through the skylights", which a closed
     // shadow-casting lid would block entirely.
@@ -328,17 +403,35 @@ export class ShowroomEnvironment implements Environment {
     glow.name = 'fittings-glow';
     this.added.push(glow);
 
+    // From the hall's edge, under the doorway, to the back room's rear wall; never over the hall.
+    const roomFront = -HALF;
+    const roomBack = BACK_ROOM_Z + HIDDEN_PLACE_SHELL.back;
+    const roomFloor = new Mesh(
+      new BoxGeometry(HIDDEN_PLACE_SHELL.width, 0.04, roomFront - roomBack),
+      new MeshStandardMaterial({ color: FLOOR, roughness: 0.3 }),
+    );
+    roomFloor.name = 'showroom:back-room-floor';
+    roomFloor.position.set(DOOR_X, -0.02, (roomFront + roomBack) / 2);
+    this.added.push(roomFloor);
+
     this.added.forEach((object) => ctx.scene.add(object));
+    this.door.init(ctx);
+    this.backRoom.init(ctx);
   }
 
   update(dt: number, ctx: WorldContext): void {
     this.shared.update(dt, ctx.player.position, this.options.reducedMotion());
     this.sun.update(dt, ctx);
+    this.door.update(dt, ctx);
+    this.lintelCollider.enabled = !this.door.open;
+    this.backRoom.update();
   }
 
   dispose(): void {
     this.added.forEach(disposeObject3D);
     this.added.length = 0;
+    this.door.dispose();
+    this.backRoom.dispose();
     this.sun.dispose();
     this.pools.dispose();
     this.reflection.dispose();

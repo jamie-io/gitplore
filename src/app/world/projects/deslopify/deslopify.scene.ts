@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import { InWorldDemo, ProjectScene, ProjectSceneOptions } from '../../project/project.scene';
+import { JungleSigns } from './jungle-signs';
 import { VideoWall } from './video-wall';
 
 /** Metres to the side of the exhibit board where the wall stands. */
@@ -11,6 +12,7 @@ const WALL_OFFSET = 6.5;
  */
 export class DeslopifyScene extends ProjectScene {
   readonly wall: VideoWall;
+  readonly signs: JungleSigns;
 
   constructor(options: ProjectSceneOptions) {
     super(options);
@@ -29,6 +31,8 @@ export class DeslopifyScene extends ProjectScene {
       reducedMotion: options.reducedMotion,
       onDemo: () => options.onDemo?.(),
     });
+    this.signs = new JungleSigns({ ground: this.environment.ground });
+    this.add(this.signs);
     this.add(this.wall);
   }
 

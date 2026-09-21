@@ -10,6 +10,18 @@ const DEPTH = 2.2;
 const HEIGHT = 2.4;
 const WALL = 0.22;
 
+/** The nook's outer shell, so a host can cut room for it: walls included, the open front at +Z. */
+export const HIDDEN_PLACE_SHELL = {
+  width: WIDTH + WALL * 2,
+  innerWidth: WIDTH,
+  /** From the open front to the inner face of the back wall. */
+  innerDepth: DEPTH,
+  /** Local Z of the back wall's outer face. */
+  back: -DEPTH / 2 - WALL,
+  /** Height of the roof's upper face above the floor. */
+  height: HEIGHT + WALL / 2,
+} as const;
+
 export interface HiddenPlaceOptions {
   readonly id: string;
   readonly position: Vector3;
@@ -50,15 +62,20 @@ export class HiddenPlace implements WorldObject {
       rotatedAabb(this.position, -WIDTH / 2 - WALL / 2, 0, WALL / 2, DEPTH / 2, rotationY),
       rotatedAabb(this.position, WIDTH / 2 + WALL / 2, 0, WALL / 2, DEPTH / 2, rotationY),
     ];
-    this.interactables = [
-      {
-        id: `${this.id}:enter`,
-        position: this.position.clone(),
-        radius: INTERACT_RADIUS,
-        prompt: 'Versteck betreten',
-        onInteract: () => this.options.onEnter?.(),
-      },
-    ];
+    // A prompt that does nothing would be dishonest, so a place with no `onEnter` offers none:
+    // walking in is the whole interaction.
+    const onEnter = this.options.onEnter;
+    this.interactables = onEnter
+      ? [
+          {
+            id: `${this.id}:enter`,
+            position: this.position.clone(),
+            radius: INTERACT_RADIUS,
+            prompt: 'Versteck betreten',
+            onInteract: () => onEnter(),
+          },
+        ]
+      : [];
   }
 
   init(ctx: WorldContext): void {

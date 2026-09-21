@@ -120,4 +120,23 @@ describe('cliffWall', () => {
     cliff.computeBoundingBox();
     expect(cliff.boundingBox?.min.y).toBeLessThanOrEqual(-1.5);
   });
+
+  it('leaves a walk-in opening free of rock, and the rest of the face where it was', () => {
+    const opening = { x: 9, width: 3.24, height: 2.5, back: 0.1 };
+    const open = cliffWall(1, 60, 16, notch, opening).getAttribute('position');
+    for (let i = 0; i < open.count; i++) {
+      const inside =
+        Math.abs(open.getX(i) - opening.x) < opening.width / 2 - 1e-6 &&
+        open.getY(i) < opening.height - 1e-6 &&
+        open.getZ(i) > opening.back + 1e-6;
+      expect(inside, `vertex ${i} inside the opening`).toBe(false);
+    }
+
+    // Columns clear of the opening draw the same numbers, so they keep their exact shape.
+    const far = (attribute: typeof open) =>
+      Array.from({ length: attribute.count }, (_, i) => i)
+        .filter((i) => attribute.getX(i) < -20)
+        .map((i) => [attribute.getX(i), attribute.getY(i), attribute.getZ(i)].join());
+    expect(far(open)).toEqual(far(position));
+  });
 });
