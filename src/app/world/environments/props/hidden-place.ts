@@ -62,15 +62,20 @@ export class HiddenPlace implements WorldObject {
       rotatedAabb(this.position, -WIDTH / 2 - WALL / 2, 0, WALL / 2, DEPTH / 2, rotationY),
       rotatedAabb(this.position, WIDTH / 2 + WALL / 2, 0, WALL / 2, DEPTH / 2, rotationY),
     ];
-    this.interactables = [
-      {
-        id: `${this.id}:enter`,
-        position: this.position.clone(),
-        radius: INTERACT_RADIUS,
-        prompt: 'Versteck betreten',
-        onInteract: () => this.options.onEnter?.(),
-      },
-    ];
+    // A prompt that does nothing would be dishonest, so a place with no `onEnter` offers none:
+    // walking in is the whole interaction.
+    const onEnter = this.options.onEnter;
+    this.interactables = onEnter
+      ? [
+          {
+            id: `${this.id}:enter`,
+            position: this.position.clone(),
+            radius: INTERACT_RADIUS,
+            prompt: 'Versteck betreten',
+            onInteract: () => onEnter(),
+          },
+        ]
+      : [];
   }
 
   init(ctx: WorldContext): void {

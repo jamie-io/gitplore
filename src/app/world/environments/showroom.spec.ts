@@ -17,9 +17,9 @@ describe('ShowroomEnvironment', () => {
       }
     ).interactables;
 
-    expect(interactables).toHaveLength(2);
+    // The back room is a place, not a message, so it offers no prompt of its own.
+    expect(interactables).toHaveLength(1);
     expect(interactables[0].id).toBe('showroom:back-room-door:open');
-    expect(interactables[1].id).toBe('showroom:back-room:enter');
     expect(environment.colliders).toHaveLength(10);
 
     const door = (
