@@ -10,6 +10,15 @@ export const LICHTUNG_SIGNPOST_POSITION = [0, 0, 24] as const;
 export const LICHTUNG_SIGNPOST_APPROACH = [0, 22.5] as const;
 
 const SIGN_TEXT = 'Dieser Pfad führt nirgendwohin · HTTP 404';
+export const SIGNPOST_LABEL_ROTATION_Y = Math.PI;
+
+export function createSignpostLabel() {
+  const label = createLabel(SIGN_TEXT, '#6b4528');
+  if (label) {
+    label.rotation.y = SIGNPOST_LABEL_ROTATION_Y;
+  }
+  return label;
+}
 
 /** A small dead-end marker behind the Lichtung arrival point. */
 export class LichtungSignpost implements WorldObject {
@@ -49,7 +58,7 @@ export class LichtungSignpost implements WorldObject {
     board.position.set(0, 1.85, 0);
     board.name = 'lichtung-404-board';
 
-    const label = createLabel(SIGN_TEXT, '#6b4528');
+    const label = createSignpostLabel();
     if (label) {
       label.position.set(0, 1.85, -0.09);
       this.group.add(label);
