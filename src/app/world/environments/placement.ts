@@ -62,7 +62,7 @@ function maxRingSlots(): number {
   return slots;
 }
 
-const MAX_RING_SLOTS = maxRingSlots();
+export const MAX_RING_SLOTS = maxRingSlots();
 
 /** A pinned landmark position, exactly as `ProjectLandmark.position` spells it. */
 export type Position = readonly [number, number, number];

@@ -5,9 +5,12 @@ import {
   PORTAL_HALF_WIDTH,
   VISIBILITY_MARGIN,
   ringPlacements,
+  MAX_RING_SLOTS,
   OUTER_RING_RADIUS,
   RING_RADIUS,
 } from './placement';
+import { LICHTUNG_SIGNPOST_APPROACH, LICHTUNG_SIGNPOST_POSITION } from './signpost';
+import { ClearingEnvironment } from './clearing';
 
 describe('ringPlacements', () => {
   it('returns exactly as many spots as asked for', () => {
@@ -175,6 +178,42 @@ describe('arcAnchors', () => {
 
       expect(front[0]).toBeCloseTo(towardsSpawn[0], 5);
       expect(front[1]).toBeCloseTo(towardsSpawn[1], 5);
+    }
+  });
+});
+
+describe('Lichtung 404 signpost placement', () => {
+  it('keeps the sign behind spawn, outside home base and every hub ring slot', () => {
+    const [x, , z] = LICHTUNG_SIGNPOST_POSITION;
+    const radius = Math.hypot(x, z);
+
+    expect(z).toBeGreaterThan(0);
+    expect(radius).toBeGreaterThanOrEqual(12);
+    expect(Math.abs(Math.atan2(x, -z))).toBeGreaterThan(FRONT_ARC / 2);
+    expect(
+      ringPlacements(MAX_RING_SLOTS).every(
+        ({ position }) => Math.hypot(x - position[0], z - position[2]) >= MIN_LANDMARK_SEPARATION,
+      ),
+    ).toBe(true);
+  });
+
+  it('leaves a walkable route from spawn to the signpost', () => {
+    const route = [[0, 0], [6, 12], LICHTUNG_SIGNPOST_APPROACH] as const;
+    const colliders = new ClearingEnvironment({ reducedMotion: () => false }).colliders;
+    for (let segment = 0; segment < route.length - 1; segment++) {
+      const [from, to] = [route[segment], route[segment + 1]];
+      for (let step = 0; step <= 20; step++) {
+        const t = step / 20;
+        const x = from[0] + (to[0] - from[0]) * t;
+        const z = from[1] + (to[1] - from[1]) * t;
+        expect(
+          colliders.some(
+            (collider) =>
+              collider.kind === 'cylinder' &&
+              Math.hypot(x - collider.x, z - collider.z) < collider.radius,
+          ),
+        ).toBe(false);
+      }
     }
   });
 });

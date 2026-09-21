@@ -37,6 +37,7 @@ import { SharedUniforms } from './shaders/shared-uniforms';
 import { withWind } from './shaders/wind';
 import { Sky } from './sky';
 import { Sun } from './sun';
+import { LichtungSignpost } from './signpost';
 import { POND, POND_WATER_LEVEL, TERRAIN_SIZE, Terrain, terrainGlsl } from './terrain';
 import { Water } from './water';
 
@@ -208,6 +209,7 @@ export class ClearingEnvironment implements Environment {
     decorate: (material) => void withAtmosphere(material, this.shared),
   });
   private readonly monument = new Monument(MONUMENT.clone());
+  private readonly signpost = new LichtungSignpost(this.terrain);
   private readonly sky = new Sky({ mood: LICHTUNG, shared: this.shared });
   private readonly sun = new Sun({ mood: LICHTUNG, shared: this.shared });
   private readonly pond = new Water({
@@ -388,6 +390,7 @@ export class ClearingEnvironment implements Environment {
     this.sky.init(ctx);
     this.sun.init(ctx);
     this.monument.init(ctx);
+    this.signpost.init(ctx);
     this.pond.init(ctx);
     this.grass.setClearings(
       this.reserved.map(([x, , z]) => ({ x, z, radius: LANDMARK_CLEARANCE })),
@@ -422,6 +425,7 @@ export class ClearingEnvironment implements Environment {
     this.grass = undefined;
     this.pond.dispose();
     this.monument.dispose();
+    this.signpost.dispose();
     this.sun.dispose();
     this.sky.dispose();
     this.terrain.dispose();
