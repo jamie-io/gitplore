@@ -71,6 +71,8 @@ const FITTING = 0x1d2127;
 const DOOR_X = 16;
 const DOOR_Z = -24.4;
 const BACK_ROOM_Z = -26.2;
+const DOOR_OPENING_HALF = 1;
+const DOOR_HEIGHT = 2.2;
 
 /** Spots on the rail in front of the exhibits tip back towards them, and the ones behind tip forward. */
 function spotTilt(row: number): number {
@@ -237,16 +239,37 @@ export class ShowroomEnvironment implements Environment {
   });
   private readonly sun = new Sun({ mood: GALERIE, shared: this.shared });
   private readonly added: Object3D[] = [];
+  private readonly lintelCollider: Extract<Collider, { kind: 'aabb' }> & { enabled: boolean };
   private scene: WorldContext['scene'] | null = null;
 
   constructor(private readonly options: EnvironmentOptions) {
     this.colliders = [
-      { kind: 'aabb', minX: -HALF, maxX: DOOR_X - 1, minZ: -HALF - WALL_THICKNESS, maxZ: -HALF },
-      { kind: 'aabb', minX: DOOR_X + 1, maxX: HALF, minZ: -HALF - WALL_THICKNESS, maxZ: -HALF },
+      {
+        kind: 'aabb',
+        minX: -HALF,
+        maxX: DOOR_X - DOOR_OPENING_HALF,
+        minZ: -HALF - WALL_THICKNESS,
+        maxZ: -HALF,
+      },
+      {
+        kind: 'aabb',
+        minX: DOOR_X + DOOR_OPENING_HALF,
+        maxX: HALF,
+        minZ: -HALF - WALL_THICKNESS,
+        maxZ: -HALF,
+      },
       { kind: 'aabb', minX: -HALF, maxX: HALF, minZ: HALF, maxZ: HALF + WALL_THICKNESS },
       { kind: 'aabb', minX: -HALF - WALL_THICKNESS, maxX: -HALF, minZ: -HALF, maxZ: HALF },
       { kind: 'aabb', minX: HALF, maxX: HALF + WALL_THICKNESS, minZ: -HALF, maxZ: HALF },
     ];
+    this.lintelCollider = {
+      kind: 'aabb',
+      minX: DOOR_X - DOOR_OPENING_HALF,
+      maxX: DOOR_X + DOOR_OPENING_HALF,
+      minZ: -HALF - WALL_THICKNESS,
+      maxZ: -HALF,
+      enabled: true,
+    };
     this.door = new Door({
       id: 'showroom:back-room-door',
       position: new Vector3(DOOR_X, 0, DOOR_Z),
@@ -260,7 +283,12 @@ export class ShowroomEnvironment implements Environment {
       thing: new Object3D(),
     });
     this.interactables = [...this.door.interactables, ...this.backRoom.interactables];
-    this.colliders = [...this.colliders, ...this.door.colliders, ...this.backRoom.colliders];
+    this.colliders = [
+      ...this.colliders,
+      this.lintelCollider,
+      ...this.door.colliders,
+      ...this.backRoom.colliders,
+    ];
   }
 
   get ground() {
@@ -297,8 +325,8 @@ export class ShowroomEnvironment implements Environment {
       wash,
     );
     const spans: readonly [number, number, number, number][] = [
-      [(-HALF + DOOR_X - 1) / 2, -HALF, HALF + DOOR_X - 1, WALL_THICKNESS],
-      [(DOOR_X + 1 + HALF) / 2, -HALF, HALF - DOOR_X - 1, WALL_THICKNESS],
+      [(-HALF + DOOR_X - DOOR_OPENING_HALF) / 2, -HALF, HALF + DOOR_X - DOOR_OPENING_HALF, WALL_THICKNESS],
+      [(DOOR_X + DOOR_OPENING_HALF + HALF) / 2, -HALF, HALF - DOOR_X - DOOR_OPENING_HALF, WALL_THICKNESS],
       [0, HALF, HALF * 2, WALL_THICKNESS],
       [-HALF, 0, WALL_THICKNESS, HALF * 2],
       [HALF, 0, WALL_THICKNESS, HALF * 2],
@@ -311,6 +339,16 @@ export class ShowroomEnvironment implements Environment {
       mesh.receiveShadow = shadows;
       this.added.push(mesh);
     }
+
+    const lintel = new Mesh(
+      new BoxGeometry(DOOR_OPENING_HALF * 2, WALL_HEIGHT - DOOR_HEIGHT, WALL_THICKNESS),
+      wall,
+    );
+    lintel.name = 'showroom:back-room-lintel';
+    lintel.position.set(DOOR_X, DOOR_HEIGHT + (WALL_HEIGHT - DOOR_HEIGHT) / 2, -HALF);
+    lintel.castShadow = shadows;
+    lintel.receiveShadow = shadows;
+    this.added.push(lintel);
 
     // The ceiling never casts: the sun lights the hall "through the skylights", which a closed
     // shadow-casting lid would block entirely.
@@ -370,6 +408,7 @@ export class ShowroomEnvironment implements Environment {
     this.shared.update(dt, ctx.player.position, this.options.reducedMotion());
     this.sun.update(dt, ctx);
     this.door.update(dt, ctx);
+    this.lintelCollider.enabled = !this.door.open;
     this.backRoom.update();
   }
 

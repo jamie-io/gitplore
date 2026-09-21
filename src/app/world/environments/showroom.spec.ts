@@ -1,6 +1,9 @@
 import { Mesh, Vector3 } from 'three';
+import { resolveCollisions } from '@engine/player/collision';
 import { stubContext } from '@engine/testing/world-context';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { HALF, INTERIOR_CEILING, ShowroomEnvironment } from './showroom';
+import { ProjectScene } from '../project/project.scene';
 
 const showroom = (reducedMotion = false) =>
   new ShowroomEnvironment({ reducedMotion: () => reducedMotion });
@@ -15,7 +18,7 @@ describe('ShowroomEnvironment', () => {
     expect(interactables).toHaveLength(2);
     expect(interactables[0].id).toBe('showroom:back-room-door:open');
     expect(interactables[1].id).toBe('showroom:back-room:enter');
-    expect(environment.colliders).toHaveLength(9);
+    expect(environment.colliders).toHaveLength(10);
 
     const door = (environment as unknown as {
       readonly door: { readonly position: Vector3 };
@@ -27,6 +30,72 @@ describe('ShowroomEnvironment', () => {
     expect(room.position.z).toBeLessThan(door.position.z - 1);
     expect(Math.hypot(room.position.x, room.position.z - 8)).toBeGreaterThan(8);
     expect(room.colliders).toHaveLength(3);
+  });
+
+  it('closes the wall above the door with a lintel and matching closed-state collider', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+
+    environment.init(ctx);
+
+    const lintel = ctx.scene.getObjectByName('showroom:back-room-lintel');
+    expect(lintel).toBeInstanceOf(Mesh);
+    expect(lintel?.position.y).toBeCloseTo(4.6, 5);
+    expect(
+      environment.colliders.some(
+        (collider) =>
+          collider.kind === 'aabb' &&
+          collider.minX === 15 &&
+          collider.maxX === 17 &&
+          collider.minZ === -24.8 &&
+          collider.maxZ === -24,
+      ),
+    ).toBe(true);
+
+    environment.dispose();
+  });
+
+  it('keeps route closed until door opens, then lets visitor reach room', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+    environment.init(ctx);
+
+    expect(resolveCollisions(16, -24.5, 0.35, environment.colliders, -Infinity).z).toBeLessThan(
+      -24.5,
+    );
+
+    ctx.player.teleport(new Vector3(16, 1.7, -23.3), 0);
+    environment.update(0, ctx);
+
+    expect(environment.door.open).toBe(true);
+    expect(resolveCollisions(16, -24.5, 0.35, environment.colliders, -Infinity)).toEqual({
+      x: 16,
+      z: -24.5,
+    });
+
+    environment.dispose();
+  });
+
+  it('keeps back room clear of exhibit, portal, path and repository data objects', () => {
+    const environment = showroom(true);
+    const scene = new ProjectScene({
+      environment,
+      project: PROJECT_FIXTURES[0],
+      reducedMotion: () => true,
+      onOpenInfo: () => undefined,
+      onLeave: () => undefined,
+    });
+    const room = environment.backRoom.position;
+    const projectColliders = scene.colliders.slice(environment.colliders.length);
+
+    for (const collider of projectColliders) {
+      const distance =
+        collider.kind === 'cylinder'
+          ? Math.hypot(room.x - collider.x, room.z - collider.z) - collider.radius
+          : Math.max(collider.minX - room.x, 0, room.x - collider.maxX) +
+            Math.max(collider.minZ - room.z, 0, room.z - collider.maxZ);
+      expect(distance).toBeGreaterThan(2);
+    }
   });
 
   it('disposes its door and back room with the environment', () => {
@@ -43,7 +112,7 @@ describe('ShowroomEnvironment', () => {
   it('blocks only its four walls, so the bespoke scenes own the floor', () => {
     const colliders = showroom().colliders;
 
-    expect(colliders.length).toBe(9);
+    expect(colliders.length).toBe(10);
     expect(colliders.every((collider) => collider.kind === 'aabb')).toBe(true);
   });
 
