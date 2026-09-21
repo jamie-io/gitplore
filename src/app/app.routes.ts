@@ -21,6 +21,12 @@ export const routes: Routes = [
           },
         ],
       },
+      {
+        // The contact dialog over the start world; the camp's obelisk opens it (T10).
+        path: 'kontakt',
+        loadComponent: () =>
+          import('./ui/contact-dialog/contact-dialog').then((m) => m.ContactDialog),
+      },
     ],
   },
   {

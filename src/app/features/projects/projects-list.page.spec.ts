@@ -3,6 +3,7 @@ import { provideRouter } from '@angular/router';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
 import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
+import { ABOUT } from '@content/about';
 import { ProjectsListPage } from './projects-list.page';
 
 describe('ProjectsListPage', () => {
@@ -21,6 +22,19 @@ describe('ProjectsListPage', () => {
     await TestBed.inject(ContentService).ready;
     fixture = TestBed.createComponent(ProjectsListPage);
     await fixture.whenStable();
+  });
+
+  it('heads the list with Jamie’s name, role, contact and CV from about.ts', () => {
+    const about = host().querySelector('section.about');
+
+    expect(about?.querySelector('h2')?.textContent).toBe(ABOUT.profile.name);
+    expect(about?.textContent).toContain(ABOUT.profile.role);
+    expect(about?.querySelector('a[data-role="mail"]')?.getAttribute('href')).toBe(
+      `mailto:${ABOUT.profile.email}`,
+    );
+    expect(about?.querySelector('a[data-role="document"]')?.textContent?.trim()).toBe(
+      'Lebenslauf, PDF, 144 kB',
+    );
   });
 
   it('lists every project as a card', () => {

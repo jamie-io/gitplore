@@ -14,6 +14,20 @@ test.describe('simple view', () => {
     await expect(page.locator('article', { hasText: 'Phönix' })).toHaveCount(1);
   });
 
+  test('the project list is headed by who made it and how to reach him', async ({ page }) => {
+    await page.goto('/projects');
+    const about = page.locator('section.about');
+
+    await expect(about.getByRole('heading', { level: 2 })).toHaveText('Jamie Jahn');
+    await expect(about.locator('a[data-role="mail"]')).toHaveAttribute(
+      'href',
+      'mailto:jamiejahn68@gmail.com',
+    );
+    const cv = about.locator('a[data-role="document"]');
+    await expect(cv).toHaveText('Lebenslauf, PDF, 144 kB');
+    await expect(cv).toHaveAttribute('download', '');
+  });
+
   test('a detail page shows the README and the links', async ({ page }) => {
     await page.goto('/projects/novaverta');
 

@@ -99,6 +99,12 @@ describe('WorldStore', () => {
       expect(store.inputMode()).toBe('ui');
     });
 
+    it('is the ui while the contact dialog is open over the world', () => {
+      store.setContactOpen(true);
+
+      expect(store.inputMode()).toBe('ui');
+    });
+
     it('is the ui while the menu is open', () => {
       store.toggleMenu();
 

@@ -29,6 +29,10 @@ class StubInfoPanel {
   readonly slug = input<string>();
 }
 
+/** A stub for the `kontakt` leaf: the page only needs to know the contact route is open. */
+@Component({ template: '' })
+class StubContactDialog {}
+
 describe('WorldPage', () => {
   let fixture: ComponentFixture<WorldPage>;
   let engine: StubEngine;
@@ -84,7 +88,10 @@ describe('WorldPage', () => {
         // `ActivatedRoute` stands in for `WorldPage`'s own node, so the top-level entry here plays
         // the part its children play in `app.routes.ts`.
         provideRouter(
-          [{ path: 'p/:slug', children: [{ path: 'info', component: StubInfoPanel }] }],
+          [
+            { path: 'p/:slug', children: [{ path: 'info', component: StubInfoPanel }] },
+            { path: 'kontakt', component: StubContactDialog },
+          ],
           // Matches `app.config.ts`: without this, no route ever fills a component `input()`,
           // regardless of params inheritance, and the test below would pass for the wrong reason.
           withComponentInputBinding(),
@@ -333,7 +340,10 @@ describe('WorldPage', () => {
       imports: [WorldPage],
       providers: [
         provideRouter(
-          [{ path: 'p/:slug', children: [{ path: 'info', component: StubInfoPanel }] }],
+          [
+            { path: 'p/:slug', children: [{ path: 'info', component: StubInfoPanel }] },
+            { path: 'kontakt', component: StubContactDialog },
+          ],
           withComponentInputBinding(),
         ),
         provideHttpClient(),
@@ -398,5 +408,37 @@ describe('WorldPage', () => {
     // its own for `withComponentInputBinding()` to inherit params past it — stop and report rather
     // than reaching for `paramsInheritanceStrategy: 'always'` unasked.
     expect(panel?.slug()).toBe('novaverta');
+  });
+
+  it('hands the input to the contact dialog and keeps the start world under it', async () => {
+    await bootWithoutManifest();
+    store.markStarted();
+    const hub = engine.world;
+    await TestBed.inject(Router).navigate(['/kontakt']);
+    TestBed.tick();
+
+    expect(store.contactOpen()).toBe(true);
+    expect(store.inputMode()).toBe('ui');
+    expect(engine.world).toBe(hub);
+    // Two modal dialogs at once is exactly what the menu gate must prevent.
+    press('KeyM');
+    expect(store.menuOpen()).toBe(false);
+
+    press('Escape');
+    await settle(() => !store.contactOpen(), 'the contact dialog to close');
+
+    expect(TestBed.inject(Router).url).toBe('/');
+    expect(store.inputMode()).toBe('world');
+    // Opening and closing the dialog never rebuilt the world under it.
+    expect(engine.world).toBe(hub);
+    expect(hub?.id).toBe('hub');
+  });
+
+  it('keeps the start gate out of the way of a deep-linked contact dialog', async () => {
+    await TestBed.inject(Router).navigate(['/kontakt']);
+    await bootWithoutManifest();
+
+    expect(fixture.debugElement.query(By.directive(StubContactDialog))).not.toBeNull();
+    expect((fixture.nativeElement as HTMLElement).querySelector('app-loading-screen')).toBeNull();
   });
 });

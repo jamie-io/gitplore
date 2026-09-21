@@ -15,6 +15,8 @@ export const A11Y_ROUTES = [
   // task lists, so it exercises the markdown renderer's list path.
   { path: '/?force3d=1', preset: 'desktop', world: true },
   { path: '/p/deslopify/info?force3d=1', preset: 'desktop', world: true },
+  // The contact dialog the camp's obelisk opens over the start world (T10).
+  { path: '/kontakt?force3d=1', preset: 'desktop', world: true },
 ];
 
 /** The score every route has to reach; the design spec asks for a perfect category (§8). */
