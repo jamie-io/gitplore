@@ -262,3 +262,29 @@ export function variants(
     ),
   );
 }
+
+/**
+ * Stands the variants `variants` built at new placements, split round-robin the same way. Each
+ * variant keeps its geometry and material, so a reseed compiles no shader and leaves the scene's
+ * geometry count alone; only the old instance buffers are released. The new meshes take the old
+ * ones' place in the scene graph.
+ */
+export function replaceVariants(
+  meshes: readonly InstancedMesh[],
+  placements: readonly Placement[],
+  options: Omit<InstancedOptions, 'name'>,
+): InstancedMesh[] {
+  return meshes.map((old, index) => {
+    const next = buildInstanced(
+      old.geometry,
+      old.material as Material,
+      placements.filter((_, i) => i % meshes.length === index),
+      { ...options, name: old.name },
+    );
+    old.parent?.add(next);
+    old.removeFromParent();
+    // Releases the instance matrix and colour buffers only; geometry and material live on.
+    old.dispose();
+    return next;
+  });
+}

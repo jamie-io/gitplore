@@ -29,6 +29,7 @@ import {
   buildInstanced,
   cylinderColliders,
   foliageTint,
+  replaceVariants,
   scatter,
   stoneTint,
   variants,
@@ -254,6 +255,13 @@ export class JungleEnvironment implements Environment {
     readonly boulders: readonly Placement[];
   };
   private props: InstancedMesh[] = [];
+  /** The collider-free undergrowth the seed lever scatters again; also listed in `props`. */
+  private undergrowth: {
+    readonly leaves: InstancedMesh[];
+    readonly ferns: InstancedMesh[];
+    readonly shadows: boolean;
+    readonly density: number;
+  } | null = null;
   private scene: WorldContext['scene'] | null = null;
 
   constructor(private readonly options: EnvironmentOptions) {
@@ -360,9 +368,41 @@ export class JungleEnvironment implements Environment {
     this.fireflies.update();
   }
 
+  /**
+   * The seed lever: scatters the undergrowth, the spores, the fireflies and the far hills again
+   * from their seeds shifted by `offset`. Everything that places a collider — the groves, the
+   * boulders, the cliff — and the lianas hung from the kapok trees stay where they are. Geometry
+   * and materials are kept, so a pull compiles no shader.
+   */
+  reseedDecoration(offset: number): void {
+    const undergrowth = this.undergrowth;
+    if (!undergrowth) {
+      return;
+    }
+    const { leaves, fronds } = this.undergrowthPlacements(undergrowth.density, offset);
+    const replacedLeaves = replaceVariants(undergrowth.leaves, leaves, {
+      castShadow: undergrowth.shadows,
+      tint: foliageTint,
+    });
+    const replacedFerns = replaceVariants(undergrowth.ferns, fronds, { tint: foliageTint });
+    this.props = this.props.map((mesh) => {
+      const leaf = undergrowth.leaves.indexOf(mesh);
+      if (leaf >= 0) {
+        return replacedLeaves[leaf];
+      }
+      const fern = undergrowth.ferns.indexOf(mesh);
+      return fern >= 0 ? replacedFerns[fern] : mesh;
+    });
+    this.undergrowth = { ...undergrowth, leaves: replacedLeaves, ferns: replacedFerns };
+    this.spores.reseed(offset);
+    this.fireflies.reseed(offset);
+    this.backdrop.reseed(offset);
+  }
+
   dispose(): void {
     this.props.forEach(disposeObject3D);
     this.props = [];
+    this.undergrowth = null;
     this.backdrop.dispose();
     this.fireflies.dispose();
     this.spores.dispose();
@@ -398,28 +438,7 @@ export class JungleEnvironment implements Environment {
     );
     const tall = { castShadow: shadows, receiveShadow: shadows, tint: foliageTint, sink: 0.15 };
 
-    const leaves = scatter(
-      {
-        seed: 61,
-        count: Math.round(110 * density),
-        area: { inner: 5, outer: EDGE },
-        clusters: { count: 16, radius: 6 },
-        scale: [0.8, 1.4],
-        exclusions: STAGE_FLOOR,
-      },
-      this.floor,
-    );
-    const fronds = scatter(
-      {
-        seed: 62,
-        count: Math.round(600 * density),
-        area: { inner: 4, outer: EDGE },
-        clusters: { count: 30, radius: 7 },
-        scale: [0.7, 1.4],
-        exclusions: STAGE_FLOOR,
-      },
-      this.floor,
-    );
+    const { leaves, fronds } = this.undergrowthPlacements(density, 0);
     const vines: Placement[] = this.groves.kapok.flatMap((tree, index) =>
       [0.9, 2.6].map((turn, k) => {
         const reach = 2.2 + k * 1.3;
@@ -441,6 +460,17 @@ export class JungleEnvironment implements Environment {
       { name: 'cliff', castShadow: shadows, receiveShadow: shadows },
     );
 
+    const bigLeaves = variants(bigLeafPlant, [10, 11], leaves, leafy(1.8), {
+      name: 'big-leaf',
+      castShadow: shadows,
+      tint: foliageTint,
+    });
+    const groundFerns = variants(groundFern, [12, 13], fronds, leafy(0.6), {
+      name: 'fern',
+      tint: foliageTint,
+    });
+    this.undergrowth = { leaves: bigLeaves, ferns: groundFerns, shadows, density };
+
     return [
       cliff,
       ...variants(kapokTree, [1, 2, 3], this.groves.kapok, leafy(16, 0.015), {
@@ -455,13 +485,43 @@ export class JungleEnvironment implements Environment {
         receiveShadow: shadows,
         tint: stoneTint,
       }),
-      ...variants(bigLeafPlant, [10, 11], leaves, leafy(1.8), {
-        name: 'big-leaf',
-        castShadow: shadows,
-        tint: foliageTint,
-      }),
-      ...variants(groundFern, [12, 13], fronds, leafy(0.6), { name: 'fern', tint: foliageTint }),
+      ...bigLeaves,
+      ...groundFerns,
       ...variants(liana, [14, 15, 16], vines, still, { name: 'liana', tint: foliageTint }),
     ];
+  }
+
+  /**
+   * Where the undergrowth stands. Its scatters place no collider, so the seed lever may shift their
+   * seeds; the groves' scatters also place trunks and never move.
+   */
+  private undergrowthPlacements(
+    density: number,
+    offset: number,
+  ): { readonly leaves: Placement[]; readonly fronds: Placement[] } {
+    return {
+      leaves: scatter(
+        {
+          seed: 61 + offset,
+          count: Math.round(110 * density),
+          area: { inner: 5, outer: EDGE },
+          clusters: { count: 16, radius: 6 },
+          scale: [0.8, 1.4],
+          exclusions: STAGE_FLOOR,
+        },
+        this.floor,
+      ),
+      fronds: scatter(
+        {
+          seed: 62 + offset,
+          count: Math.round(600 * density),
+          area: { inner: 4, outer: EDGE },
+          clusters: { count: 30, radius: 7 },
+          scale: [0.7, 1.4],
+          exclusions: STAGE_FLOOR,
+        },
+        this.floor,
+      ),
+    };
   }
 }

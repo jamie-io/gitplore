@@ -140,17 +140,15 @@ export class Motes implements WorldObject {
   readonly id = 'motes';
 
   private points?: Points;
+  private count = 0;
   private readonly viewport = new Vector2();
 
   constructor(private readonly options: MotesOptions) {}
 
   init(ctx: WorldContext): void {
     const { area, followCamera, shared } = this.options;
-    const count = pointCount(this.options.count, ctx.quality);
-    const geometry = new BufferGeometry();
-    const { positions, seeds } = layout(this.options, count);
-    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-    geometry.setAttribute('seed', new Float32BufferAttribute(seeds, 2));
+    this.count = pointCount(this.options.count, ctx.quality);
+    const geometry = this.buildGeometry(this.options.seed);
 
     const uniforms = {
       time: shared.time,
@@ -182,20 +180,6 @@ export class Motes implements WorldObject {
     if (followCamera) {
       // The shader keeps the cloud around the camera, so it is never out of view.
       points.frustumCulled = false;
-    } else {
-      if (this.options.heightAt) {
-        geometry.computeBoundingSphere();
-        const sphere = geometry.boundingSphere as Sphere | null;
-        if (sphere) {
-          sphere.radius += this.options.drift * 1.25;
-        }
-      } else {
-        const halfSpan = (area.maxY - area.minY) / 2;
-        geometry.boundingSphere = new Sphere(
-          new Vector3(area.x, area.minY + halfSpan, area.z),
-          Math.hypot(area.radius, halfSpan) + this.options.drift * 1.25,
-        );
-      }
     }
     // The context carries no renderer, and the size a mote should have on screen depends on the
     // drawing buffer's height. Three hands the renderer over right before each draw, so read it
@@ -219,11 +203,47 @@ export class Motes implements WorldObject {
     // Everything moves in the shader on the shared clock.
   }
 
+  /**
+   * Scatters the same cloud again from its seed shifted by `offset`. Only the geometry is rebuilt;
+   * the material stays, so the seed lever never compiles a shader.
+   */
+  reseed(offset: number): void {
+    if (!this.points) {
+      return;
+    }
+    this.points.geometry.dispose();
+    this.points.geometry = this.buildGeometry(this.options.seed + offset);
+  }
+
   dispose(): void {
     if (this.points) {
       disposeObject3D(this.points);
       this.points = undefined;
     }
+  }
+  private buildGeometry(seed: number): BufferGeometry {
+    const { area, followCamera } = this.options;
+    const geometry = new BufferGeometry();
+    const { positions, seeds } = layout({ ...this.options, seed }, this.count);
+    geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('seed', new Float32BufferAttribute(seeds, 2));
+    if (followCamera) {
+      return geometry;
+    }
+    if (this.options.heightAt) {
+      geometry.computeBoundingSphere();
+      const sphere = geometry.boundingSphere as Sphere | null;
+      if (sphere) {
+        sphere.radius += this.options.drift * 1.25;
+      }
+    } else {
+      const halfSpan = (area.maxY - area.minY) / 2;
+      geometry.boundingSphere = new Sphere(
+        new Vector3(area.x, area.minY + halfSpan, area.z),
+        Math.hypot(area.radius, halfSpan) + this.options.drift * 1.25,
+      );
+    }
+    return geometry;
   }
 }
 

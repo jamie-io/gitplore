@@ -484,6 +484,15 @@ export class PlazaEnvironment implements Environment {
     this.jets.update();
   }
 
+  /**
+   * The seed lever. The square's only collider-free random decoration is the far hills: the houses
+   * are one seeded stream that also places their footprints, and everything else stands at a fixed
+   * spot, so all of that stays.
+   */
+  reseedDecoration(offset: number): void {
+    this.backdrop?.reseed(offset);
+  }
+
   dispose(): void {
     this.added.forEach(disposeObject3D);
     this.added.length = 0;
