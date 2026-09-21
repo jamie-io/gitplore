@@ -45,7 +45,7 @@ function walk(
 
 function rooftop(environment: PlazaEnvironment): SteppableBox {
   const roofs = environment.colliders.filter(steppableBox);
-  const roof = roofs.reduce<typeof roofs[number] | null>(
+  const roof = roofs.reduce<(typeof roofs)[number] | null>(
     (highest, collider) => (!highest || collider.top > highest.top ? collider : highest),
     null,
   );
@@ -173,9 +173,9 @@ describe('PlazaEnvironment', () => {
     for (let index = 1; index < rising.length; index++) {
       expect(rising[index - 1].maxZ).toBeCloseTo(rising[index].minZ, 6);
     }
-    expect(Math.hypot(centre.x - environment.spawn.x, centre.z - environment.spawn.z)).toBeGreaterThan(
-      20,
-    );
+    expect(
+      Math.hypot(centre.x - environment.spawn.x, centre.z - environment.spawn.z),
+    ).toBeGreaterThan(20);
     expect(Math.hypot(centre.x - exhibit.x, centre.z - exhibit.z)).toBeGreaterThan(20);
     // T9's ridge, pillars, releases and lanterns sit on this arrival-to-exhibit route.
     expect(routeDistance).toBeGreaterThan(10);
@@ -213,16 +213,22 @@ describe('PlazaEnvironment', () => {
     expect(guards.some((guard) => guard.maxX === roof.maxX)).toBe(true);
     expect(guards.some((guard) => guard.maxZ === roof.maxZ)).toBe(true);
 
-    const roofBoxes = [sceneBounds(ctx.scene, 'plaza-rooftop'), sceneBounds(ctx.scene, 'plaza-rooftop-stairs')];
+    const roofBoxes = [
+      sceneBounds(ctx.scene, 'plaza-rooftop'),
+      sceneBounds(ctx.scene, 'plaza-rooftop-stairs'),
+    ];
     for (const name of ['commit-ridge', 'language-pillars', 'release-markers', 'star-lanterns']) {
       const dataBox = sceneBounds(ctx.scene, name);
-      expect(roofBoxes.some((roofBox) => dataBox.intersectsBox(roofBox)), name).toBe(false);
+      expect(
+        roofBoxes.some((roofBox) => dataBox.intersectsBox(roofBox)),
+        name,
+      ).toBe(false);
     }
 
     const [exhibit, portal] = target.landmarks;
-    expect(clearance(target.arrival.position.x, target.arrival.position.z, target.colliders)).toBeGreaterThanOrEqual(
-      PLAYER_RADIUS,
-    );
+    expect(
+      clearance(target.arrival.position.x, target.arrival.position.z, target.colliders),
+    ).toBeGreaterThanOrEqual(PLAYER_RADIUS);
     expect(
       clearance(
         portal.position.x,
@@ -257,12 +263,14 @@ describe('PlazaEnvironment', () => {
     const roof = rooftop(environment);
     const player = new PlayerController();
     const stairStart = environment.colliders
-      .filter(
-        (collider): collider is SteppableBox => steppableBox(collider) && collider !== roof,
-      )
+      .filter((collider): collider is SteppableBox => steppableBox(collider) && collider !== roof)
       .reduce((lowest, stair) => (stair.top < lowest.top ? stair : lowest));
     player.teleport(
-      new Vector3((stairStart.minX + stairStart.maxX) / 2, PLAYER_EYE_HEIGHT, stairStart.minZ - 0.5),
+      new Vector3(
+        (stairStart.minX + stairStart.maxX) / 2,
+        PLAYER_EYE_HEIGHT,
+        stairStart.minZ - 0.5,
+      ),
       Math.PI,
     );
 
@@ -276,6 +284,49 @@ describe('PlazaEnvironment', () => {
 
     expect(player.position.z).toBeLessThan(stairStart.minZ);
     expect(player.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 2);
+  });
+
+  it('lets the body clip a riser by no more than its radius, and never stand inside a crate', () => {
+    // Deferred T3 limit: `covers()` ignores PLAYER_RADIUS, so a tread only lifts the body once its
+    // centre is over it. Until then the front of the body sinks into the riser; the treads are deep
+    // enough that this stays a clip of at most one radius and never reads as walking into the crate.
+    const environment = plaza();
+    const roof = rooftop(environment);
+    const stairs = environment.colliders.filter(
+      (collider): collider is SteppableBox => steppableBox(collider) && collider !== roof,
+    );
+    const first = stairs.reduce((lowest, stair) => (stair.top < lowest.top ? stair : lowest));
+    const player = new PlayerController();
+    player.teleport(
+      new Vector3((first.minX + first.maxX) / 2, PLAYER_EYE_HEIGHT, first.minZ - 0.5),
+      Math.PI,
+    );
+
+    let deepest = 0;
+    for (let frame = 0; frame < 60 * 8; frame++) {
+      player.update(
+        1 / 60,
+        { ...NO_INTENT, forward: 1 },
+        environment.ground,
+        environment.colliders,
+      );
+      const feet = player.position.y - PLAYER_EYE_HEIGHT;
+      const { x, z } = player.position;
+      for (const stair of stairs) {
+        if (stair.top <= feet + 1e-3 || x < stair.minX || x > stair.maxX) {
+          continue;
+        }
+        expect(z <= stair.minZ || z >= stair.maxZ, `centre inside a crate at ${z}`).toBe(true);
+        if (z < stair.minZ) {
+          deepest = Math.max(deepest, z + PLAYER_RADIUS - stair.minZ);
+        }
+      }
+    }
+
+    expect(player.position.y).toBeCloseTo(roof.top + PLAYER_EYE_HEIGHT, 2);
+    expect(deepest).toBeGreaterThan(0);
+    expect(deepest).toBeLessThanOrEqual(PLAYER_RADIUS + 1e-6);
+    expect(deepest / (first.maxZ - first.minZ)).toBeLessThan(0.5);
   });
 
   it('keeps a one-frame 0.35 m rooftop-edge shove on a guard or the descending tread', () => {
