@@ -1,5 +1,4 @@
-import { IcosahedronGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { HiddenPlace } from '../../environments/props/hidden-place';
+import { Vector3 } from 'three';
 import { InWorldDemo, ProjectScene, ProjectSceneOptions } from '../../project/project.scene';
 import { JungleSigns } from './jungle-signs';
 import { VideoWall } from './video-wall';
@@ -13,7 +12,6 @@ const WALL_OFFSET = 6.5;
  */
 export class DeslopifyScene extends ProjectScene {
   readonly wall: VideoWall;
-  readonly cave: HiddenPlace;
   readonly signs: JungleSigns;
 
   constructor(options: ProjectSceneOptions) {
@@ -33,18 +31,7 @@ export class DeslopifyScene extends ProjectScene {
       reducedMotion: options.reducedMotion,
       onDemo: () => options.onDemo?.(),
     });
-    this.cave = new HiddenPlace({
-      id: 'dschungel-wasserfall-hoehle',
-      position: new Vector3(9, 0, -50.6),
-      rotationY: 0,
-      ground: this.environment.ground,
-      thing: new Mesh(
-        new IcosahedronGeometry(0.45, 1),
-        new MeshStandardMaterial({ color: 0x79a89b, roughness: 0.55, metalness: 0.15 }),
-      ),
-    });
     this.signs = new JungleSigns({ ground: this.environment.ground });
-    this.add(this.cave);
     this.add(this.signs);
     this.add(this.wall);
   }
