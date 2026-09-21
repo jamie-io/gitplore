@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import { Interactable } from '@engine/interaction/interactable';
+import type { InputActionSource } from '@engine/input.service';
 import { Collider } from '@engine/player/collision';
 import { PlayerController } from '@engine/player/player-controller';
 import { PlayerVisual } from '@engine/player/player-visual';
@@ -11,9 +12,102 @@ import { CommitRidge } from '../environments/data/commit-ridge';
 import { LanguagePillars, languageSideOffset } from '../environments/data/language-pillars';
 import { ReleaseMarkers } from '../environments/data/release-markers';
 import { StarLanterns } from '../environments/data/star-lanterns';
+import { SeedLever } from '../environments/props/seed-lever';
+import { Terminal } from '../environments/props/terminal';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { ScreenLandmark } from '../landmarks/base/screen.landmark';
 import { ReturnPortal } from './return.landmark';
+
+/** Metres from the walk's centre line to either toy: past the ridge and release cairns on one side. */
+export const TOY_SIDE_OFFSET = 4.5;
+/**
+ * Where each toy may stand, in order of preference: a share of the walk and a side of it (+1 the
+ * language pillars' side, −1 the commit ridge's). The terminal stands early and the lever late, both
+ * short of or past the pillar row at the midpoint. The first spot whose footprint keeps `TOY_ROOM`
+ * from everything the environment blocks wins: the Plaza's fountain, for one, fills the pillar
+ * side of the early walk, so its terminal crosses to the other side.
+ */
+export const TERMINAL_SPOTS: readonly (readonly [along: number, side: 1 | -1])[] = [
+  [0.3, 1],
+  [0.25, 1],
+  [0.35, 1],
+  [0.3, -1],
+  [0.25, -1],
+  [0.35, -1],
+];
+export const LEVER_SPOTS: readonly (readonly [along: number, side: 1 | -1])[] = [
+  [0.7, -1],
+  [0.75, -1],
+  [0.65, -1],
+  [0.7, 1],
+  [0.75, 1],
+];
+/** Radius around a toy's centre that holds its whole footprint: half the terminal's width. */
+const TOY_REACH = 1.35;
+const TOY_ROOM = 1;
+
+export interface ToyPlacement {
+  readonly position: Vector3;
+  /** Exhibit convention: 0 faces +Z. */
+  readonly rotationY: number;
+}
+
+/**
+ * Where the terminal and the seed lever stand: beside the walk from the arrival point to the
+ * exhibit, never on it, each turned to face the walk and the visitor coming along it. The ridge and the
+ * release cairns keep within about 3.3 m of the centre line and the pillar row stands at the walk's
+ * midpoint, so both toys stay clear of them. Deterministic: the same world always puts them in the
+ * same place.
+ */
+export function toyPlacements(
+  arrival: Vector3,
+  exhibit: Vector3,
+  blocked: readonly Collider[],
+): { readonly terminal: ToyPlacement; readonly lever: ToyPlacement } {
+  const axis = new Vector3(exhibit.x - arrival.x, 0, exhibit.z - arrival.z);
+  const length = axis.length();
+  if (length > 0) {
+    axis.divideScalar(length);
+  } else {
+    axis.set(0, 0, -1);
+  }
+  // The same side vector the commit ridge and the release markers use; they stand on its minus side.
+  const side = new Vector3(-axis.z, 0, axis.x);
+  const place = (along: number, sign: number): ToyPlacement => {
+    const position = arrival
+      .clone()
+      .setY(0)
+      .addScaledVector(axis, length * along)
+      .addScaledVector(side, sign * TOY_SIDE_OFFSET);
+    // Face back across the walk and a little towards the arrival point.
+    const front = side.clone().multiplyScalar(-sign).addScaledVector(axis, -0.6);
+    return { position, rotationY: Math.atan2(front.x, front.z) };
+  };
+  const first = (candidates: readonly (readonly [number, number])[]): ToyPlacement => {
+    const spots = candidates.map(([along, sign]) => place(along, sign));
+    return (
+      spots.find((spot) => gap(spot.position.x, spot.position.z, blocked) > TOY_REACH + TOY_ROOM) ??
+      spots[0]
+    );
+  };
+  return { terminal: first(TERMINAL_SPOTS), lever: first(LEVER_SPOTS) };
+}
+
+/** Metres from (x, z) to the nearest collider's surface. */
+function gap(x: number, z: number, colliders: readonly Collider[]): number {
+  let nearest = Infinity;
+  for (const collider of colliders) {
+    const distance =
+      collider.kind === 'cylinder'
+        ? Math.hypot(x - collider.x, z - collider.z) - collider.radius
+        : Math.hypot(
+            Math.max(collider.minX - x, 0, x - collider.maxX),
+            Math.max(collider.minZ - z, 0, z - collider.maxZ),
+          );
+    nearest = Math.min(nearest, distance);
+  }
+  return nearest;
+}
 
 /** Anything a project scene owns: it may block, it may offer, and it is disposed with the scene. */
 export interface SceneObject extends WorldObject {
@@ -45,6 +139,8 @@ export interface ProjectSceneOptions {
   readonly onLeave: () => void;
   /** The visitor asked to start this world's in-world demo; the director hands it the controls. */
   readonly onDemo?: () => void;
+  /** Captured controls for the terminal; omitted by headless scene specs. */
+  readonly input?: InputActionSource;
   readonly textures?: TextureProvider;
 }
 
@@ -68,6 +164,9 @@ export class ProjectScene implements WorldScene {
   protected readonly project: Project;
   protected readonly returnPortal: ReturnPortal;
   protected readonly exhibit: ScreenLandmark;
+  /** The two toys every project world gets; public so specs can find them. */
+  readonly terminal: Terminal;
+  readonly seedLever: SeedLever;
 
   private readonly parts: SceneObject[];
   private cachedColliders: readonly Collider[] | null = null;
@@ -112,6 +211,27 @@ export class ProjectScene implements WorldScene {
 
     this.arrival = { position: this.returnPortal.spawn, yaw: this.returnPortal.spawnYaw };
     this.landmarks = [this.exhibit, this.returnPortal];
+    const toys = toyPlacements(
+      this.arrival.position,
+      this.exhibit.position,
+      this.environment.colliders,
+    );
+    this.terminal = new Terminal({
+      id: `${this.id}:terminal`,
+      position: toys.terminal.position,
+      rotationY: toys.terminal.rotationY,
+      ground: this.environment.ground,
+      project: options.project,
+      input: options.input,
+    });
+    this.seedLever = new SeedLever({
+      id: `${this.id}:seed-lever`,
+      position: toys.lever.position,
+      rotationY: toys.lever.rotationY,
+      ground: this.environment.ground,
+      onReseed: (offset) => this.environment.reseedDecoration?.(offset),
+      reducedMotion: options.reducedMotion,
+    });
     const side = new Vector3(
       Math.cos(this.exhibit.rotationY),
       0,
@@ -122,6 +242,8 @@ export class ProjectScene implements WorldScene {
       .lerp(this.exhibit.position, 0.5)
       .addScaledVector(side, languageSideOffset(options.project));
     this.parts = [
+      this.terminal,
+      this.seedLever,
       this.exhibit,
       this.returnPortal,
       new CommitRidge({

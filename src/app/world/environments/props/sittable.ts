@@ -1,10 +1,11 @@
-import { BoxGeometry, Euler, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { disposeObject3D } from '@engine/dispose';
 import type { InputCapture } from '@engine/input.service';
 import { Collider, HeightField } from '@engine/player/collision';
 import { PLAYER_EYE_HEIGHT, PlayerController } from '@engine/player/player-controller';
 import { Interactable } from '@engine/interaction/interactable';
 import { WorldContext, WorldObject } from '@engine/world-object';
+import { rotatedAabb } from './footprint';
 
 const INTERACT_RADIUS = 2.8;
 const HALF_WIDTH = 1.05;
@@ -143,24 +144,4 @@ export class Sittable implements WorldObject {
     this.player?.setEyeHeightOffset(0);
     this.options.onStand?.();
   }
-}
-
-function rotatedAabb(
-  origin: Vector3,
-  halfWidth: number,
-  halfDepth: number,
-  rotationY: number,
-): Extract<Collider, { kind: 'aabb' }> {
-  const rotation = new Euler(0, rotationY, 0);
-  const corners = [-halfWidth, halfWidth].flatMap((x) =>
-    [-halfDepth, halfDepth].map((z) => new Vector3(x, 0, z).applyEuler(rotation).add(origin)),
-  );
-
-  return {
-    kind: 'aabb',
-    minX: Math.min(...corners.map((corner) => corner.x)),
-    maxX: Math.max(...corners.map((corner) => corner.x)),
-    minZ: Math.min(...corners.map((corner) => corner.z)),
-    maxZ: Math.max(...corners.map((corner) => corner.z)),
-  };
 }

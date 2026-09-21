@@ -4,6 +4,7 @@ import { AssetService } from '@engine/asset.service';
 import { AudioService } from '@engine/audio/audio.service';
 import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
+import { InputService } from '@engine/input.service';
 import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
 import { WorldScene } from '@engine/world-object';
 import { ContentService } from '@content/content.service';
@@ -28,6 +29,7 @@ export class SceneDirector {
   private readonly capability = inject(CapabilityService);
   private readonly assets = inject(AssetService);
   private readonly audio = inject(AudioService);
+  private readonly input = inject(InputService);
   private readonly store = inject(WorldStore);
   private readonly router = inject(Router);
 
@@ -197,6 +199,7 @@ export class SceneDirector {
       onOpenInfo: () => void this.router.navigate(['/p', project.slug, 'info']),
       onLeave: () => void this.router.navigate(['/']),
       onDemo: () => this.startDemo(),
+      input: this.input,
       textures: this.assets,
     });
   }

@@ -72,4 +72,43 @@ test.describe('memory', () => {
     expect(after.geometries).toBeLessThanOrEqual(baseline.geometries);
     expect(after.textures).toBeLessThanOrEqual(baseline.textures);
   });
+
+  test('five pulls of the seed lever leave memory where it was', async ({ page }) => {
+    await startWorld(page, '/?stats=1');
+    await page.keyboard.press('KeyM');
+    await page.locator('a[data-role="open"][data-slug="deslopify"]').click();
+    await expect(page).toHaveURL(/\/p\/deslopify$/);
+    await expect(page.locator('app-hud .area')).toContainText('Dschungel');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
+
+    // Walk up to the lever as a visitor does. It stands 4.5 m left of the walk, 70 % of the way
+    // to the exhibit (`toyPlacements`). Forward-left runs at exactly 45° whatever the frame rate,
+    // so about 1.4 s of it puts the visitor roughly on the lever's line — anything within a couple
+    // of metres will do — and straight on from there brings it into reach, ahead of the eyes.
+    const prompt = page.locator('app-hud .prompt');
+    await page.keyboard.down('KeyW');
+    await page.keyboard.down('KeyA');
+    await page.waitForTimeout(1400);
+    await page.keyboard.up('KeyA');
+    await expect(prompt).toContainText('Dekoration neu würfeln', { timeout: 30_000 });
+    await page.keyboard.up('KeyW');
+
+    const KEYS = ['scene-geometries', 'scene-textures', 'geometries', 'textures'] as const;
+    const baseline = await settledStats(page, KEYS, 3);
+
+    for (let pull = 0; pull < 5; pull++) {
+      await page.keyboard.press('KeyE');
+      // One stats interval between pulls, so each rebuild is drawn at least once.
+      await page.waitForTimeout(700);
+      await expect(prompt).toContainText('Dekoration neu würfeln');
+    }
+
+    // The same pair rules as above: the scene's counts must be identical, the renderer's may only
+    // stay level or fall.
+    const after = await settledStats(page, KEYS, 3);
+    expect(after['scene-geometries']).toBe(baseline['scene-geometries']);
+    expect(after['scene-textures']).toBe(baseline['scene-textures']);
+    expect(after.geometries).toBeLessThanOrEqual(baseline.geometries);
+    expect(after.textures).toBeLessThanOrEqual(baseline.textures);
+  });
 });
