@@ -19,6 +19,7 @@ import { assemble, paint } from './flora';
 import { ProceduralGround } from './ground';
 import { LightPools, LightPoolsOptions } from './light-pools';
 import { GALERIE, applyMood, clearMood } from './mood';
+import { Motes } from './motes';
 import { MIN_LANDMARK_SEPARATION, Position, clearOf } from './placement';
 import { ReflectiveFloor } from './reflective-floor';
 import { SharedUniforms } from './shaders/shared-uniforms';
@@ -240,6 +241,23 @@ export class ShowroomEnvironment implements Environment {
     intensity: 0.12,
   });
   private readonly sun = new Sun({ mood: GALERIE, shared: this.shared });
+  /**
+   * Dust drifting in the skylight light: the hall's one piece of random decoration, and so what
+   * the seed lever scatters again here. Faint, slow and far fewer than the jungle's spores.
+   */
+  private readonly dust = new Motes({
+    shared: this.shared,
+    seed: 501,
+    count: 160,
+    area: { x: 0, z: 0, radius: HALF - 4, minY: 0.8, maxY: WALL_HEIGHT - 1.2 },
+    followCamera: false,
+    colour: FIXTURE_LIGHT,
+    size: 0.035,
+    glow: 1,
+    directGlow: 0.4,
+    drift: 0.5,
+    flicker: 0.05,
+  });
   private readonly added: Object3D[] = [];
   private readonly lintelCollider: Extract<Collider, { kind: 'aabb' }> & { enabled: boolean };
   private scene: WorldContext['scene'] | null = null;
@@ -320,6 +338,7 @@ export class ShowroomEnvironment implements Environment {
     this.reflection.init(ctx);
     this.pools.init(ctx);
     this.sun.init(ctx);
+    this.dust.init(ctx);
 
     const wash = { top: WALL_HEIGHT, colour: FIXTURE_LIGHT, strength: 0.35 };
     const wall = withWallWash(
@@ -427,11 +446,17 @@ export class ShowroomEnvironment implements Environment {
     this.backRoom.update();
   }
 
+  /** The seed lever. Walls, fittings and light pools all stand where the hall's plan puts them. */
+  reseedDecoration(offset: number): void {
+    this.dust.reseed(offset);
+  }
+
   dispose(): void {
     this.added.forEach(disposeObject3D);
     this.added.length = 0;
     this.door.dispose();
     this.backRoom.dispose();
+    this.dust.dispose();
     this.sun.dispose();
     this.pools.dispose();
     this.reflection.dispose();

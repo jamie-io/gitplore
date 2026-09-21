@@ -5,6 +5,7 @@ import type { Project } from '@content/project.model';
 import { JungleEnvironment } from '../environments/jungle';
 import { PlazaEnvironment } from '../environments/plaza';
 import { ShowroomEnvironment } from '../environments/showroom';
+import { clearance } from '../environments/testing/clearance';
 import { ProjectScene, ProjectSceneOptions } from './project.scene';
 
 const PROJECT = PROJECT_FIXTURES[0];
@@ -70,6 +71,46 @@ describe('ProjectScene', () => {
     const ids = scene().interactables.map((interactable) => interactable.id);
 
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('adds the terminal and seed lever beside, not on, the arrival walk', () => {
+    const target = scene();
+    const prompts = target.interactables.map((interactable) => interactable.prompt);
+    const walk = target.landmarks[0].position.clone().sub(target.arrival.position);
+    walk.y = 0;
+    const length = walk.length();
+    walk.normalize();
+
+    expect(prompts).toContain('Terminal bedienen');
+    expect(prompts).toContain('Dekoration neu würfeln');
+    expect(target.landmarks).toHaveLength(2);
+    expect(target.colliders).toContainEqual(target.terminal.colliders[0]);
+    expect(target.colliders).toContainEqual(target.seedLever.colliders[0]);
+
+    for (const prop of [target.terminal, target.seedLever]) {
+      const fromArrival = prop.position.clone().sub(target.arrival.position);
+      const along = fromArrival.dot(walk);
+      const lateral = Math.abs(fromArrival.x * walk.z - fromArrival.z * walk.x);
+      expect(along).toBeGreaterThan(0);
+      expect(along).toBeLessThan(length);
+      expect(lateral).toBeGreaterThan(3.5);
+    }
+  });
+
+  it.each([
+    ['Showroom', () => new ShowroomEnvironment({ reducedMotion: () => true })],
+    ['Dschungel', () => new JungleEnvironment({ reducedMotion: () => true })],
+    ['Plaza', () => new PlazaEnvironment({ reducedMotion: () => true })],
+  ] as const)('keeps both toys clear of %s environment colliders', (_name, buildEnvironment) => {
+    const environment = buildEnvironment();
+    const target = scene({ environment });
+
+    for (const prop of [target.terminal, target.seedLever]) {
+      expect(
+        clearance(prop.position.x, prop.position.z, environment.colliders),
+        `${prop.id} at (${prop.position.x.toFixed(2)}, ${prop.position.z.toFixed(2)}) overlaps environment`,
+      ).toBeGreaterThan(0.5);
+    }
   });
 
   it('blocks what the environment blocks as well as its own landmarks', () => {

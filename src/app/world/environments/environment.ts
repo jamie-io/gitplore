@@ -40,6 +40,12 @@ export interface Environment extends WorldObject {
   readonly colliders: readonly Collider[];
   readonly interactables?: readonly Interactable[];
   /**
+   * The seed lever's hook: scatters the collider-free decoration again from every decoration seed
+   * shifted by `offset`. Terrain, paths and anything that places a collider never move, and the
+   * offset is never stored, so a rebuilt world always starts from offset 0.
+   */
+  reseedDecoration?(offset: number): void;
+  /**
    * `count` places to stand a landmark, turned to face an approaching visitor. Layout is the
    * environment's business: a clearing scatters differently from a plaza.
    *

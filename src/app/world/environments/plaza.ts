@@ -273,14 +273,19 @@ function flatRoofHouse(seed: number, options: HouseOptions): BufferGeometry {
   const floors = Math.max(1, Math.floor(height / 3));
   const parts: BufferGeometry[] = [
     paint(new BoxGeometry(width, height, depth).translate(0, height / 2, 0), options.stucco),
-    paint(new BoxGeometry(width + 0.6, 0.35, depth + 0.6).translate(0, height - 0.175, 0), FLAT_ROOF),
+    paint(
+      new BoxGeometry(width + 0.6, 0.35, depth + 0.6).translate(0, height - 0.175, 0),
+      FLAT_ROOF,
+    ),
   ];
 
   for (let floor = 0; floor < floors; floor++) {
     for (let column = 0; column < columns; column++) {
       const x = -width / 2 + spacing * (column + 0.5);
       if (floor === 0 && column === doorColumn) {
-        parts.push(paint(new BoxGeometry(1.2, 2.3, 0.14).translate(x, 1.15, front + 0.03), HOUSE_DOOR));
+        parts.push(
+          paint(new BoxGeometry(1.2, 2.3, 0.14).translate(x, 1.15, front + 0.03), HOUSE_DOOR),
+        );
         continue;
       }
       const y = 1.6 + floor * 3;
@@ -307,7 +312,11 @@ function rooftopGeometry<T extends Extract<Collider, { kind: 'aabb' }>>(
     colliders.map((collider) => {
       const { base, height } = dimensions(collider);
       return paint(
-        new BoxGeometry(collider.maxX - collider.minX, height, collider.maxZ - collider.minZ).translate(
+        new BoxGeometry(
+          collider.maxX - collider.minX,
+          height,
+          collider.maxZ - collider.minZ,
+        ).translate(
           (collider.minX + collider.maxX) / 2,
           base + height / 2,
           (collider.minZ + collider.maxZ) / 2,
@@ -632,6 +641,15 @@ export class PlazaEnvironment implements Environment {
     this.lowerPool.update();
     this.upperPool.update();
     this.jets.update();
+  }
+
+  /**
+   * The seed lever. The square's only collider-free random decoration is the far hills: the houses
+   * are one seeded stream that also places their footprints, and everything else stands at a fixed
+   * spot, so all of that stays.
+   */
+  reseedDecoration(offset: number): void {
+    this.backdrop?.reseed(offset);
   }
 
   dispose(): void {

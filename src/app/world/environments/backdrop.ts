@@ -85,6 +85,19 @@ export class Backdrop implements WorldObject {
     // Static: the hills do not move.
   }
 
+  /**
+   * Reshapes every ring from its seed shifted by `offset`. Only the geometry is rebuilt; the
+   * materials stay, so the seed lever never compiles a shader.
+   */
+  reseed(offset: number): void {
+    const horizon = new Color(this.horizon);
+    this.meshes.forEach((mesh, index) => {
+      const ring = this.rings[index];
+      mesh.geometry.dispose();
+      mesh.geometry = ringGeometry({ ...ring, seed: ring.seed + offset }, horizon);
+    });
+  }
+
   dispose(): void {
     this.meshes.forEach(disposeObject3D);
     this.meshes.length = 0;

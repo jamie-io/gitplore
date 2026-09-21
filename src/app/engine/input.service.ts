@@ -47,6 +47,11 @@ export interface InputCapture {
   addCaptureListener(listener: CaptureListener): () => void;
 }
 
+/** Input surface for props that need capture plus one-shot actions while captured. */
+export interface InputActionSource extends InputCapture {
+  addActionListener(listener: ActionListener): () => void;
+}
+
 function isEditable(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
@@ -59,7 +64,7 @@ function isEditable(target: EventTarget | null): boolean {
  * signal per frame: the render loop pulls an intent, and only the lock state and mode are signals.
  */
 @Service()
-export class InputService implements InputCapture {
+export class InputService implements InputActionSource {
   readonly locked = signal(false);
   readonly mode = signal<InputMode>('world');
 

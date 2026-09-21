@@ -1,35 +1,16 @@
 import { Component, computed, input } from '@angular/core';
 import type { Project } from '@content/project.model';
-
-const INTEGER_FORMAT = new Intl.NumberFormat('de-DE');
-const PERCENT_FORMAT = new Intl.NumberFormat('de-DE', {
-  minimumFractionDigits: 1,
-  maximumFractionDigits: 1,
-});
-const DATE_FORMAT = new Intl.DateTimeFormat('de-DE', {
-  dateStyle: 'long',
-  timeZone: 'UTC',
-});
-
-interface LanguageRow {
-  readonly name: string;
-  readonly bytes: number;
-  readonly share: number;
-}
-
-interface CommitActivity {
-  readonly total: number;
-  readonly activeBuckets: number;
-  readonly bucketCount: number;
-  readonly peak: number;
-  readonly start?: string;
-  readonly end?: string;
-}
-
-interface ReleaseRow {
-  readonly name: string;
-  readonly date?: string;
-}
+import {
+  formatCommitActivityLines,
+  formatInteger,
+  formatLanguageLine,
+  formatOptionalDate,
+  hasRepositoryData,
+  repositoryCommitActivity,
+  repositoryLanguages,
+  repositoryReleases,
+  REPOSITORY_LABELS,
+} from '@content/repository-data';
 
 /** Plain-text counterpart of repository objects shown inside each 3D project world. */
 @Component({
@@ -38,27 +19,22 @@ interface ReleaseRow {
     @if (hasData()) {
       <section class="repository-data" aria-labelledby="repository-data-title">
         @if (topLevel() === 2) {
-          <h2 class="repository-data-title" id="repository-data-title">Repositorydaten</h2>
+          <h2 class="repository-data-title" id="repository-data-title">{{ labels.repository }}</h2>
         } @else {
-          <h3 class="repository-data-title" id="repository-data-title">Repositorydaten</h3>
+          <h3 class="repository-data-title" id="repository-data-title">{{ labels.repository }}</h3>
         }
 
         @if (project().languages !== undefined) {
           <section aria-labelledby="languages-title">
             @if (topLevel() === 2) {
-              <h3 id="languages-title">Sprachen</h3>
+              <h3 id="languages-title">{{ labels.languages }}</h3>
             } @else {
-              <h4 id="languages-title">Sprachen</h4>
+              <h4 id="languages-title">{{ labels.languages }}</h4>
             }
             @if (languages().length > 0) {
               <ul>
                 @for (language of languages(); track language.name) {
-                  <li>
-                    {{ language.name }}: {{ formatInteger(language.bytes) }} Bytes ({{
-                      formatPercent(language.share)
-                    }}
-                    %)
-                  </li>
+                  <li>{{ formatLanguageLine(language) }}</li>
                 }
               </ul>
             } @else {
@@ -70,40 +46,13 @@ interface ReleaseRow {
         @if (project().commitBuckets !== undefined) {
           <section aria-labelledby="commits-title">
             @if (topLevel() === 2) {
-              <h3 id="commits-title">Commit-Aktivität</h3>
+              <h3 id="commits-title">{{ labels.commits }}</h3>
             } @else {
-              <h4 id="commits-title">Commit-Aktivität</h4>
+              <h4 id="commits-title">{{ labels.commits }}</h4>
             }
             @if (commitActivity(); as activity) {
-              @if (activity.total === 0) {
-                <p>Keine Commits im erfassten Zeitraum.</p>
-              } @else if (activity.start && activity.end) {
-                @if (activity.start === activity.end) {
-                  <p>
-                    {{ formatInteger(activity.total) }}
-                    {{ activity.total === 1 ? 'Commit' : 'Commits' }} am {{ activity.start }}.
-                  </p>
-                } @else {
-                  <p>
-                    {{ formatInteger(activity.total) }}
-                    {{ activity.total === 1 ? 'Commit' : 'Commits' }} im Zeitraum vom
-                    {{ activity.start }} bis {{ activity.end }}.
-                  </p>
-                }
-              } @else {
-                <p>
-                  {{ formatInteger(activity.total) }}
-                  {{ activity.total === 1 ? 'Commit' : 'Commits' }} in der erfassten Aktivität.
-                </p>
-              }
-              @if (activity.total > 0) {
-                <p>
-                  Verteilt auf {{ formatInteger(activity.activeBuckets) }} von
-                  {{ formatInteger(activity.bucketCount) }} Zeitabschnitten; stärkster
-                  Zeitabschnitt:
-                  {{ formatInteger(activity.peak) }}
-                  {{ activity.peak === 1 ? 'Commit' : 'Commits' }}.
-                </p>
+              @for (line of formatCommitActivityLines(activity); track $index) {
+                <p>{{ line }}</p>
               }
             }
           </section>
@@ -112,9 +61,9 @@ interface ReleaseRow {
         @if (releases().length > 0) {
           <section aria-labelledby="releases-title">
             @if (topLevel() === 2) {
-              <h3 id="releases-title">Veröffentlichungen</h3>
+              <h3 id="releases-title">{{ labels.releases }}</h3>
             } @else {
-              <h4 id="releases-title">Veröffentlichungen</h4>
+              <h4 id="releases-title">{{ labels.releases }}</h4>
             }
             <ul>
               @for (release of releases(); track release.name + release.date) {
@@ -132,31 +81,31 @@ interface ReleaseRow {
         <dl class="metrics">
           @if ((project().stars ?? 0) > 0) {
             <div>
-              <dt>Sterne</dt>
+              <dt>{{ labels.stars }}</dt>
               <dd>{{ formatInteger(project().stars ?? 0) }}</dd>
             </div>
           }
           @if ((project().forks ?? 0) > 0) {
             <div>
-              <dt>Forks</dt>
+              <dt>{{ labels.forks }}</dt>
               <dd>{{ formatInteger(project().forks ?? 0) }}</dd>
             </div>
           }
           @if ((project().openIssues ?? 0) > 0) {
             <div>
-              <dt>Offene Issues</dt>
+              <dt>{{ labels.openIssues }}</dt>
               <dd>{{ formatInteger(project().openIssues ?? 0) }}</dd>
             </div>
           }
           @if (project().license !== undefined) {
             <div>
-              <dt>Lizenz</dt>
-              <dd>{{ project().license ?? 'Keine Lizenz angegeben' }}</dd>
+              <dt>{{ labels.license }}</dt>
+              <dd>{{ project().license ?? labels.licenseMissing }}</dd>
             </div>
           }
           @if (createdAt(); as createdAt) {
             <div>
-              <dt>Erstellt</dt>
+              <dt>{{ labels.created }}</dt>
               <dd>{{ createdAt }}</dd>
             </div>
           }
@@ -219,96 +168,19 @@ export class RepositoryData {
   readonly project = input.required<Project>();
   /** Heading level where this component starts; child headings are one level deeper. */
   readonly topLevel = input(2);
+  protected readonly labels = REPOSITORY_LABELS;
 
-  protected readonly languages = computed<readonly LanguageRow[]>(() => {
-    const entries = Object.entries(this.project().languages ?? {})
-      .filter(([, bytes]) => Number.isFinite(bytes) && bytes > 0)
-      .sort(([leftName, leftBytes], [rightName, rightBytes]) => {
-        const byteOrder = rightBytes - leftBytes;
-        return byteOrder !== 0 ? byteOrder : leftName.localeCompare(rightName, 'en');
-      });
-    const total = entries.reduce((sum, [, bytes]) => sum + bytes, 0);
+  protected readonly languages = computed(() => repositoryLanguages(this.project()));
 
-    return entries.map(([name, bytes]) => ({
-      name,
-      bytes,
-      share: total > 0 ? bytes / total : 0,
-    }));
-  });
+  protected readonly commitActivity = computed(() => repositoryCommitActivity(this.project()));
 
-  protected readonly commitActivity = computed<CommitActivity | undefined>(() => {
-    const buckets = this.project().commitBuckets;
-    if (buckets === undefined) {
-      return undefined;
-    }
-
-    const values = buckets.map((value) =>
-      typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0,
-    );
-    const total = values.reduce((sum, value) => sum + value, 0);
-    const dates = [this.project().createdAt, this.project().firstCommitAt]
-      .map(parseDate)
-      .filter((value): value is number => value !== undefined);
-    const pushedAt = parseDate(this.project().pushedAt);
-    const start = dates.length > 0 ? formatDate(new Date(Math.min(...dates))) : undefined;
-    const end = pushedAt === undefined ? undefined : formatDate(new Date(pushedAt));
-
-    return {
-      total,
-      activeBuckets: values.filter((value) => value > 0).length,
-      bucketCount: values.length,
-      peak: values.reduce((highest, value) => Math.max(highest, value), 0),
-      ...(start !== undefined ? { start } : {}),
-      ...(end !== undefined ? { end } : {}),
-    };
-  });
-
-  protected readonly releases = computed<readonly ReleaseRow[]>(() =>
-    (this.project().releases ?? []).map((release) => {
-      const date = formatOptionalDate(release.date);
-      return date === undefined ? { name: release.name } : { name: release.name, date };
-    }),
-  );
+  protected readonly releases = computed(() => repositoryReleases(this.project()));
 
   protected readonly createdAt = computed(() => formatOptionalDate(this.project().createdAt));
 
-  protected readonly hasData = computed(() => {
-    const project = this.project();
-    return (
-      project.languages !== undefined ||
-      project.commitBuckets !== undefined ||
-      project.releases !== undefined ||
-      (project.stars ?? 0) > 0 ||
-      (project.forks ?? 0) > 0 ||
-      (project.openIssues ?? 0) > 0 ||
-      project.license !== undefined ||
-      project.createdAt !== undefined
-    );
-  });
+  protected readonly hasData = computed(() => hasRepositoryData(this.project()));
 
-  protected formatInteger(value: number): string {
-    return INTEGER_FORMAT.format(value);
-  }
-
-  protected formatPercent(value: number): string {
-    return PERCENT_FORMAT.format(value * 100);
-  }
-}
-
-function parseDate(value: string | undefined): number | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  const parsed = Date.parse(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function formatOptionalDate(value: string | undefined): string | undefined {
-  const parsed = parseDate(value);
-  return parsed === undefined ? undefined : formatDate(new Date(parsed));
-}
-
-function formatDate(value: Date): string {
-  return DATE_FORMAT.format(value);
+  protected readonly formatInteger = formatInteger;
+  protected readonly formatLanguageLine = formatLanguageLine;
+  protected readonly formatCommitActivityLines = formatCommitActivityLines;
 }

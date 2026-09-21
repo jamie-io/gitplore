@@ -1,6 +1,14 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { mergedProjects } from '../../../../scripts/lib/portfolio.mjs';
 import type { Project } from '@content/project.model';
+import {
+  formatCommitActivityLines,
+  formatLanguageLine,
+  formatReleaseLine,
+  repositoryCommitActivity,
+  repositoryLanguages,
+  repositoryReleases,
+} from '@content/repository-data';
 import { RepositoryData } from './repository-data';
 
 const COMMIT_BUCKETS = Array.from({ length: 52 }, (_, index) =>
@@ -52,6 +60,20 @@ describe('RepositoryData', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({ imports: [RepositoryData] }).compileComponents();
+  });
+
+  it('prints every sentence word for word as the shared formatters, which the in-world terminal also uses', () => {
+    render(PROJECT);
+
+    const sentences = [
+      ...repositoryLanguages(PROJECT).map(formatLanguageLine),
+      ...formatCommitActivityLines(repositoryCommitActivity(PROJECT)!),
+      ...repositoryReleases(PROJECT).map(formatReleaseLine),
+    ];
+    expect(sentences).toHaveLength(5);
+    for (const sentence of sentences) {
+      expect(text()).toContain(sentence);
+    }
   });
 
   it('renders language shares, activity, releases and repository metrics in German', () => {
