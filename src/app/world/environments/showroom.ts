@@ -25,8 +25,8 @@ import { SharedUniforms } from './shaders/shared-uniforms';
 import { withTiles } from './shaders/tiles';
 import { withWallWash } from './shaders/wall-wash';
 import { Sun } from './sun';
-import { Door } from './props/door';
-import { HiddenPlace } from './props/hidden-place';
+import { DOOR_FRAME, Door } from './props/door';
+import { HIDDEN_PLACE_SHELL, HiddenPlace } from './props/hidden-place';
 
 /** Half the hall's floor, in metres. */
 export const HALF = 24;
@@ -70,9 +70,11 @@ const CEILING = 0xf1efeb;
 const FITTING = 0x1d2127;
 const DOOR_X = 16;
 const DOOR_Z = -24.4;
-const BACK_ROOM_Z = -26.2;
-const DOOR_OPENING_HALF = 1;
-const DOOR_HEIGHT = 2.2;
+/** The hole in the wall is exactly the door's frame, so nothing shows beside or above it. */
+const DOOR_OPENING_HALF = DOOR_FRAME.width / 2;
+const DOOR_HEIGHT = DOOR_FRAME.height;
+/** The back room's open front meets the wall's outer face, leaving no gap to see out through. */
+const BACK_ROOM_Z = -HALF - WALL_THICKNESS - HIDDEN_PLACE_SHELL.innerDepth / 2;
 
 /** Spots on the rail in front of the exhibits tip back towards them, and the ones behind tip forward. */
 function spotTilt(row: number): number {
@@ -325,8 +327,18 @@ export class ShowroomEnvironment implements Environment {
       wash,
     );
     const spans: readonly [number, number, number, number][] = [
-      [(-HALF + DOOR_X - DOOR_OPENING_HALF) / 2, -HALF, HALF + DOOR_X - DOOR_OPENING_HALF, WALL_THICKNESS],
-      [(DOOR_X + DOOR_OPENING_HALF + HALF) / 2, -HALF, HALF - DOOR_X - DOOR_OPENING_HALF, WALL_THICKNESS],
+      [
+        (-HALF + DOOR_X - DOOR_OPENING_HALF) / 2,
+        -HALF,
+        HALF + DOOR_X - DOOR_OPENING_HALF,
+        WALL_THICKNESS,
+      ],
+      [
+        (DOOR_X + DOOR_OPENING_HALF + HALF) / 2,
+        -HALF,
+        HALF - DOOR_X - DOOR_OPENING_HALF,
+        WALL_THICKNESS,
+      ],
       [0, HALF, HALF * 2, WALL_THICKNESS],
       [-HALF, 0, WALL_THICKNESS, HALF * 2],
       [HALF, 0, WALL_THICKNESS, HALF * 2],
@@ -391,12 +403,15 @@ export class ShowroomEnvironment implements Environment {
     glow.name = 'fittings-glow';
     this.added.push(glow);
 
+    // From the hall's edge, under the doorway, to the back room's rear wall; never over the hall.
+    const roomFront = -HALF;
+    const roomBack = BACK_ROOM_Z + HIDDEN_PLACE_SHELL.back;
     const roomFloor = new Mesh(
-      new BoxGeometry(5.2, 0.04, 4.2),
+      new BoxGeometry(HIDDEN_PLACE_SHELL.width, 0.04, roomFront - roomBack),
       new MeshStandardMaterial({ color: FLOOR, roughness: 0.3 }),
     );
     roomFloor.name = 'showroom:back-room-floor';
-    roomFloor.position.set(DOOR_X, -0.02, BACK_ROOM_Z);
+    roomFloor.position.set(DOOR_X, -0.02, (roomFront + roomBack) / 2);
     this.added.push(roomFloor);
 
     this.added.forEach((object) => ctx.scene.add(object));

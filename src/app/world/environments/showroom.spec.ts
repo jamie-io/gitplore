@@ -1,5 +1,5 @@
-import { Mesh, Vector3 } from 'three';
-import { resolveCollisions } from '@engine/player/collision';
+import { Box3, Mesh, Vector3 } from 'three';
+import { Collider, resolveCollisions } from '@engine/player/collision';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { HALF, INTERIOR_CEILING, ShowroomEnvironment } from './showroom';
@@ -11,21 +11,27 @@ const showroom = (reducedMotion = false) =>
 describe('ShowroomEnvironment', () => {
   it('places a reachable door and back room clear of the hall arrival and exhibit row', () => {
     const environment = showroom();
-    const interactables = (environment as unknown as {
-      readonly interactables: readonly { readonly id: string }[];
-    }).interactables;
+    const interactables = (
+      environment as unknown as {
+        readonly interactables: readonly { readonly id: string }[];
+      }
+    ).interactables;
 
     expect(interactables).toHaveLength(2);
     expect(interactables[0].id).toBe('showroom:back-room-door:open');
     expect(interactables[1].id).toBe('showroom:back-room:enter');
     expect(environment.colliders).toHaveLength(10);
 
-    const door = (environment as unknown as {
-      readonly door: { readonly position: Vector3 };
-    }).door;
-    const room = (environment as unknown as {
-      readonly backRoom: { readonly position: Vector3; readonly colliders: readonly unknown[] };
-    }).backRoom;
+    const door = (
+      environment as unknown as {
+        readonly door: { readonly position: Vector3 };
+      }
+    ).door;
+    const room = (
+      environment as unknown as {
+        readonly backRoom: { readonly position: Vector3; readonly colliders: readonly unknown[] };
+      }
+    ).backRoom;
     expect(door.position.z).toBeLessThan(-23);
     expect(room.position.z).toBeLessThan(door.position.z - 1);
     expect(Math.hypot(room.position.x, room.position.z - 8)).toBeGreaterThan(8);
@@ -40,13 +46,13 @@ describe('ShowroomEnvironment', () => {
 
     const lintel = ctx.scene.getObjectByName('showroom:back-room-lintel');
     expect(lintel).toBeInstanceOf(Mesh);
-    expect(lintel?.position.y).toBeCloseTo(4.6, 5);
+    expect(lintel?.position.y).toBeCloseTo(4.725, 5);
     expect(
       environment.colliders.some(
         (collider) =>
           collider.kind === 'aabb' &&
-          collider.minX === 15 &&
-          collider.maxX === 17 &&
+          collider.minX === 15.25 &&
+          collider.maxX === 16.75 &&
           collider.minZ === -24.8 &&
           collider.maxZ === -24,
       ),
@@ -96,6 +102,35 @@ describe('ShowroomEnvironment', () => {
             Math.max(collider.minZ - room.z, 0, room.z - collider.maxZ);
       expect(distance).toBeGreaterThan(2);
     }
+  });
+
+  it('fits the door frame to the wall hole and the back room to the wall, leaving no gap', () => {
+    const ctx = stubContext();
+    const environment = showroom();
+    environment.init(ctx);
+    ctx.scene.updateMatrixWorld(true);
+
+    const frame = new Box3().setFromObject(
+      ctx.scene.getObjectByName('showroom:back-room-door:frame')!,
+    );
+    const room = new Box3().setFromObject(ctx.scene.getObjectByName('showroom:back-room')!);
+    const lintel = new Box3().setFromObject(
+      ctx.scene.getObjectByName('showroom:back-room-lintel')!,
+    );
+    const [left, right] = environment.colliders.filter(
+      (collider): collider is Extract<Collider, { kind: 'aabb' }> =>
+        collider.kind === 'aabb' && collider.maxZ === -HALF && collider.minZ < -HALF,
+    );
+
+    expect(frame.min.x).toBeCloseTo(left.maxX, 5);
+    expect(frame.max.x).toBeCloseTo(right.minX, 5);
+    expect(frame.max.y).toBeCloseTo(lintel.min.y, 5);
+    // The room's open front reaches the wall's outer face, and its roof tucks under the wall.
+    expect(room.max.z).toBeGreaterThanOrEqual(left.minZ);
+    expect(room.min.x).toBeLessThan(frame.min.x);
+    expect(room.max.x).toBeGreaterThan(frame.max.x);
+
+    environment.dispose();
   });
 
   it('disposes its door and back room with the environment', () => {
