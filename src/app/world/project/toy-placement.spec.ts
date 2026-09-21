@@ -1,6 +1,7 @@
 import { InstancedMesh, Matrix4, Mesh, Object3D, Texture, Vector3 } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import type { Collider } from '@engine/player/collision';
+import { PLAYER_RADIUS } from '@engine/player/player-controller';
 import type { Project } from '@content/project.model';
 import { mergedProjects } from '../../../../scripts/lib/portfolio.mjs';
 import { createEnvironment } from '../environments/create-environment';
@@ -99,6 +100,14 @@ async function expectToysClear(project: Project): Promise<void> {
     expect(along, `${where} is not beside the walk`).toBeGreaterThan(0);
     expect(along, `${where} is not beside the walk`).toBeLessThan(length);
     expect(lateral, `${where} stands on the walk`).toBeCloseTo(TOY_SIDE_OFFSET, 5);
+
+    if (toy === scene.terminal) {
+      const reading = scene.terminal.reading;
+      expect(
+        clearance(reading.x, reading.z, scene.colliders),
+        `the reading spot in front of ${where} is blocked`,
+      ).toBeGreaterThan(PLAYER_RADIUS);
+    }
 
     const footprint = toy.colliders.flatMap(outline);
     const blocked = Math.min(...footprint.map((point) => clearance(point.x, point.z, others)));

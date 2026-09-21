@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { CanvasTexture, Mesh, MeshBasicMaterial, Texture, Vector3 } from 'three';
 import type { InputAction, InputActionSource } from '@engine/input.service';
+import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
 import { stubContext } from '@engine/testing/world-context';
 import type { Project } from '@content/project.model';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
@@ -8,6 +9,7 @@ import {
   buildTerminalPages,
   Terminal,
   TERMINAL_PROMPT,
+  TERMINAL_LINES_PER_PAGE,
   TERMINAL_RELEASE_PROMPT,
   terminalFooter,
   wrapLine,
@@ -95,6 +97,21 @@ describe('buildTerminalPages', () => {
     expect(pages[0].lines).toEqual([PROJECT.title, PROJECT.summary, PROJECT.repoUrl]);
   });
 
+  it('runs a long section on over several pages rather than cutting it', () => {
+    const languages = Object.fromEntries(
+      Array.from({ length: 18 }, (_, index) => [`Sprache${index}`, 100 - index]),
+    );
+    const pages = buildTerminalPages({ ...PROJECT, languages });
+    const languagePages = pages.filter((page) => page.title === 'Sprachen');
+
+    expect(languagePages.map((page) => page.lines.length)).toEqual([
+      TERMINAL_LINES_PER_PAGE,
+      TERMINAL_LINES_PER_PAGE,
+      18 - 2 * TERMINAL_LINES_PER_PAGE,
+    ]);
+    expect(languagePages.flatMap((page) => page.lines)).toHaveLength(18);
+  });
+
   it('omits missing, empty and zero repository values', () => {
     const project: Project = {
       ...PROJECT,
@@ -166,6 +183,34 @@ describe('Terminal', () => {
     input.emit('down');
     expect(target.pageIndex).toBe(target.pages.length - 1);
 
+    // The next visit starts on the first page again.
+    target.interactables[0].onInteract();
+    expect(target.pageIndex).toBe(0);
+
+    target.dispose();
+  });
+
+  it('steps the visitor square in front of the screen when it takes the controls', () => {
+    const input = new FakeInput();
+    const target = new Terminal({
+      id: 'test:terminal',
+      position: new Vector3(4, 0, -2),
+      rotationY: Math.PI / 2,
+      ground,
+      project: PROJECT,
+      input,
+    });
+    const ctx = stubContext();
+    target.init(ctx);
+
+    target.interactables[0].onInteract();
+
+    // Facing +X, so the visitor stands on +X of it and looks back along −X.
+    expect(ctx.player.position.x).toBeCloseTo(4 + 2.3, 5);
+    expect(ctx.player.position.z).toBeCloseTo(-2, 5);
+    expect(ctx.player.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 5);
+    expect(ctx.player.yaw).toBeCloseTo(Math.PI / 2, 5);
+    expect(target.reading.distanceTo(ctx.player.position)).toBeCloseTo(0, 5);
     target.dispose();
   });
 

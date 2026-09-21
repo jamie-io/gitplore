@@ -12,6 +12,7 @@ import {
 import type { InputAction, InputActionSource } from '@engine/input.service';
 import { disposeObject3D } from '@engine/dispose';
 import { Collider, HeightField } from '@engine/player/collision';
+import { PLAYER_EYE_HEIGHT, PlayerController } from '@engine/player/player-controller';
 import { Interactable } from '@engine/interaction/interactable';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import type { Project } from '@content/project.model';
@@ -31,10 +32,10 @@ import { rotatedAabb } from './footprint';
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 640;
 const MARGIN = 48;
-const TITLE_FONT = 'bold 44px system-ui, sans-serif';
-const BODY_FONT = '28px system-ui, sans-serif';
-const SMALL_FONT = '22px system-ui, sans-serif';
-const LINE_HEIGHT = 38;
+const TITLE_FONT = 'bold 54px system-ui, sans-serif';
+const BODY_FONT = '36px system-ui, sans-serif';
+const SMALL_FONT = '26px system-ui, sans-serif';
+const LINE_HEIGHT = 48;
 const BODY_TOP = 176;
 const FOOTER_Y = CANVAS_HEIGHT - 32;
 const BACKGROUND = '#0f171d';
@@ -44,12 +45,24 @@ const MUTED = '#8fa9b1';
 
 const SCREEN_WIDTH = 2.4;
 const SCREEN_HEIGHT = 1.5;
-const SCREEN_CENTRE = 1.55;
+/**
+ * High, like an information board: in the third-person view the camera hangs 0.35 m above the
+ * reader's eyes and looks past their head, so a screen at eye height would sit behind the body.
+ * With its lower edge at 2.2 m and the reader's view tipped up by `READING_PITCH`, the whole screen
+ * clears the head in that view and still fits the first-person one.
+ */
+const SCREEN_CENTRE = 2.95;
 const CASE_DEPTH = 0.3;
 const CASE_WIDTH = SCREEN_WIDTH + 0.2;
 const CASE_HEIGHT = SCREEN_HEIGHT + 0.2;
-const POST_WIDTH = 0.5;
+const POST_WIDTH = 0.2;
 const INTERACT_RADIUS = 3;
+/** Where the visitor stands to read, in front of the screen. */
+const READING_DISTANCE = 2.3;
+/** Radians the reader looks up while reading; positive pitch looks up. */
+const READING_PITCH = 0.2;
+/** Entries per page: a longer section — many languages or releases — runs on over more pages. */
+export const TERMINAL_LINES_PER_PAGE = 8;
 
 /** What the HUD offers at the terminal, and what it offers while the terminal holds the controls. */
 export const TERMINAL_PROMPT = 'Terminal bedienen';
@@ -84,20 +97,25 @@ export function buildTerminalPages(project: Project): readonly TerminalPage[] {
       lines: [project.title, ...(project.summary ? [project.summary] : []), project.repoUrl],
     },
   ];
+  const section = (title: string, lines: readonly string[]) => {
+    for (let start = 0; start < lines.length; start += TERMINAL_LINES_PER_PAGE) {
+      pages.push({ title, lines: lines.slice(start, start + TERMINAL_LINES_PER_PAGE) });
+    }
+  };
 
   const languages = repositoryLanguages(project);
   if (languages.length > 0) {
-    pages.push({ title: REPOSITORY_LABELS.languages, lines: languages.map(formatLanguageLine) });
+    section(REPOSITORY_LABELS.languages, languages.map(formatLanguageLine));
   }
 
   const activity = repositoryCommitActivity(project);
   if (activity && activity.total > 0) {
-    pages.push({ title: REPOSITORY_LABELS.commits, lines: formatCommitActivityLines(activity) });
+    section(REPOSITORY_LABELS.commits, formatCommitActivityLines(activity));
   }
 
   const releases = repositoryReleases(project);
   if (releases.length > 0) {
-    pages.push({ title: REPOSITORY_LABELS.releases, lines: releases.map(formatReleaseLine) });
+    section(REPOSITORY_LABELS.releases, releases.map(formatReleaseLine));
   }
 
   const metrics: string[] = [];
@@ -121,9 +139,7 @@ export function buildTerminalPages(project: Project): readonly TerminalPage[] {
   date(REPOSITORY_LABELS.created, project.createdAt);
   date(REPOSITORY_LABELS.firstCommit, project.firstCommitAt);
   date(REPOSITORY_LABELS.lastPush, project.pushedAt);
-  if (metrics.length > 0) {
-    pages.push({ title: REPOSITORY_LABELS.metrics, lines: metrics });
-  }
+  section(REPOSITORY_LABELS.metrics, metrics);
 
   return pages;
 }
@@ -161,9 +177,9 @@ export function wrapLine(
 
 /**
  * A screen on a post that prints the facts of the world it stands in. `E` takes the controls, the
- * up and down arrows turn the page, and `E` or `Escape` hands the controls back — no text input,
- * which would fight pointer lock. The screen is a `CanvasTexture` drawn once per page change,
- * never per frame.
+ * visitor steps square in front of the screen, the up and down arrows turn the page, and `E` or
+ * `Escape` hands the controls back — no text input, which would fight pointer lock. The screen is a
+ * `CanvasTexture` drawn once per page change, never per frame.
  */
 export class Terminal implements WorldObject {
   readonly id: string;
@@ -171,11 +187,14 @@ export class Terminal implements WorldObject {
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
   readonly pages: readonly TerminalPage[];
+  /** Where the visitor's eyes go while reading: square in front of the screen. */
+  readonly reading: Vector3;
 
   private readonly group = new Group();
   private readonly options: TerminalOptions;
   private readonly stopCapture: () => void;
   private readonly stopActions: () => void;
+  private player: PlayerController | null = null;
   private canvasContext: CanvasRenderingContext2D | null = null;
   private texture: CanvasTexture | null = null;
   private activeValue = false;
@@ -190,6 +209,13 @@ export class Terminal implements WorldObject {
     this.group.name = this.id;
     this.group.position.copy(this.position);
     this.group.rotation.y = options.rotationY ?? 0;
+    const rotationY = options.rotationY ?? 0;
+    this.reading = this.position
+      .clone()
+      .add(
+        new Vector3(Math.sin(rotationY), 0, Math.cos(rotationY)).multiplyScalar(READING_DISTANCE),
+      );
+    this.reading.y = options.ground.heightAt(this.reading.x, this.reading.z) + PLAYER_EYE_HEIGHT;
     this.colliders = [
       rotatedAabb(this.position, CASE_WIDTH / 2, CASE_DEPTH / 2, options.rotationY ?? 0),
     ];
@@ -221,6 +247,7 @@ export class Terminal implements WorldObject {
   }
 
   init(ctx: WorldContext): void {
+    this.player = ctx.player;
     const casing = new MeshStandardMaterial({ color: 0x26323a, metalness: 0.25, roughness: 0.6 });
     const body = new Mesh(new BoxGeometry(CASE_WIDTH, CASE_HEIGHT, CASE_DEPTH), casing);
     body.name = `${this.id}:body`;
@@ -265,6 +292,7 @@ export class Terminal implements WorldObject {
     this.activeValue = false;
     this.stopActions();
     this.stopCapture();
+    this.player = null;
     // Takes the canvas texture with it: `disposeObject3D` releases every map a material holds.
     disposeObject3D(this.group);
     this.group.clear();
@@ -277,6 +305,14 @@ export class Terminal implements WorldObject {
       return;
     }
     this.activeValue = true;
+    // Every visit starts on the first page.
+    if (this.pageIndexValue !== 0) {
+      this.pageIndexValue = 0;
+      this.redraw();
+    }
+    // Square in front of the screen, as the bench seats its visitor: the controls are taken, so
+    // the visitor could not turn to it otherwise.
+    this.player?.teleport(this.reading, this.options.rotationY ?? 0, READING_PITCH);
     this.options.input.capture(TERMINAL_RELEASE_PROMPT);
   }
 
