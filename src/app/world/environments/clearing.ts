@@ -5,7 +5,7 @@ import { disposeObject3D } from '@engine/dispose';
 import { Backdrop } from './backdrop';
 import { Butterflies } from './butterflies';
 import type { EnvironmentOptions } from './create-environment';
-import { Anchor, Environment } from './environment';
+import { Anchor, Environment, GroundClearing } from './environment';
 import {
   birchTree,
   boulder,
@@ -270,6 +270,8 @@ export class ClearingEnvironment implements Environment {
 
   /** Every landmark footprint, pinned and generated, recorded when the scene asks for anchors. */
   private reserved: readonly Position[] = [];
+  /** Ground the start world's scene furnished itself (the camp), kept bare like a landmark's. */
+  private furnished: readonly GroundClearing[] = [];
   private props: InstancedMesh[] = [];
   private scene: WorldContext['scene'] | null = null;
 
@@ -371,6 +373,10 @@ export class ClearingEnvironment implements Environment {
     return anchors;
   }
 
+  keepClear(areas: readonly GroundClearing[]): void {
+    this.furnished = areas;
+  }
+
   init(ctx: WorldContext): void {
     this.prepareWorld();
     this.grass = new GrassField({
@@ -393,9 +399,10 @@ export class ClearingEnvironment implements Environment {
     this.monument.init(ctx);
     this.signpost.init(ctx);
     this.pond.init(ctx);
-    this.grass.setClearings(
-      this.reserved.map(([x, , z]) => ({ x, z, radius: LANDMARK_CLEARANCE })),
-    );
+    this.grass.setClearings([
+      ...this.reserved.map(([x, , z]) => ({ x, z, radius: LANDMARK_CLEARANCE })),
+      ...this.furnished,
+    ]);
     this.grass.init(ctx);
     this.backdrop.init(ctx);
     this.pollen.init(ctx);
@@ -502,7 +509,17 @@ export class ClearingEnvironment implements Environment {
             area: { inner: 6, outer: 60 },
             clusters: { count: 14, radius: 6 },
             scale: [0.8, 1.3],
-            exclusions: [...this.pathExclusions, WATER, MONUMENT_FOOT],
+            exclusions: [
+              ...this.pathExclusions,
+              WATER,
+              MONUMENT_FOOT,
+              ...this.furnished.map((area): Exclusion => ({
+                kind: 'circle',
+                x: area.x,
+                z: area.z,
+                radius: area.radius,
+              })),
+            ],
           },
           this.terrain,
         ),

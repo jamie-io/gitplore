@@ -66,16 +66,37 @@ describe('HubScene', () => {
     expect(ctx.scene.children.length).toBeGreaterThan(1 + PROJECTS.length);
   });
 
-  it('collects the colliders and interactables of every landmark', () => {
+  it('collects the colliders and interactables of every landmark and of the camp', () => {
     const environment = new ClearingEnvironment({ reducedMotion: () => false });
-    const scene = hub({ environment });
+    const scene = hub({ environment, onContact: () => undefined });
 
     const colliders =
-      environment.colliders.length + scene.landmarks.reduce((n, l) => n + l.colliders.length, 0);
-    const interactables = scene.landmarks.reduce((n, l) => n + l.interactables.length, 0);
+      environment.colliders.length +
+      scene.landmarks.reduce((n, l) => n + l.colliders.length, 0) +
+      scene.homeBase.colliders.length;
+    const interactables =
+      scene.landmarks.reduce((n, l) => n + l.interactables.length, 0) +
+      scene.homeBase.interactables.length;
+    expect(scene.homeBase.colliders.length).toBeGreaterThan(0);
+    expect(scene.homeBase.interactables).toHaveLength(1);
     expect(scene.colliders.length).toBe(colliders);
     expect(scene.interactables.length).toBe(interactables);
-    expect(interactables).toBeGreaterThanOrEqual(PROJECTS.length);
+    expect(interactables).toBeGreaterThanOrEqual(PROJECTS.length + 1);
+  });
+
+  it('routes the camp obelisk to the contact handler', () => {
+    const onContact = vi.fn();
+    const scene = hub({ onContact });
+    const obelisk = scene.interactables.find((item) => item.id === 'home-base:contact');
+
+    obelisk?.onInteract();
+
+    expect(obelisk).toBeDefined();
+    expect(onContact).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no contact prompt when nothing can open the dialog', () => {
+    expect(hub().interactables.some((item) => item.id === 'home-base:contact')).toBe(false);
   });
 
   it('takes its ground, its spawn and its layout from the environment it is given', () => {
