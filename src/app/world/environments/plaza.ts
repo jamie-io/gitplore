@@ -1,4 +1,5 @@
 import {
+  BoxGeometry,
   BufferGeometry,
   Color,
   IcosahedronGeometry,
@@ -7,6 +8,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
+  PlaneGeometry,
   Vector3,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -77,6 +79,13 @@ const HILLS: readonly HillRing[] = [
   { radius: 220, depth: 90, height: 55, roughness: 0.6, color: 0x8fa3b8, haze: 0.6, seed: 122 },
 ];
 const AWNINGS = [0x2f6f9f, 0xc2502f, 0x5f8f35, 0xd9a02f] as const;
+const FLAT_ROOF = 0xb8583a;
+const HOUSE_GLASS = 0x2f3a45;
+const HOUSE_DOOR = 0x5a3a28;
+const ROOFTOP_STEP_HEIGHT = 0.4;
+const ROOFTOP_STEP_WIDTH = 2.4;
+const ROOFTOP_STEP_DEPTH = 1;
+const ROOFTOP_GUARD_WIDTH = 0.3;
 
 type Side = 'north' | 'south' | 'west' | 'east';
 
@@ -176,7 +185,7 @@ export function houseRow(side: Side, seed: number): HouseSpot[] {
   return spots;
 }
 
-function footprint(spot: HouseSpot): Collider {
+function footprint(spot: HouseSpot): Extract<Collider, { kind: 'aabb' }> {
   const facesZ = spot.rotationY === 0 || spot.rotationY === Math.PI;
   const halfX = (facesZ ? spot.options.width : HOUSE_DEPTH) / 2;
   const halfZ = (facesZ ? HOUSE_DEPTH : spot.options.width) / 2;
@@ -187,6 +196,126 @@ function footprint(spot: HouseSpot): Collider {
     minZ: spot.z - halfZ,
     maxZ: spot.z + halfZ,
   };
+}
+
+const PLAZA_HOUSES: readonly HouseSpot[] = [
+  ...houseRow('north', 81),
+  ...houseRow('south', 82),
+  ...houseRow('west', 83),
+  ...houseRow('east', 84),
+];
+/** The low north house leaves an exterior route for a complete, fixed staircase. */
+const ROOFTOP_HOUSE = PLAZA_HOUSES[6];
+const ROOFTOP = { ...footprint(ROOFTOP_HOUSE), top: ROOFTOP_HOUSE.options.height };
+/** Treads meet edge-to-edge: `covers()` sees each centre before a body could clear a gap. */
+const ROOFTOP_STAIRS = Array.from({ length: 17 }, (_, index) => {
+  const top = (index + 1) * ROOFTOP_STEP_HEIGHT;
+  const centreZ = ROOFTOP.minZ - ROOFTOP_STEP_DEPTH / 2 - (16 - index) * ROOFTOP_STEP_DEPTH;
+  return {
+    kind: 'aabb' as const,
+    minX: ROOFTOP_HOUSE.x - ROOFTOP_STEP_WIDTH / 2,
+    maxX: ROOFTOP_HOUSE.x + ROOFTOP_STEP_WIDTH / 2,
+    minZ: centreZ - ROOFTOP_STEP_DEPTH / 2,
+    maxZ: centreZ + ROOFTOP_STEP_DEPTH / 2,
+    top,
+  };
+});
+const ROOFTOP_EXIT_MIN_X = ROOFTOP_STAIRS[0].minX;
+const ROOFTOP_EXIT_MAX_X = ROOFTOP_STAIRS[0].maxX;
+/** Rails leave only the stair-width north exit; every other edge absorbs the deferred 0.35 m shove. */
+const ROOFTOP_GUARDS: readonly Extract<Collider, { kind: 'aabb' }>[] = [
+  {
+    kind: 'aabb',
+    minX: ROOFTOP.minX,
+    maxX: ROOFTOP.minX + ROOFTOP_GUARD_WIDTH,
+    minZ: ROOFTOP.minZ,
+    maxZ: ROOFTOP.maxZ,
+  },
+  {
+    kind: 'aabb',
+    minX: ROOFTOP.maxX - ROOFTOP_GUARD_WIDTH,
+    maxX: ROOFTOP.maxX,
+    minZ: ROOFTOP.minZ,
+    maxZ: ROOFTOP.maxZ,
+  },
+  {
+    kind: 'aabb',
+    minX: ROOFTOP.minX,
+    maxX: ROOFTOP.maxX,
+    minZ: ROOFTOP.maxZ - ROOFTOP_GUARD_WIDTH,
+    maxZ: ROOFTOP.maxZ,
+  },
+  {
+    kind: 'aabb',
+    minX: ROOFTOP.minX,
+    maxX: ROOFTOP_EXIT_MIN_X,
+    minZ: ROOFTOP.minZ,
+    maxZ: ROOFTOP.minZ + ROOFTOP_GUARD_WIDTH,
+  },
+  {
+    kind: 'aabb',
+    minX: ROOFTOP_EXIT_MAX_X,
+    maxX: ROOFTOP.maxX,
+    minZ: ROOFTOP.minZ,
+    maxZ: ROOFTOP.minZ + ROOFTOP_GUARD_WIDTH,
+  },
+];
+
+/** One local variation: a flat-roofed house retains the normal facade without changing shared props. */
+function flatRoofHouse(seed: number, options: HouseOptions): BufferGeometry {
+  const random = seededRandom(seed);
+  const { width, depth, height } = options;
+  const front = depth / 2;
+  random(); // Keep door placement aligned with the ordinary house's deterministic sequence.
+  const columns = Math.max(1, Math.floor(width / 2.2));
+  const spacing = width / columns;
+  const doorColumn = Math.floor(random() * columns);
+  const floors = Math.max(1, Math.floor(height / 3));
+  const parts: BufferGeometry[] = [
+    paint(new BoxGeometry(width, height, depth).translate(0, height / 2, 0), options.stucco),
+    paint(new BoxGeometry(width + 0.6, 0.35, depth + 0.6).translate(0, height - 0.175, 0), FLAT_ROOF),
+  ];
+
+  for (let floor = 0; floor < floors; floor++) {
+    for (let column = 0; column < columns; column++) {
+      const x = -width / 2 + spacing * (column + 0.5);
+      if (floor === 0 && column === doorColumn) {
+        parts.push(paint(new BoxGeometry(1.2, 2.3, 0.14).translate(x, 1.15, front + 0.03), HOUSE_DOOR));
+        continue;
+      }
+      const y = 1.6 + floor * 3;
+      parts.push(paint(new PlaneGeometry(0.9, 1.3).translate(x, y, front + 0.02), HOUSE_GLASS));
+      for (const side of [-1, 1]) {
+        parts.push(
+          paint(
+            new PlaneGeometry(0.45, 1.35).translate(x + side * 0.7, y, front + 0.04),
+            options.shutters,
+          ),
+        );
+      }
+    }
+  }
+
+  return assemble(parts);
+}
+
+function rooftopGeometry<T extends Extract<Collider, { kind: 'aabb' }>>(
+  colliders: readonly T[],
+  dimensions: (collider: T) => { readonly base: number; readonly height: number },
+): BufferGeometry {
+  return merged(
+    colliders.map((collider) => {
+      const { base, height } = dimensions(collider);
+      return paint(
+        new BoxGeometry(collider.maxX - collider.minX, height, collider.maxZ - collider.minZ).translate(
+          (collider.minX + collider.maxX) / 2,
+          base + height / 2,
+          (collider.minZ + collider.maxZ) / 2,
+        ),
+        FLAT_ROOF,
+      );
+    }),
+  );
 }
 
 function placed(geometry: BufferGeometry, x: number, z: number, rotationY: number): BufferGeometry {
@@ -230,12 +359,7 @@ export class PlazaEnvironment implements Environment {
   readonly shared = new SharedUniforms(PLAZA);
   readonly colliders: readonly Collider[];
 
-  private readonly houses: readonly HouseSpot[] = [
-    ...houseRow('north', 81),
-    ...houseRow('south', 82),
-    ...houseRow('west', 83),
-    ...houseRow('east', 84),
-  ];
+  private readonly houses = PLAZA_HOUSES;
   private floorDetail: 0 | 1 | 2 = 0;
 
   private readonly floor = new ProceduralGround({
@@ -307,7 +431,9 @@ export class PlazaEnvironment implements Environment {
   constructor(private readonly options: EnvironmentOptions) {
     this.colliders = [
       { kind: 'cylinder', x: 0, z: 0, radius: FOUNTAIN.radius + 0.2 },
-      ...this.houses.map(footprint),
+      ...this.houses.map((spot) => (spot === ROOFTOP_HOUSE ? ROOFTOP : footprint(spot))),
+      ...ROOFTOP_STAIRS,
+      ...ROOFTOP_GUARDS,
       ...CYPRESSES.map(([x, z]) => ({ kind: 'cylinder' as const, x, z, radius: 0.5 })),
       ...POTS.map(([x, z]) => ({ kind: 'cylinder' as const, x, z, radius: 0.6 })),
       ...LAMPS.map(([x, z]) => ({ kind: 'cylinder' as const, x, z, radius: 0.3 })),
@@ -360,7 +486,14 @@ export class PlazaEnvironment implements Environment {
     const town = new Mesh(
       merged(
         this.houses.map((spot) =>
-          placed(house(spot.seed, spot.options), spot.x, spot.z, spot.rotationY),
+          placed(
+            spot === ROOFTOP_HOUSE
+              ? flatRoofHouse(spot.seed, spot.options)
+              : house(spot.seed, spot.options),
+            spot.x,
+            spot.z,
+            spot.rotationY,
+          ),
         ),
       ),
       solid,
@@ -368,6 +501,21 @@ export class PlazaEnvironment implements Environment {
     town.name = 'houses';
     town.castShadow = shadows;
     town.receiveShadow = shadows;
+
+    const rooftop = new Mesh(
+      rooftopGeometry(ROOFTOP_GUARDS, () => ({ base: ROOFTOP.top, height: 0.6 })),
+      solid,
+    );
+    rooftop.name = 'plaza-rooftop';
+    rooftop.castShadow = shadows;
+    rooftop.receiveShadow = shadows;
+    const rooftopStairs = new Mesh(
+      rooftopGeometry(ROOFTOP_STAIRS, (stair) => ({ base: 0, height: stair.top })),
+      solid,
+    );
+    rooftopStairs.name = 'plaza-rooftop-stairs';
+    rooftopStairs.castShadow = shadows;
+    rooftopStairs.receiveShadow = shadows;
 
     const centrepiece = new Mesh(fountain(), solid);
     centrepiece.name = 'fountain';
@@ -417,6 +565,8 @@ export class PlazaEnvironment implements Environment {
 
     this.added.push(
       town,
+      rooftop,
+      rooftopStairs,
       centrepiece,
       wires,
       bulbs,
