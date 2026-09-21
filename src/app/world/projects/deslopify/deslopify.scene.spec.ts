@@ -1,7 +1,9 @@
-import { Texture } from 'three';
+import { Mesh, Texture } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
-import { JungleEnvironment } from '../../environments/jungle';
+import { clearance } from '../../environments/testing/clearance';
+import { JungleEnvironment, POOL } from '../../environments/jungle';
+import { EXAMPLE_VIDEOS } from './video-wall';
 import { DeslopifyScene } from './deslopify.scene';
 
 const PROJECT = PROJECT_FIXTURES.find((project) => project.slug === 'deslopify')!;
@@ -42,6 +44,66 @@ describe('DeslopifyScene', () => {
     const plain = environment.colliders.length;
 
     expect(scene().colliders.length).toBeGreaterThan(plain + 1);
+  });
+
+  it('places waterfall cave and signs clear of the arrival path and existing world objects', () => {
+    const target = scene();
+    const environment = new JungleEnvironment({ reducedMotion: () => true });
+
+    expect(target.cave.position.x).toBeGreaterThan(POOL.x);
+    expect(target.cave.position.z).toBeGreaterThan(POOL.z);
+    expect(clearance(target.cave.position.x, target.cave.position.z, environment.colliders)).toBeGreaterThan(0.5);
+
+    for (const position of target.signs.positions) {
+      expect(clearance(position.x, position.z, environment.colliders)).toBeGreaterThan(0.5);
+      expect(Math.hypot(position.x, position.z)).toBeGreaterThan(4);
+    }
+    expect(target.signs.pairCount).toBe(EXAMPLE_VIDEOS.length);
+    expect(target.colliders).toContain(target.cave.colliders[0]);
+  });
+
+  it('keeps the waterfall sheet non-colliding while cave remains reachable', () => {
+    const target = scene();
+    expect(target.cave.colliders).toHaveLength(3);
+    expect(target.cave.interactables[0].position.distanceTo(target.arrival.position)).toBeLessThan(60);
+
+    const environment = new JungleEnvironment({ reducedMotion: () => true });
+    const steps = 24;
+    for (let step = 0; step <= steps; step++) {
+      const point = target.arrival.position.clone().lerp(target.cave.position, step / steps);
+      expect(clearance(point.x, point.z, environment.colliders)).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('keeps signs clear of exhibit, portal, cave, and T9 data interactables', () => {
+    const target = scene();
+
+    for (const sign of target.signs.positions) {
+      for (const interactable of target.interactables) {
+        expect(Math.hypot(sign.x - interactable.position.x, sign.z - interactable.position.z)).toBeGreaterThan(2.5);
+      }
+    }
+  });
+
+  it('disposes cave, signs, and every created sign texture', () => {
+    const ctx = stubContext();
+    const target = scene();
+    target.init(ctx);
+    const signMeshes: Mesh[] = [];
+    ctx.scene.traverse((child) => {
+      if (child instanceof Mesh && child.name.startsWith('jungle-sign')) {
+        signMeshes.push(child);
+      }
+    });
+    const materials = signMeshes.flatMap((mesh) =>
+      mesh.material instanceof Array ? mesh.material : [mesh.material],
+    );
+    const disposals = materials.map((material) => vi.spyOn(material, 'dispose'));
+
+    target.dispose();
+
+    expect(ctx.scene.children).toEqual([]);
+    expect(disposals.every((dispose) => dispose.mock.calls.length === 1)).toBe(true);
   });
 
   it('empties the scene graph when disposed', () => {
