@@ -1,4 +1,4 @@
-import { Box3, Mesh, Vector3 } from 'three';
+import { Box3, Mesh, Scene, Texture, Vector3 } from 'three';
 import { Collider, floorHeightAt, resolveCollisions } from '@engine/player/collision';
 import {
   NO_INTENT,
@@ -7,11 +7,24 @@ import {
   PlayerController,
 } from '@engine/player/player-controller';
 import { stubContext } from '@engine/testing/world-context';
+import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
+import type { Project } from '@content/project.model';
 import { PlazaEnvironment, houseRow } from './plaza';
 import { clearance } from './testing/clearance';
+import { ProjectScene, ProjectSceneOptions } from '../project/project.scene';
 
 const plaza = (reducedMotion = false) =>
   new PlazaEnvironment({ reducedMotion: () => reducedMotion });
+
+const PLAZA_PROJECT: Project = {
+  ...PROJECT_FIXTURES[0],
+  languages: { TypeScript: 100, JavaScript: 40 },
+  commitBuckets: Array.from({ length: 52 }, (_, index) => (index === 20 ? 16 : 0)),
+  createdAt: '2025-01-01T00:00:00Z',
+  pushedAt: '2026-01-01T00:00:00Z',
+  releases: [{ name: 'v1.0.0', date: '2025-07-01T00:00:00Z' }],
+  stars: 4,
+};
 
 type SteppableBox = Extract<Collider, { kind: 'aabb' }> & { readonly top: number };
 
@@ -40,6 +53,42 @@ function rooftop(environment: PlazaEnvironment): SteppableBox {
     throw new Error('Plaza rooftop is missing');
   }
   return roof;
+}
+
+function projectScene(environment: PlazaEnvironment): ProjectScene {
+  const options: ProjectSceneOptions = {
+    environment,
+    project: PLAZA_PROJECT,
+    reducedMotion: () => true,
+    onOpenInfo: () => undefined,
+    onLeave: () => undefined,
+    textures: { load: () => new Texture(), release: () => undefined },
+  };
+  return new ProjectScene(options);
+}
+
+function sceneBounds(scene: Scene, name: string): Box3 {
+  const object = scene.getObjectByName(name);
+  expect(object, `missing Plaza project object ${name}`).toBeDefined();
+  if (!object) {
+    throw new Error(`Missing Plaza project object ${name}`);
+  }
+  return new Box3().setFromObject(object);
+}
+
+function routeClearance(points: readonly Vector3[], colliders: readonly Collider[]): number {
+  let nearest = Infinity;
+  for (let index = 1; index < points.length; index++) {
+    const from = points[index - 1];
+    const to = points[index];
+    const distance = from.distanceTo(to);
+    for (let step = 0; step <= distance; step += 0.5) {
+      const point = from.clone().lerp(to, distance === 0 ? 0 : step / distance);
+      const current = clearance(point.x, point.z, colliders);
+      nearest = Math.min(nearest, current);
+    }
+  }
+  return nearest;
 }
 
 describe('PlazaEnvironment', () => {
@@ -130,6 +179,77 @@ describe('PlazaEnvironment', () => {
     expect(Math.hypot(centre.x - exhibit.x, centre.z - exhibit.z)).toBeGreaterThan(20);
     // T9's ridge, pillars, releases and lanterns sit on this arrival-to-exhibit route.
     expect(routeDistance).toBeGreaterThan(10);
+  });
+
+  it('keeps the complete Plaza project scene clear of rooftop route and T9 objects', () => {
+    const environment = plaza();
+    const target = projectScene(environment);
+    const ctx = stubContext();
+
+    target.init(ctx);
+    ctx.scene.updateMatrixWorld(true);
+
+    const roofs = target.colliders.filter(steppableBox);
+    const roof = roofs.reduce((highest, collider) =>
+      !highest || collider.top > highest.top ? collider : highest,
+    );
+    const stairs = roofs.filter((collider) => collider !== roof);
+    const guards = target.colliders.filter(
+      (collider): collider is Extract<Collider, { kind: 'aabb' }> =>
+        collider.kind === 'aabb' &&
+        collider.top === undefined &&
+        collider.minX >= roof.minX &&
+        collider.maxX <= roof.maxX &&
+        collider.minZ >= roof.minZ &&
+        collider.maxZ <= roof.maxZ,
+    );
+
+    expect(stairs).toHaveLength(17);
+    expect(stairs.map((stair) => stair.top)).toEqual(
+      Array.from({ length: 17 }, (_, index) => (index + 1) * 0.4),
+    );
+    expect(guards).toHaveLength(5);
+    expect(guards.some((guard) => guard.minX === roof.minX)).toBe(true);
+    expect(guards.some((guard) => guard.maxX === roof.maxX)).toBe(true);
+    expect(guards.some((guard) => guard.maxZ === roof.maxZ)).toBe(true);
+
+    const roofBoxes = [sceneBounds(ctx.scene, 'plaza-rooftop'), sceneBounds(ctx.scene, 'plaza-rooftop-stairs')];
+    for (const name of ['commit-ridge', 'language-pillars', 'release-markers', 'star-lanterns']) {
+      const dataBox = sceneBounds(ctx.scene, name);
+      expect(roofBoxes.some((roofBox) => dataBox.intersectsBox(roofBox)), name).toBe(false);
+    }
+
+    const [exhibit, portal] = target.landmarks;
+    expect(clearance(target.arrival.position.x, target.arrival.position.z, target.colliders)).toBeGreaterThanOrEqual(
+      PLAYER_RADIUS,
+    );
+    expect(
+      clearance(
+        portal.position.x,
+        portal.position.z,
+        target.colliders.filter((collider) => !portal.colliders.includes(collider)),
+      ),
+    ).toBeGreaterThanOrEqual(PLAYER_RADIUS);
+    expect(
+      clearance(
+        exhibit.position.x,
+        exhibit.position.z,
+        target.colliders.filter((collider) => !exhibit.colliders.includes(collider)),
+      ),
+    ).toBeGreaterThanOrEqual(PLAYER_RADIUS);
+
+    const lastApproach = [
+      target.arrival.position.clone(),
+      new Vector3(-12, 0, target.arrival.position.z),
+      new Vector3(-12, 0, -10),
+      new Vector3(-4, 0, -10),
+      new Vector3(-4, 0, -61.5),
+      new Vector3(stairs[0].minX - 0.7, 0, -61.5),
+    ];
+    expect(routeClearance(lastApproach, target.colliders)).toBeGreaterThanOrEqual(PLAYER_RADIUS);
+
+    target.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
   });
 
   it('climbs and descends the crates without side-clipping before covers() reaches each tread', () => {

@@ -81,7 +81,7 @@ function sweep(colliders: readonly Collider[], ground: HeightField, extent: numb
             result.reeled++;
           }
 
-          const room = clearance(camera.position.x, camera.position.z, colliders);
+          const room = clearance(camera.position.x, camera.position.z, colliders, camera.position.y);
           if (room === GRAZE) {
             result.grazed++;
             continue;
@@ -147,5 +147,16 @@ describe('the third-person boom in the furnished worlds', () => {
 
     expectClear(swept);
     expect(swept.reeled).toBeGreaterThan(500);
+  });
+});
+
+describe('height-aware third-person clearance', () => {
+  it('ignores a low steppable top at camera height but keeps walls solid', () => {
+    const crate: Collider = { kind: 'aabb', minX: -1, maxX: 1, minZ: -1, maxZ: 1, top: 0.5 };
+    const wall: Collider = { kind: 'aabb', minX: -1, maxX: 1, minZ: -1, maxZ: 1 };
+
+    expect(clearance(0, 0, [crate], 0.5)).toBe(Infinity);
+    expect(clearance(0, 0, [crate], 0.49)).toBeLessThan(0);
+    expect(clearance(0, 0, [wall], 10)).toBeLessThan(0);
   });
 });
