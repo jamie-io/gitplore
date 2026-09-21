@@ -8,6 +8,7 @@ import { Explorer } from '../avatar/explorer';
 import { Environment } from '../environments/environment';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { createLandmark } from '../landmarks/create-landmark';
+import { HomeBase } from './home-base';
 
 /** Within this distance of a landmark the HUD names the project instead of the place. */
 const AREA_RADIUS = 10;
@@ -20,6 +21,8 @@ export interface HubSceneOptions {
   readonly projects: readonly Project[];
   readonly onEnter: (project: Project) => void;
   readonly onAreaChange?: (area: string) => void;
+  /** The camp's contact obelisk opens the contact dialog through this. */
+  readonly onContact?: () => void;
   readonly textures?: TextureProvider;
 }
 
@@ -33,6 +36,8 @@ export class HubScene implements WorldScene {
   readonly id = 'hub';
 
   readonly landmarks: readonly Landmark[];
+  /** Jamie's camp around the spawn: who this portfolio belongs to, and how to reach him. */
+  readonly homeBase: HomeBase;
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
 
@@ -62,6 +67,15 @@ export class HubScene implements WorldScene {
     );
     let anchorIndex = 0;
 
+    this.homeBase = new HomeBase({
+      ground: this.environment.ground,
+      mood: this.environment.mood,
+      reducedMotion: options.reducedMotion,
+      origin: this.environment.spawn,
+      onContact: options.onContact,
+    });
+    this.environment.keepClear?.(this.homeBase.clearings);
+
     this.landmarks = options.projects.flatMap((project) => {
       const position = project.landmark.position;
       const placement: LandmarkPlacement | undefined = position
@@ -90,8 +104,12 @@ export class HubScene implements WorldScene {
     this.colliders = [
       ...this.environment.colliders,
       ...this.landmarks.flatMap((landmark) => landmark.colliders),
+      ...this.homeBase.colliders,
     ];
-    this.interactables = this.landmarks.flatMap((landmark) => landmark.interactables);
+    this.interactables = [
+      ...this.landmarks.flatMap((landmark) => landmark.interactables),
+      ...this.homeBase.interactables,
+    ];
   }
 
   /** The engine drives the figure through `PlayerVisual` alone and never names the Explorer. */
@@ -118,17 +136,20 @@ export class HubScene implements WorldScene {
   init(ctx: WorldContext): void {
     this.environment.init(ctx);
     this.landmarks.forEach((landmark) => landmark.init(ctx));
+    this.homeBase.init(ctx);
     this.explorer.init(ctx);
   }
 
   update(dt: number, ctx: WorldContext): void {
     this.environment.update(dt, ctx);
     this.landmarks.forEach((landmark) => landmark.update(dt, ctx));
+    this.homeBase.update(dt, ctx);
     this.trackArea(ctx);
   }
 
   dispose(): void {
     this.landmarks.forEach((landmark) => landmark.dispose());
+    this.homeBase.dispose();
     this.explorer.dispose();
     this.environment.dispose();
     this.area = null;

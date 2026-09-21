@@ -187,6 +187,7 @@ export class SceneDirector {
       projects: this.content.projects(),
       onEnter: (project) => void this.router.navigate(['/p', project.slug]),
       onAreaChange: (area) => this.store.setArea(area),
+      onContact: () => void this.router.navigate(['/kontakt']),
       textures: this.assets,
     });
   }

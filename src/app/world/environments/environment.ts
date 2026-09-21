@@ -14,6 +14,13 @@ import type { Position } from './placement';
  */
 export type Anchor = LandmarkPlacement;
 
+/** A disc of ground to keep bare, in world XZ. */
+export interface GroundClearing {
+  readonly x: number;
+  readonly z: number;
+  readonly radius: number;
+}
+
 /**
  * The surroundings, knowing nothing about projects (spec §5).
  *
@@ -45,6 +52,12 @@ export interface Environment extends WorldObject {
    * offset is never stored, so a rebuilt world always starts from offset 0.
    */
   reseedDecoration?(offset: number): void;
+  /**
+   * Ground a scene has furnished itself — the start world's camp — and wants kept free of grass
+   * and flowers. Called in the scene's constructor, before `init`; nothing that places a collider
+   * moves for it.
+   */
+  keepClear?(areas: readonly GroundClearing[]): void;
   /**
    * `count` places to stand a landmark, turned to face an approaching visitor. Layout is the
    * environment's business: a clearing scatters differently from a plaza.

@@ -50,6 +50,8 @@ export class WorldStore {
    * world swap, while the router still owns navigation and panel state.
    */
   readonly panelOpen = signal(false);
+  /** The `/kontakt` dialog is showing on top of the start world. The router owns this too. */
+  readonly contactOpen = signal(false);
   /** A scene is being built; the veil covers the swap and the loop stands still behind it. */
   readonly swapping = signal(false);
 
@@ -66,7 +68,13 @@ export class WorldStore {
    * repo world does not: it is a place, not a dialog.
    */
   readonly inputMode = computed<InputMode>(() => {
-    if (!this.started() || this.panelOpen() || this.menuOpen() || this.settingsOpen()) {
+    if (
+      !this.started() ||
+      this.panelOpen() ||
+      this.contactOpen() ||
+      this.menuOpen() ||
+      this.settingsOpen()
+    ) {
       return 'ui';
     }
     if (this.captured()) {
@@ -100,6 +108,10 @@ export class WorldStore {
 
   setPanelOpen(open: boolean): void {
     this.panelOpen.set(open);
+  }
+
+  setContactOpen(open: boolean): void {
+    this.contactOpen.set(open);
   }
 
   setSwapping(swapping: boolean): void {
@@ -159,6 +171,7 @@ export class WorldStore {
     this.setNearby(null);
     this.setArea('');
     this.setPanelOpen(false);
+    this.setContactOpen(false);
     this.setSwapping(false);
   }
 

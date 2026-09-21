@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Vector3 } from 'three';
+import { PerspectiveCamera, Texture, Vector3 } from 'three';
 import { Collider, HeightField, resolveCollisions } from '@engine/player/collision';
 import {
   PLAYER_EYE_HEIGHT,
@@ -6,6 +6,8 @@ import {
   PlayerController,
 } from '@engine/player/player-controller';
 import { BOOM_LENGTH, BOOM_RADIUS, ThirdPersonRig } from '@engine/player/third-person-rig';
+import { HubScene } from '../hub/hub.scene';
+import { ClearingEnvironment } from './clearing';
 import { PlazaEnvironment } from './plaza';
 import { HALF, ShowroomEnvironment } from './showroom';
 import { clearance } from './testing/clearance';
@@ -81,7 +83,12 @@ function sweep(colliders: readonly Collider[], ground: HeightField, extent: numb
             result.reeled++;
           }
 
-          const room = clearance(camera.position.x, camera.position.z, colliders, camera.position.y);
+          const room = clearance(
+            camera.position.x,
+            camera.position.z,
+            colliders,
+            camera.position.y,
+          );
           if (room === GRAZE) {
             result.grazed++;
             continue;
@@ -137,6 +144,24 @@ describe('the third-person boom in the furnished worlds', () => {
     expectClear(swept);
     // Not a test that passes by never meeting a house: the square is ringed with them.
     expect(swept.reeled).toBeGreaterThan(1000);
+  });
+
+  it('never ends up inside the camp at the Lichtung spawn', () => {
+    const scene = new HubScene({
+      environment: new ClearingEnvironment({ reducedMotion: () => false }),
+      reducedMotion: () => false,
+      projects: [],
+      onEnter: () => undefined,
+      onContact: () => undefined,
+      textures: { load: () => new Texture(), release: () => undefined },
+    });
+
+    // The camp and the monument behind it; the groves stand far beyond this square.
+    const swept = sweep(scene.colliders, scene.ground, 11);
+
+    expectClear(swept);
+    // The fire, the boards and the obelisk really do get in the camera's way somewhere.
+    expect(swept.reeled).toBeGreaterThan(100);
   });
 
   it('never ends up inside a Showroom wall', () => {

@@ -58,7 +58,7 @@ import { SceneDirector } from './scene-director';
       <app-settings-dialog />
     }
     <!-- The gate stays out of the way while a deep-linked project is open (§3). -->
-    @if (!store.started() && !store.panelOpen()) {
+    @if (!store.started() && !store.panelOpen() && !store.contactOpen()) {
       <app-loading-screen (start)="startWorld()" />
     }
     <router-outlet />
@@ -138,10 +138,11 @@ export class WorldPage {
         return {
           slug: destination?.paramMap.get('slug') ?? null,
           panel: destination?.firstChild?.routeConfig?.path === 'info',
+          contact: destination?.routeConfig?.path === 'kontakt',
         };
       }),
     ),
-    { initialValue: { slug: null as string | null, panel: false } },
+    { initialValue: { slug: null as string | null, panel: false, contact: false } },
   );
 
   constructor() {
@@ -176,8 +177,9 @@ export class WorldPage {
     });
 
     effect(() => {
-      const { panel } = this.routeState();
+      const { panel, contact } = this.routeState();
       this.store.setPanelOpen(panel);
+      this.store.setContactOpen(contact);
       // Keep the world alive but cheap behind the panel; on the weakest tier stop drawing entirely.
       this.engine.setThrottle(panel && this.capability.tier() !== 'low' ? 15 : null);
       // The panel is the only place an embedded demo runs, and an iframe can make noise of its
@@ -325,7 +327,7 @@ export class WorldPage {
         // by one change-detection pass, and a key can land inside that gap and open the project
         // menu on top of the just-activated panel — two `aria-modal` dialogs at once. Also not
         // before the start gate: two modal dialogs at once, and no projects loaded yet.
-        if (!this.routeState().panel && this.store.started()) {
+        if (!this.routeState().panel && !this.routeState().contact && this.store.started()) {
           this.store.toggleMenu();
         }
         break;
@@ -343,6 +345,8 @@ export class WorldPage {
       case 'exit':
         if (this.store.menuOpen()) {
           this.store.setMenuOpen(false);
+        } else if (this.routeState().contact) {
+          void this.router.navigate(['/']);
         } else if (this.routeState().panel) {
           void this.router.navigate(['/p', this.routeState().slug]);
         } else if (this.store.demoActive()) {

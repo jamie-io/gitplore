@@ -2,11 +2,12 @@ import { Component, inject } from '@angular/core';
 import { NgOptimizedImage } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ContentService } from '@content/content.service';
+import { AboutContact } from '@ui/about/about-contact';
 
 /** The simple view: the screen-reader and mobile path (IMPLEMENTATION_PLAN.md §7). */
 @Component({
   selector: 'app-projects-list-page',
-  imports: [RouterLink, NgOptimizedImage],
+  imports: [RouterLink, NgOptimizedImage, AboutContact],
   template: `
     <main>
       <header>
@@ -16,6 +17,10 @@ import { ContentService } from '@content/content.service';
           Trotzdem die 3D-Welt öffnen
         </a>
       </header>
+
+      <section class="about" aria-labelledby="about-heading">
+        <app-about-contact headingId="about-heading" />
+      </section>
 
       @if (error(); as message) {
         <p class="load-error" role="alert">{{ message }}</p>
@@ -55,6 +60,13 @@ import { ContentService } from '@content/content.service';
       padding: clamp(1rem, 4vw, 2.5rem);
       font-family: system-ui, sans-serif;
       line-height: 1.55;
+    }
+    .about {
+      margin-block: 1.5rem 0;
+      padding: 1rem 1.25rem;
+      border: 1px solid rgb(0 0 0 / 12%);
+      border-inline-start: 4px solid #2c3a40;
+      border-radius: 0.75rem;
     }
     .load-error {
       padding: 0.85rem 1rem;
