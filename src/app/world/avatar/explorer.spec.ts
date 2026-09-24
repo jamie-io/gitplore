@@ -120,6 +120,14 @@ describe('Explorer', () => {
     expect(ctx.scene.children).toContain(explorer.object);
   });
 
+  it('exposes a hand socket under the animated right shoulder', () => {
+    const explorer = built();
+    const rightShoulder = joint(explorer, 'explorer-shoulder-right');
+
+    expect(explorer.hand.parent).toBe(rightShoulder);
+    expect(explorer.object.getObjectById(explorer.hand.id)).toBe(explorer.hand);
+  });
+
   it('cuts the coat from the world it stands in', () => {
     const explorer = built();
     const colours = [...materialsOf(explorer)].map((material) =>
