@@ -1,0 +1,4 @@
+Barlow Semi Condensed: SIL Open Font License 1.1, https://fonts.google.com/specimen/Barlow+Semi+Condensed
+Barlow: SIL Open Font License 1.1, https://fonts.google.com/specimen/Barlow
+IBM Plex Mono: SIL Open Font License 1.1, https://fonts.google.com/specimen/IBM+Plex+Mono
+IBM Plex Sans: SIL Open Font License 1.1, https://fonts.google.com/specimen/IBM+Plex+Sans
