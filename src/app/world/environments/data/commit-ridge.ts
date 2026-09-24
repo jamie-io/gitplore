@@ -1,10 +1,21 @@
-import { BoxGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import {
+  BoxGeometry,
+  CylinderGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  SphereGeometry,
+  Vector3,
+} from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Project } from '@content/project.model';
 import { disposeObject3D } from '@engine/dispose';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import { createLabel } from '../../landmarks/base/label';
 import type { HeightField } from '@engine/player/collision';
+import { assemble, paint } from '../flora';
+import { createPlankSign } from './plank-sign';
 
 /** The sync shape is fixed: one slab per lifetime bucket. */
 export const RIDGE_SLAB_COUNT = 52;
@@ -26,11 +37,25 @@ const RIDGE_PATH_GAP = 0.5;
 export const RIDGE_HALF_DEPTH = SLAB_DEPTH / 2;
 export const RIDGE_OFFSET = RIDGE_HALF_DEPTH + RIDGE_PATH_GAP;
 
+export const JUNGLE_BOARDWALK_PLANK_COUNT = 108;
+export const JUNGLE_RAIL_POST_COUNT = 22;
+export const JUNGLE_WOOD_COLOURS = [0x6a4a30, 0x5a3d27, 0x70523a, 0x4f3622, 0x634630] as const;
+
+type ToySkin = 'default' | 'jungle';
+
 export interface CommitRidgeOptions {
   readonly project: Project;
   readonly from: Vector3;
   readonly to: Vector3;
   readonly ground: HeightField;
+  readonly skin?: ToySkin;
+  readonly reducedMotion?: () => boolean;
+}
+
+interface RailResources {
+  readonly postGeometry: CylinderGeometry;
+  readonly postMaterial: MeshStandardMaterial;
+  readonly capGeometry: SphereGeometry;
 }
 
 /**
@@ -43,43 +68,96 @@ export class CommitRidge implements WorldObject {
 
   private mesh?: Mesh;
   private label?: Mesh;
+  private sign?: Group;
+  private rail?: Group;
+  private railCaps: Mesh[] = [];
+  private railResources?: RailResources;
 
   constructor(private readonly options: CommitRidgeOptions) {}
 
   init(ctx: WorldContext): void {
-    const geometry = buildGeometry(this.options);
+    const jungle = this.options.skin === 'jungle';
+    const geometry = jungle ? buildBoardwalkGeometry(this.options) : buildGeometry(this.options);
     const mesh = new Mesh(
       geometry,
       new MeshStandardMaterial({
-        color: this.options.project.theme.primary,
+        color: jungle ? 0xffffff : this.options.project.theme.primary,
+        vertexColors: jungle,
         roughness: 0.72,
         metalness: 0.08,
       }),
     );
     mesh.name = this.id;
+    if (jungle) {
+      mesh.userData['plankCount'] = boardwalkPlankCount(this.options.from, this.options.to);
+    }
     mesh.castShadow = ctx.quality.shadows;
     mesh.receiveShadow = ctx.quality.shadows;
     this.mesh = mesh;
     ctx.scene.add(mesh);
 
-    const text = ridgeLabel(this.options.project);
-    const label = createLabel(text, this.options.project.theme.primary);
-    if (label) {
+    if (jungle) {
+      const rail = buildRail(this.options, this.railCaps);
+      this.rail = rail.group;
+      this.railResources = rail.resources;
+      this.rail.castShadow = ctx.quality.shadows;
+      this.rail.receiveShadow = ctx.quality.shadows;
+      ctx.scene.add(this.rail);
+    }
+
+    if (jungle) {
       const midpoint = offsetPoint(this.options.from, this.options.to, -RIDGE_OFFSET);
-      label.name = 'commit-ridge-label';
-      label.position.set(
-        midpoint.x,
-        this.options.ground.heightAt(midpoint.x, midpoint.z) + labelHeight(this.options.project),
-        midpoint.z,
+      const sign = createPlankSign(
+        "Commits im Lebensverlauf · Commits over the project's life",
+        this.options.project.theme.primary,
       );
-      label.rotation.y = facingYaw(this.options.from, this.options.to);
-      this.label = label;
-      ctx.scene.add(label);
+      if (sign) {
+        sign.name = 'commit-ridge-sign';
+        sign.position.set(
+          midpoint.x,
+          this.options.ground.heightAt(midpoint.x, midpoint.z),
+          midpoint.z,
+        );
+        sign.rotation.y = facingYaw(this.options.from, this.options.to);
+        this.sign = sign;
+        ctx.scene.add(sign);
+      }
+    } else {
+      const label = createLabel(
+        ridgeLabel(this.options.project),
+        this.options.project.theme.primary,
+      );
+      if (label) {
+        const midpoint = offsetPoint(this.options.from, this.options.to, -RIDGE_OFFSET);
+        label.name = 'commit-ridge-label';
+        label.position.set(
+          midpoint.x,
+          this.options.ground.heightAt(midpoint.x, midpoint.z) + labelHeight(this.options.project),
+          midpoint.z,
+        );
+        label.rotation.y = facingYaw(this.options.from, this.options.to);
+        this.label = label;
+        ctx.scene.add(label);
+      }
     }
   }
 
-  update(): void {
-    // The ridge is static repository data.
+  update(dt: number, ctx: WorldContext): void {
+    if (!this.rail) {
+      return;
+    }
+
+    for (const cap of this.railCaps) {
+      const material = cap.material as MeshStandardMaterial;
+      const near =
+        Math.hypot(ctx.player.position.x - cap.position.x, ctx.player.position.z - cap.position.z) <
+        1.5;
+      const target = near ? 1.4 : 0;
+      material.emissive.setHex(0xe0a13c);
+      material.emissiveIntensity = this.options.reducedMotion?.()
+        ? target
+        : moveTowards(material.emissiveIntensity, target, Math.max(0, dt) * 6);
+    }
   }
 
   dispose(): void {
@@ -87,11 +165,140 @@ export class CommitRidge implements WorldObject {
       disposeObject3D(this.label);
       this.label = undefined;
     }
+    if (this.sign) {
+      disposeObject3D(this.sign);
+      this.sign = undefined;
+    }
     if (this.mesh) {
       disposeObject3D(this.mesh);
       this.mesh = undefined;
     }
+    if (this.rail) {
+      disposeRail(this.rail, this.railCaps, this.railResources);
+      this.rail = undefined;
+    }
+    this.railCaps = [];
+    this.railResources = undefined;
   }
+}
+
+function buildBoardwalkGeometry(options: CommitRidgeOptions) {
+  const { yaw } = pathFrame(options.from, options.to);
+  const from = new Vector3(options.from.x, 0, options.from.z);
+  const to = new Vector3(options.to.x, 0, options.to.z);
+  const plankCount = boardwalkPlankCount(from, to);
+  const parts = [];
+
+  for (let index = 0; index < plankCount; index++) {
+    const point = from.clone().lerp(to, (index + 0.5) / plankCount);
+    const plank = new RoundedBoxGeometry(1.45, 0.07, 0.27, 2, 0.02)
+      .rotateY(yaw)
+      .translate(point.x, options.ground.heightAt(point.x, point.z) + 0.24, point.z);
+    parts.push(paint(plank, JUNGLE_WOOD_COLOURS[index % JUNGLE_WOOD_COLOURS.length]));
+  }
+
+  return assemble(parts);
+}
+
+function boardwalkPlankCount(from: Vector3, to: Vector3): number {
+  const length = Math.hypot(to.x - from.x, to.z - from.z);
+  return Math.max(1, Math.min(JUNGLE_BOARDWALK_PLANK_COUNT, Math.floor(length / 0.32)));
+}
+
+function buildRail(
+  options: CommitRidgeOptions,
+  caps: Mesh[],
+): { group: Group; resources: RailResources } {
+  const { side } = pathFrame(options.from, options.to);
+  const from = new Vector3(options.from.x, 0, options.from.z);
+  const to = new Vector3(options.to.x, 0, options.to.z);
+  const group = new Group();
+  group.name = 'commit-ridge-rail';
+  const postGeometry = new CylinderGeometry(0.06, 0.07, 1, 8);
+  const postMaterial = new MeshStandardMaterial({ color: 0x5a3d27, roughness: 0.8 });
+  const capGeometry = new SphereGeometry(0.07, 8, 6);
+  const buckets = options.project.commitBuckets;
+  const maximum = buckets?.reduce(
+    (highest, value) =>
+      typeof value === 'number' && Number.isFinite(value) ? Math.max(highest, value) : highest,
+    0,
+  );
+
+  for (let index = 0; index < JUNGLE_RAIL_POST_COUNT; index++) {
+    const point = from
+      .clone()
+      .lerp(to, index / (JUNGLE_RAIL_POST_COUNT - 1))
+      .addScaledVector(side, 0.9);
+    const value = railBucketValue(buckets, index);
+    const normalised = maximum && maximum > 0 ? value / maximum : 0;
+    const height = 0.55 + Math.min(1, normalised) * 0.35;
+    const ground = options.ground.heightAt(point.x, point.z);
+    const post = new Mesh(postGeometry, postMaterial);
+    post.name = `rail-post-${index}`;
+    post.scale.y = height;
+    post.position.set(point.x, ground + height / 2, point.z);
+    group.add(post);
+
+    const cap = new Mesh(
+      capGeometry,
+      new MeshStandardMaterial({ color: 0x5a3d27, emissive: 0xe0a13c, emissiveIntensity: 0 }),
+    );
+    cap.name = `rail-cap-${index}`;
+    cap.position.set(point.x, ground + height + 0.07, point.z);
+    caps.push(cap);
+    group.add(cap);
+  }
+
+  return { group, resources: { postGeometry, postMaterial, capGeometry } };
+}
+
+function disposeRail(group: Group, caps: readonly Mesh[], resources?: RailResources): void {
+  group.removeFromParent();
+  if (!resources) {
+    return;
+  }
+  resources.postGeometry.dispose();
+  resources.postMaterial.dispose();
+  resources.capGeometry.dispose();
+  caps.forEach((cap) => (cap.material as MeshStandardMaterial).dispose());
+}
+
+function moveTowards(current: number, target: number, distance: number): number {
+  if (Math.abs(target - current) <= distance) {
+    return target;
+  }
+  return current + Math.sign(target - current) * distance;
+}
+
+function railBucketValue(buckets: readonly number[] | undefined, index: number): number {
+  if (!buckets || buckets.length === 0) {
+    return 0;
+  }
+  const sourceIndex =
+    buckets.length === JUNGLE_RAIL_POST_COUNT
+      ? index
+      : Math.round((index * (buckets.length - 1)) / (JUNGLE_RAIL_POST_COUNT - 1));
+  const value = buckets[sourceIndex];
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function pathFrame(
+  fromPoint: Vector3,
+  toPoint: Vector3,
+): {
+  side: Vector3;
+  yaw: number;
+} {
+  const axis = new Vector3(toPoint.x - fromPoint.x, 0, toPoint.z - fromPoint.z);
+  if (axis.lengthSq() === 0) {
+    axis.set(0, 0, -1);
+  } else {
+    axis.normalize();
+  }
+  return {
+    side: new Vector3(-axis.z, 0, axis.x),
+    yaw: Math.atan2(axis.x, axis.z),
+  };
 }
 
 function buildGeometry(options: CommitRidgeOptions) {

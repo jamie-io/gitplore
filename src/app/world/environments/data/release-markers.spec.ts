@@ -1,8 +1,13 @@
-import { Mesh, Vector3 } from 'three';
+import { Color, Group, Mesh, Vector3 } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
-import { MARKER_OFFSET, ReleaseMarkers, releaseLabelText } from './release-markers';
+import {
+  JUNGLE_MOSS_COLOUR,
+  MARKER_OFFSET,
+  ReleaseMarkers,
+  releaseLabelText,
+} from './release-markers';
 
 const PROJECT = PROJECT_FIXTURES[0];
 const options = (project: Project) => ({
@@ -147,5 +152,47 @@ describe('ReleaseMarkers', () => {
       markers.dispose();
       expect(ctx.scene.children).toHaveLength(0);
     }
+  });
+
+  it('builds jungle cairns with moss caps and version labels', () => {
+    const ctx = stubContext();
+    const project: Project = {
+      ...PROJECT,
+      releases: [
+        { name: 'v1.0.0', date: '2025-06-01T00:00:00Z' },
+        { name: 'v2.0.0', date: '2025-12-01T00:00:00Z' },
+      ],
+    };
+    const markers = new ReleaseMarkers({ ...options(project), skin: 'jungle' });
+    const canvasContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+
+    markers.init(ctx);
+
+    const mesh = ctx.scene.getObjectByName('release-markers') as Mesh;
+    expect(mesh.userData['cairnCount']).toBe(2);
+    const colours = mesh.geometry.getAttribute('color');
+    const moss = new Color(JUNGLE_MOSS_COLOUR);
+    expect(
+      Array.from({ length: colours.count }, (_, index) =>
+        [colours.getX(index), colours.getY(index), colours.getZ(index)].every(
+          (component, axis) => Math.abs(component - [moss.r, moss.g, moss.b][axis]) < 0.00001,
+        ),
+      ).some(Boolean),
+    ).toBe(true);
+    expect(ctx.scene.getObjectByName('release-marker-version-0')).toBeDefined();
+    expect(ctx.scene.getObjectByName('release-marker-version-1')).toBeDefined();
+    const version = ctx.scene.getObjectByName('release-marker-version-0') as Mesh;
+    expect(version.parent).toBe(mesh);
+    expect(version.scale.x).toBeCloseTo(0.2, 5);
+    expect(version.scale.x).toBe(version.scale.y);
+    expect(version.position.y).toBeLessThan(1.4);
+    expect(ctx.scene.getObjectByName('release-marker-sign')).toBeInstanceOf(Group);
+
+    markers.dispose();
+    canvasContext.mockRestore();
+    expect(ctx.scene.children).toHaveLength(0);
   });
 });
