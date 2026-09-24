@@ -84,6 +84,7 @@ import {
   variants,
 } from './scatter';
 import { withAtmosphere } from './shaders/atmosphere';
+import { withClearingRing } from './shaders/clearing-ring';
 import { withDapple } from './shaders/dapple';
 import { withFoliage } from './shaders/foliage';
 import { withGroundDetail } from './shaders/ground-detail';
@@ -476,12 +477,14 @@ export class JungleEnvironment implements Environment {
   readonly shared = new SharedUniforms(DSCHUNGEL);
   /**
    * The clearing Deslopify spreads, as uniforms any material can take by identity: the ring's
-   * centre in world space (`uClearOrigin`) and its radius in metres (`uClearRadius`). The flow
-   * writes them; the ring starts at the arch with nothing cleared.
+   * centre in world space (`uClearOrigin`) and its radius in metres (`uClearRadius`), and how
+   * brightly its edge glows on the floor (`uClearGlow`, 0 while no ring runs). The flow writes
+   * them; the ring starts at the arch with nothing cleared.
    */
   readonly clearing = {
     origin: { value: ARCH.clone() },
     radius: { value: 0 },
+    glow: { value: 0 },
   };
   readonly colliders: readonly Collider[];
   /** A nook behind the waterfall. It holds a stone and nothing else: no text, no tally. */
@@ -498,9 +501,12 @@ export class JungleEnvironment implements Environment {
     heightAt: jungleHeightAt,
     colorAt: jungleGround,
     decorate: (material, quality) =>
-      void withGroundDetail(
-        withDapple(withAtmosphere(material, this.shared), this.shared, 0.75),
-        quality.shaderDetail,
+      void withClearingRing(
+        withGroundDetail(
+          withDapple(withAtmosphere(material, this.shared), this.shared, 0.75),
+          quality.shaderDetail,
+        ),
+        this.clearing,
       ),
   });
   private readonly cliffBase = jungleHeightAt(CLIFF.x, CLIFF.z);

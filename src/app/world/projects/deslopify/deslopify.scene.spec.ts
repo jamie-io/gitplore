@@ -314,8 +314,12 @@ describe('DeslopifyScene', () => {
       expect(built.environment.clearing.origin.value.z).toBe(ARCH.z);
       expect(built.environment.slop).toBe(built.target.flow.haze);
       expect(built.environment.slop).toBeLessThan(1);
+      expect(built.environment.clearing.glow.value).toBe(built.target.flow.ringOpacity);
+      expect(built.environment.clearing.glow.value).toBeGreaterThan(0);
       expect(built.target.ring.visible).toBe(true);
       expect(built.target.ring.scale.x).toBe(radius);
+      // The band stands on the banks, not in the stream bed under the arch.
+      expect(built.target.ring.position.y - 0.5).toBeGreaterThan(jungleHeightAt(ARCH.x, ARCH.z));
     });
 
     it('keeps everything original when the visitor walks back south with the lantern out', () => {
@@ -349,6 +353,7 @@ describe('DeslopifyScene', () => {
       expect(built.target.flow.state).toBe('aus');
       expect(built.environment.slop).toBe(1);
       expect(built.environment.clearing.radius.value).toBe(0);
+      expect(built.environment.clearing.glow.value).toBe(0);
       expect(built.target.cards.some((card) => card.original)).toBe(false);
       expect(built.statuses.at(-1)).toBe('Deslopify aus · Entslopt 0/8');
       expect(prompts(built.target)).toContain(PROMPTS.wallOn);

@@ -27,7 +27,7 @@ import {
 } from '../../environments/jungle-layout';
 import { InWorldDemo, ProjectScene, ProjectSceneOptions } from '../../project/project.scene';
 import { DEMO_HINT, FEED_CARDS, PALETTE, POSTER, PROMPTS } from './deslopify.data';
-import { DeslopifyFlow, FlowLight } from './deslopify.flow';
+import { DeslopifyFlow, FlowLight, FlowPoint } from './deslopify.flow';
 import { FeedCard, FeedWall } from './feed-card';
 import { Lantern } from './lantern';
 import { SlopTags } from './slop-tags';
@@ -51,10 +51,10 @@ const CARD_BLOCKER_RADIUS = 0.3;
 /** Metres over the ground the tags' centres hang: eye level, a little different for each. */
 export const TAG_HEIGHT = { min: 2.2, max: 2.9 } as const;
 /** The ring is a glowing band this tall, sunk this far under the ground where it starts. */
-const RING_HEIGHT = 6;
-const RING_SINK = 2.5;
+const RING_HEIGHT = 4;
+const RING_SINK = 1.5;
 const RING_SEGMENTS = 128;
-const RING_GLOW = 0.6;
+const RING_GLOW = 0.35;
 
 /** The jungle's side of the flow: the violet air and the clearing uniforms. */
 interface SlopAir {
@@ -62,6 +62,7 @@ interface SlopAir {
   readonly clearing: {
     readonly origin: { readonly value: Vector3 };
     readonly radius: { value: number };
+    readonly glow?: { value: number };
   };
 }
 
@@ -109,6 +110,8 @@ export class DeslopifyScene extends ProjectScene {
   private offersBase: readonly Interactable[] | null = null;
   private merged: readonly Interactable[] = [];
   private lanternIgnited = false;
+  private ringFrom: FlowPoint | null = null;
+  private ringBase = 0;
   private status: string | null = null;
 
   private readonly wallDemo: InWorldDemo = {
@@ -257,6 +260,9 @@ export class DeslopifyScene extends ProjectScene {
       const { origin, radius } = this.flow.ring;
       this.air.clearing.origin.value.set(origin.x, this.air.clearing.origin.value.y, origin.z);
       this.air.clearing.radius.value = this.flow.ringActive ? radius : 0;
+      if (this.air.clearing.glow) {
+        this.air.clearing.glow.value = this.flow.ringOpacity;
+      }
     }
     this.drawRing();
 
@@ -351,8 +357,11 @@ export class DeslopifyScene extends ProjectScene {
       return;
     }
     const { origin, radius } = this.flow.ring;
-    const ground = this.environment.ground.heightAt(origin.x, origin.z);
-    this.ring.position.set(origin.x, ground - RING_SINK + RING_HEIGHT / 2, origin.z);
+    if (origin !== this.ringFrom) {
+      this.ringFrom = origin;
+      this.ringBase = this.bankHeight(origin);
+    }
+    this.ring.position.set(origin.x, this.ringBase - RING_SINK + RING_HEIGHT / 2, origin.z);
     this.ring.scale.set(radius, 1, radius);
     this.ring.material.opacity = this.flow.ringOpacity * RING_GLOW;
   }
@@ -393,6 +402,23 @@ export class DeslopifyScene extends ProjectScene {
       this.status = status;
       this.sceneOptions.onStatus?.(status);
     }
+  }
+
+  /**
+   * The ground a ring starts from: the highest of the ground under its origin and a circle of
+   * ground around it, so a ring from the arch stands on the banks, not in the stream bed.
+   */
+  private bankHeight(origin: FlowPoint): number {
+    const ground = this.environment.ground;
+    let highest = ground.heightAt(origin.x, origin.z);
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      highest = Math.max(
+        highest,
+        ground.heightAt(origin.x + Math.cos(angle) * 6, origin.z + Math.sin(angle) * 6),
+      );
+    }
+    return highest;
   }
 
   private onGround(point: Vector3): Vector3 {
