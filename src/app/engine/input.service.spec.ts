@@ -222,6 +222,12 @@ describe('InputService', () => {
       expect([...input.consumeActions()]).toEqual(['view']);
     });
 
+    it('queues a restart action on R', () => {
+      press('KeyR');
+
+      expect([...input.consumeActions()]).toEqual(['restart']);
+    });
+
     it('ignores a held V, so the camera cannot strobe at the key-repeat rate', () => {
       press('KeyV');
       input.consumeActions();

@@ -6,6 +6,11 @@ import { SharedUniforms } from './shaders/shared-uniforms';
 export interface SunOptions {
   readonly mood: Mood;
   readonly shared: SharedUniforms;
+  /**
+   * Metres to push each shadow lookup out along the surface normal; `SHADOW_NORMAL_BIAS` when
+   * absent. For a world whose shadow texels, sun height and relief call for another value.
+   */
+  readonly normalBias?: number;
 }
 
 /**
@@ -19,8 +24,8 @@ const LIGHT_DISTANCE = 120;
 const SHADOW_NEAR = 1;
 const SHADOW_FAR = 250;
 /**
- * Depth offsets against acne on the faceted terrain: a small constant bias, and a normal offset
- * that grows with the slope so a facet lit at a grazing angle does not shadow itself.
+ * Depth offsets against acne on the terrain: a small constant bias, and a normal offset that grows
+ * with the slope so a face lit at a grazing angle does not shadow itself.
  */
 const SHADOW_BIAS = -0.0004;
 const SHADOW_NORMAL_BIAS = 0.05;
@@ -45,12 +50,14 @@ export class Sun implements WorldObject {
   private readonly direction: Vector3;
   private readonly right = new Vector3();
   private readonly up = new Vector3();
+  private readonly normalBias: number;
   private texel = 0;
 
   constructor(options: SunOptions) {
     const { mood, shared } = options;
 
     this.direction = shared.sunDirection.value;
+    this.normalBias = options.normalBias ?? SHADOW_NORMAL_BIAS;
     this.light = new DirectionalLight(mood.sun.color, mood.sun.intensity);
     this.light.name = 'sun';
     this.light.target.name = 'sun-target';
@@ -78,7 +85,7 @@ export class Sun implements WorldObject {
     this.light.castShadow = quality.shadows;
     shadow.mapSize.set(size, size);
     shadow.bias = SHADOW_BIAS;
-    shadow.normalBias = SHADOW_NORMAL_BIAS;
+    shadow.normalBias = this.normalBias;
     shadow.camera.left = -SHADOW_HALF_EXTENT;
     shadow.camera.right = SHADOW_HALF_EXTENT;
     shadow.camera.top = SHADOW_HALF_EXTENT;

@@ -220,6 +220,7 @@ export class WorldPage {
     const offCapture = this.input.addCaptureListener((captured, prompt) =>
       this.store.setCaptured(captured, prompt),
     );
+    this.installTestTeleport();
     afterNextRender(() => void this.boot());
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
@@ -336,6 +337,9 @@ export class WorldPage {
         // preference can never disagree about which view is open.
         this.settings.setViewMode(this.settings.viewMode() === 'first' ? 'third' : 'first');
         break;
+      case 'restart':
+        this.director.restart();
+        break;
       case 'up':
       case 'down':
       case 'left':
@@ -356,5 +360,25 @@ export class WorldPage {
         }
         break;
     }
+  }
+
+  /** Exposes deterministic prop and named-anchor placement only on the stats/debug surface. */
+  private installTestTeleport(): void {
+    if (this.route.snapshot.queryParamMap.get('stats') !== '1') {
+      return;
+    }
+
+    type TestWindow = Window & {
+      __gitploreTestTeleport?: (id: string) => boolean;
+    };
+    const testWindow = window as TestWindow;
+    const teleport = (id: string) => this.director.teleportToInteractableForTest(id);
+    testWindow.__gitploreTestTeleport = teleport;
+
+    inject(DestroyRef).onDestroy(() => {
+      if (testWindow.__gitploreTestTeleport === teleport) {
+        delete testWindow.__gitploreTestTeleport;
+      }
+    });
   }
 }

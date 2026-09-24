@@ -5,7 +5,7 @@ import { Router, provideRouter } from '@angular/router';
 import { AudioService } from '@engine/audio/audio.service';
 import { ENGINE } from '@engine/engine.service';
 import { DEVICE_CAPABILITIES } from '@engine/capability.service';
-import { CAPABLE } from '@engine/testing/world-context';
+import { CAPABLE, stubContext } from '@engine/testing/world-context';
 import { StubEngine } from '@engine/testing/stub-engine';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
@@ -13,7 +13,7 @@ import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from '@ui/store/world.store';
 import { GALERIE, LICHTUNG } from '@world/environments/mood';
 import { HubScene } from '@world/hub/hub.scene';
-import { ProjectScene } from '@world/project/project.scene';
+import { InWorldDemo, ProjectScene } from '@world/project/project.scene';
 import { SceneDirector } from './scene-director';
 
 describe('SceneDirector', () => {
@@ -245,24 +245,35 @@ describe('SceneDirector', () => {
     expect(lateEngine.world?.id).toBe('project:novaverta');
   });
 
-  it('ends a running demo before the incoming scene replaces it', async () => {
-    await director.show('deslopify');
-    const scene = engine.world as ProjectScene;
-    const demo = scene.demo!;
-    let exits = 0;
-    const exit = demo.exit.bind(demo);
-    demo.exit = () => {
-      exits++;
-      exit();
+  afterEach(() => vi.restoreAllMocks());
+
+  /** A demo that takes the controls, standing in the generic scene's `demo`. */
+  function capturedDemo(): InWorldDemo & { enters: number; interacts: number; exits: number } {
+    const demo = {
+      demoHint: 'E: umschalten · Esc: verlassen',
+      enters: 0,
+      interacts: 0,
+      exits: 0,
+      enter: () => void demo.enters++,
+      interact: () => void demo.interacts++,
+      exit: () => void demo.exits++,
     };
+    vi.spyOn(ProjectScene.prototype, 'demo', 'get').mockReturnValue(demo);
+    return demo;
+  }
+
+  it('ends a running demo before the incoming scene replaces it', async () => {
+    const demo = capturedDemo();
+    await director.show('novaverta');
 
     director.startDemo();
     expect(store.demoActive()).toBe(true);
+    expect(store.demoHint()).toBe(demo.demoHint);
 
-    await director.show('novaverta');
+    await director.show('poetzscher');
 
     // `endDemo` must run before `setScene`, so a demo can never survive into the incoming scene.
-    expect(exits).toBe(1);
+    expect(demo.exits).toBe(1);
     expect(store.demoActive()).toBe(false);
   });
 
@@ -275,15 +286,8 @@ describe('SceneDirector', () => {
   });
 
   it('consumes the interact key for a running demo instead of the world behind it', async () => {
-    await director.show('deslopify');
-    const scene = engine.world as ProjectScene;
-    const demo = scene.demo!;
-    let interacts = 0;
-    const interact = demo.interact.bind(demo);
-    demo.interact = () => {
-      interacts++;
-      interact();
-    };
+    const demo = capturedDemo();
+    await director.show('novaverta');
     director.startDemo();
 
     const consumed = director.demoInteract();
@@ -291,8 +295,33 @@ describe('SceneDirector', () => {
     // A director that failed to consume the key here would let it also trigger the landmark
     // behind the demo; one that consumed it without calling `interact()` would leave the demo
     // stuck on whatever it was showing.
-    expect(interacts).toBe(1);
+    expect(demo.interacts).toBe(1);
     expect(consumed).toBe(true);
+  });
+
+  it('starts a world-mode demo without taking the controls or the interact key', async () => {
+    await director.show('deslopify');
+    const scene = engine.world as ProjectScene;
+    const demo = scene.demo!;
+    expect(demo.mode).toBe('world');
+    const enter = vi.spyOn(demo, 'enter');
+
+    director.startDemo();
+
+    expect(enter).toHaveBeenCalledWith(engine.player);
+    expect(store.demoActive()).toBe(false);
+    expect(store.inputMode()).not.toBe('demo');
+    expect(director.demoInteract()).toBe(false);
+  });
+
+  it('passes the world’s state line to the HUD and clears it when the world changes', async () => {
+    await director.show('deslopify');
+    // The stub engine never starts a world; the real one inits it in `setScene`.
+    engine.world!.init(stubContext());
+    expect(store.worldStatus()).toBe('Deslopify noch nicht · Entslopt 0/8');
+
+    await director.show('novaverta');
+    expect(store.worldStatus()).toBeNull();
   });
 
   it('drops an in-flight build on reset, so it never reaches the engine', async () => {
@@ -328,6 +357,16 @@ describe('SceneDirector', () => {
 
     // There is nothing in a repo world to teleport to, so the router builds the destination.
     expect(navigate).toHaveBeenCalledWith(['/p', 'poetzscher']);
+  });
+
+  it('places a browser test visitor in front of a named interactable', async () => {
+    await director.show('deslopify');
+    const scene = engine.world as ProjectScene;
+
+    expect(director.teleportToInteractableForTest(`${scene.id}:seed-lever:pull`)).toBe(true);
+    expect(engine.player.position.x).toBeCloseTo(scene.seedLever.position.x, 6);
+    expect(engine.player.position.z).toBeCloseTo(scene.seedLever.position.z + 1.5, 6);
+    expect(engine.player.yaw).toBe(0);
   });
 
   it('opens the current project panel instead of navigating to the same world', async () => {

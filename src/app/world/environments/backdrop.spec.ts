@@ -1,4 +1,11 @@
-import { Color, Mesh, MeshStandardMaterial } from 'three';
+import {
+  Color,
+  Mesh,
+  MeshStandardMaterial,
+  ShaderLib,
+  WebGLProgramParametersWithUniforms,
+  WebGLRenderer,
+} from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { Backdrop, HillRing, crestHeight } from './backdrop';
 
@@ -61,6 +68,27 @@ describe('Backdrop', () => {
     expect(colour.getX(0)).toBeCloseTo(horizon.r, 5);
     expect(colour.getY(0)).toBeCloseTo(horizon.g, 5);
     expect(colour.getZ(0)).toBeCloseTo(horizon.b, 5);
+  });
+
+  it('mixes every ring towards one shared airlight, which starts as the horizon', () => {
+    const ctx = stubContext();
+    const backdrop = new Backdrop([NEAR, FAR], 0xf0d3ae);
+    backdrop.init(ctx);
+
+    expect(backdrop.airlight.value.getHex()).toBe(0xf0d3ae);
+    for (const child of ctx.scene.children) {
+      const shader = {
+        vertexShader: ShaderLib.standard.vertexShader,
+        fragmentShader: ShaderLib.standard.fragmentShader,
+        uniforms: {},
+        defines: {},
+      } as unknown as WebGLProgramParametersWithUniforms;
+      ((child as Mesh).material as MeshStandardMaterial).onBeforeCompile(
+        shader,
+        {} as WebGLRenderer,
+      );
+      expect(shader.uniforms['backdropHorizon']).toBe(backdrop.airlight);
+    }
   });
 
   it('takes everything back out when disposed', () => {

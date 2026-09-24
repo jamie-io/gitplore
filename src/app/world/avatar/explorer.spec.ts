@@ -120,6 +120,34 @@ describe('Explorer', () => {
     expect(ctx.scene.children).toContain(explorer.object);
   });
 
+  it('exposes a hand socket under the animated right shoulder', () => {
+    const explorer = built();
+    const rightShoulder = joint(explorer, 'explorer-shoulder-right');
+
+    expect(explorer.hand.parent).toBe(rightShoulder);
+    expect(explorer.object.getObjectById(explorer.hand.id)).toBe(explorer.hand);
+  });
+
+  it('exposes a visible light socket that follows the animated hand', () => {
+    const ctx = context();
+    const explorer = built(ctx);
+    const player = standing(explorer);
+
+    explorer.hand.updateWorldMatrix(true, false);
+    explorer.handLight.updateWorldMatrix(true, false);
+    const handPosition = explorer.hand.getWorldPosition(new Vector3());
+
+    expect(explorer.handLight.parent).toBe(ctx.scene);
+    expect(explorer.handLight.getWorldPosition(new Vector3())).toEqual(handPosition);
+
+    step(explorer, player, 0.2, -0.1);
+    explorer.hand.updateWorldMatrix(true, false);
+    explorer.handLight.updateWorldMatrix(true, false);
+    expect(explorer.handLight.getWorldPosition(new Vector3())).toEqual(
+      explorer.hand.getWorldPosition(new Vector3()),
+    );
+  });
+
   it('cuts the coat from the world it stands in', () => {
     const explorer = built();
     const colours = [...materialsOf(explorer)].map((material) =>

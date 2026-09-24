@@ -101,6 +101,16 @@ describe('Sun', () => {
     expect(sunOf(ctx).shadow.mapSize.y).toBe(2048);
   });
 
+  it('offsets shadow lookups along the normal by 5 cm unless the world asks for more', () => {
+    const plain = context('high');
+    sun().init(plain);
+    const tuned = context('high');
+    new Sun({ mood: LICHTUNG, shared: new SharedUniforms(LICHTUNG), normalBias: 0.09 }).init(tuned);
+
+    expect(sunOf(plain).shadow.normalBias).toBe(0.05);
+    expect(sunOf(tuned).shadow.normalBias).toBe(0.09);
+  });
+
   it('keeps the shadow box on the visitor, within one texel', () => {
     const ctx = context('high');
     const object = sun();

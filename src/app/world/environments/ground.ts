@@ -1,11 +1,12 @@
 import {
   BufferAttribute,
-  BufferGeometry,
   Color,
+  InterleavedBufferAttribute,
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
 } from 'three';
+import { QualitySettings } from '@engine/capability.service';
 import { HeightField } from '@engine/player/collision';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
@@ -20,16 +21,20 @@ export interface GroundOptions {
   readonly segments?: number;
   heightAt(x: number, z: number): number;
   /**
-   * Colour of one triangle, sampled at its centroid. `slope` is 0 on level ground and 1 on a
-   * vertical face. The result is copied at once, so an implementation may reuse one instance.
+   * Colour at one grid corner; the GPU blends it across the triangles around it. `slope` is 0 on
+   * level ground and 1 on a vertical face. The result is copied at once, so an implementation may
+   * reuse one instance.
    */
   colorAt?(x: number, z: number, height: number, slope: number): Color;
-  /** Last word on the material before first use, e.g. to patch in the atmosphere shader. */
-  decorate?(material: MeshStandardMaterial): void;
+  /**
+   * Last word on the material before first use, e.g. to patch in the atmosphere shader; `quality`
+   * is the tier the world was built on, for detail that only the stronger tiers can afford.
+   */
+  decorate?(material: MeshStandardMaterial, quality: QualitySettings): void;
 }
 
 /**
- * An analytic height function turned into a faceted mesh, and the `HeightField` the player
+ * An analytic height function turned into a smooth mesh, and the `HeightField` the player
  * controller samples. Several environments need exactly this with different numbers, which is why
  * it is a parameter object rather than near-identical classes.
  */
@@ -57,15 +62,17 @@ export class ProceduralGround implements WorldObject, HeightField {
       position.setY(i, this.options.heightAt(position.getX(i), position.getZ(i)));
     }
     position.needsUpdate = true;
-    // Bake one normal per face instead of `flatShading`: the shader's screen-space derivatives
-    // degenerate on the triangle that straddles the camera and painted it black under SwiftShader.
-    const faceted = geometry.toNonIndexed();
-    geometry.dispose();
-    faceted.computeVertexNormals();
+    // Indexed, so every corner is shared by the triangles around it and gets one averaged normal:
+    // smooth light across the grid with no visible triangles. Vertex normals need no screen-space
+    // derivatives, the thing that painted `flatShading` terrain black under SwiftShader.
+    geometry.computeVertexNormals();
 
     const colorAt = this.options.colorAt?.bind(this.options);
     if (colorAt) {
-      faceted.setAttribute('color', faceColours(faceted, colorAt));
+      geometry.setAttribute(
+        'color',
+        cornerColours(position, geometry.getAttribute('normal'), colorAt),
+      );
     }
 
     const material = new MeshStandardMaterial({
@@ -74,9 +81,9 @@ export class ProceduralGround implements WorldObject, HeightField {
       roughness: 0.95,
       metalness: 0,
     });
-    this.options.decorate?.(material);
+    this.options.decorate?.(material, ctx.quality);
 
-    this.mesh = new Mesh(faceted, material);
+    this.mesh = new Mesh(geometry, material);
     this.mesh.name = this.id;
     this.mesh.receiveShadow = ctx.quality.shadows;
     ctx.scene.add(this.mesh);
@@ -94,27 +101,20 @@ export class ProceduralGround implements WorldObject, HeightField {
   }
 }
 
-/** One colour per triangle, the same on all three corners, so faces stay crisp. */
-function faceColours(
-  geometry: BufferGeometry,
+/** One colour per grid corner, sampled where the corner stands. */
+function cornerColours(
+  position: BufferAttribute,
+  normal: BufferAttribute | InterleavedBufferAttribute,
   colorAt: (x: number, z: number, height: number, slope: number) => Color,
 ): BufferAttribute {
-  const position = geometry.getAttribute('position');
-  const normal = geometry.getAttribute('normal');
   const colours = new Float32Array(position.count * 3);
 
-  for (let face = 0; face < position.count; face += 3) {
-    const x = (position.getX(face) + position.getX(face + 1) + position.getX(face + 2)) / 3;
-    const y = (position.getY(face) + position.getY(face + 1) + position.getY(face + 2)) / 3;
-    const z = (position.getZ(face) + position.getZ(face + 1) + position.getZ(face + 2)) / 3;
-    const slope = 1 - Math.abs(normal.getY(face));
-    const colour = colorAt(x, z, y, slope);
-
-    for (let corner = 0; corner < 3; corner++) {
-      colours[(face + corner) * 3] = colour.r;
-      colours[(face + corner) * 3 + 1] = colour.g;
-      colours[(face + corner) * 3 + 2] = colour.b;
-    }
+  for (let i = 0; i < position.count; i++) {
+    const slope = 1 - Math.abs(normal.getY(i));
+    const colour = colorAt(position.getX(i), position.getZ(i), position.getY(i), slope);
+    colours[i * 3] = colour.r;
+    colours[i * 3 + 1] = colour.g;
+    colours[i * 3 + 2] = colour.b;
   }
 
   return new BufferAttribute(colours, 3);

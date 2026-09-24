@@ -1,7 +1,9 @@
 import {
   BoxGeometry,
+  CanvasTexture,
   CylinderGeometry,
   Mesh,
+  MeshBasicMaterial,
   PerspectiveCamera,
   SRGBColorSpace,
   Scene,
@@ -12,8 +14,8 @@ import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
 import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
-import { LandmarkOptions, TextureProvider } from './landmark';
-import { ScreenLandmark } from './screen.landmark';
+import { TextureProvider } from './landmark';
+import { ScreenLandmark, ScreenLandmarkOptions } from './screen.landmark';
 
 class StubTextures implements TextureProvider {
   loaded: string[] = [];
@@ -30,7 +32,7 @@ class StubTextures implements TextureProvider {
   }
 }
 
-function options(overrides: Partial<LandmarkOptions> = {}): LandmarkOptions {
+function options(overrides: Partial<ScreenLandmarkOptions> = {}): ScreenLandmarkOptions {
   const target = overrides.project ?? PROJECTS.find((p) => p.slug === 'novaverta')!;
   return {
     project: target,
@@ -55,7 +57,129 @@ function context(): WorldContext {
   };
 }
 
+function posterContext() {
+  const fillText = vi.fn();
+  const canvasContext = {
+    fillStyle: '',
+    fillRect: vi.fn(),
+    clearRect: vi.fn(),
+    beginPath: vi.fn(),
+    roundRect: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    fill: vi.fn(),
+    stroke: vi.fn(),
+    font: '',
+    lineWidth: 1,
+    strokeStyle: '',
+    textAlign: 'left',
+    textBaseline: 'alphabetic',
+    fillText,
+    measureText: (text: string) => ({ width: text.length * 8 }),
+    scale: vi.fn(),
+    setTransform: vi.fn(),
+  } as unknown as CanvasRenderingContext2D;
+  return { canvasContext, fillText };
+}
+
 describe('ScreenLandmark', () => {
+  it('draws a project poster when its demo has no screenshot', () => {
+    const textures = new StubTextures();
+    const project = {
+      ...PROJECTS.find((p) => p.slug === 'deslopify')!,
+      landmark: { kind: 'screen' as const, position: [0, 0, 0] as const, rotationY: 0 },
+    };
+    const { canvasContext, fillText } = posterContext();
+    const canvas = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(canvasContext);
+    const screen = new ScreenLandmark(
+      options({
+        project,
+        textures,
+        kicker: 'Projekt · Browser-Erweiterung',
+        englishSummary:
+          'Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube.',
+        comparison: { without: 'Ohne', with: 'With' },
+      }),
+    );
+
+    screen.init(context());
+
+    const surface = screen.group.getObjectByName('surface') as Mesh;
+    const texture = (surface.material as MeshBasicMaterial).map as CanvasTexture;
+    const written = fillText.mock.calls.map(([text]) => text as string);
+    const posterText = written.join(' ');
+    expect(textures.loaded).toEqual([]);
+    expect(texture.image.width).toBe(1240);
+    expect(texture.image.height).toBe(776);
+    expect(written).toContain('PROJEKT · BROWSER-ERWEITERUNG');
+    expect(written).toContain('Deslopify');
+    expect(posterText).toContain(
+      'Browser-Erweiterung, die von YouTube automatisch übersetzte Titel, Thumbnails, Beschreibungen und Tonspuren durch die Originale der Urheber ersetzt.',
+    );
+    expect(posterText).toContain(
+      'Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube.',
+    );
+    expect(written).toContain('JavaScript');
+    expect(written).toContain('Chrome Extension');
+    expect(written).toContain('MV3');
+    expect(written).toContain('github.com/jamie-io/deslopify');
+    expect(written).toContain('E');
+    expect(written).toContain('Details, README & Code');
+    expect(written).toContain('OHNE · WITHOUT');
+    expect(written).toContain('Ohne');
+    expect(written).toContain('MIT · WITH');
+    expect(written).toContain('With');
+
+    canvas.mockRestore();
+  });
+
+  it('omits optional English copy and uses the plain kicker by default', () => {
+    const { canvasContext, fillText } = posterContext();
+    const canvas = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(canvasContext);
+    const project = {
+      ...PROJECTS.find((p) => p.slug === 'deslopify')!,
+      landmark: { kind: 'screen' as const, position: [0, 0, 0] as const, rotationY: 0 },
+    };
+    const screen = new ScreenLandmark(options({ project }));
+
+    screen.init(context());
+
+    const written = fillText.mock.calls.map(([text]) => text as string);
+    expect(written).toContain('PROJEKT');
+    expect(written).not.toContain('PROJEKT · BROWSER-ERWEITERUNG');
+    expect(written.join(' ')).not.toContain(
+      'Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube.',
+    );
+
+    canvas.mockRestore();
+  });
+
+  it('disposes the poster canvas texture with the screen', () => {
+    const { canvasContext } = posterContext();
+    const canvas = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(canvasContext);
+    const project = {
+      ...PROJECTS.find((p) => p.slug === 'deslopify')!,
+      landmark: { kind: 'screen' as const, position: [0, 0, 0] as const, rotationY: 0 },
+    };
+    const screen = new ScreenLandmark(options({ project }));
+
+    screen.init(context());
+
+    const surface = screen.group.getObjectByName('surface') as Mesh;
+    const texture = (surface.material as MeshBasicMaterial).map as CanvasTexture;
+    const dispose = vi.spyOn(texture, 'dispose');
+    screen.dispose();
+
+    expect(dispose).toHaveBeenCalledOnce();
+    canvas.mockRestore();
+  });
+
   it('shows the project screenshot on its screen', () => {
     const textures = new StubTextures();
     const screen = new ScreenLandmark(options({ textures }));
@@ -111,6 +235,16 @@ describe('ScreenLandmark', () => {
     screen.interactables[0].onInteract();
 
     expect(entered).toEqual(['novaverta']);
+  });
+
+  it('uses an optional prompt override while keeping the project title default', () => {
+    const override = new ScreenLandmark(
+      options({ textures: new StubTextures(), prompt: 'Details, README & Code' }),
+    );
+    const defaultPrompt = new ScreenLandmark(options({ textures: new StubTextures() }));
+
+    expect(override.interactables[0]?.prompt).toBe('Details, README & Code');
+    expect(defaultPrompt.interactables[0]?.prompt).toBe(`${defaultPrompt.project.title} ansehen`);
   });
 });
 

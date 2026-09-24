@@ -82,7 +82,7 @@ export const REPO_OVERRIDES: Readonly<Record<string, RepoOverride>> = {
     demo: { kind: 'custom', mode: 'in-world' },
     landmark: { position: [0, 0, -20], rotationY: 0, model: 'assets/models/arch.glb' },
     environment: 'jungle',
-    theme: { primary: '#8f2f2f', accent: '#f6eaea' },
+    theme: { primary: '#6b4712', accent: '#f4e6c8' },
   },
 };
 

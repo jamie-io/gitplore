@@ -9,6 +9,7 @@ import {
   Material,
   Mesh,
   MeshStandardMaterial,
+  Object3D,
 } from 'three';
 import { disposeObject3D } from '@engine/dispose';
 import { DampedAxis } from '@engine/player/damped-axis';
@@ -138,6 +139,10 @@ interface Rig {
 export class Explorer implements PlayerVisual {
   /** Empty until `init`: a scene may be built and thrown away, and must hold no GPU memory first. */
   readonly object = new Group();
+  /** Socket for held world objects; parented to the animated right forearm when built. */
+  readonly hand = new Object3D();
+  /** Scene-level socket for lights held by the hand while the avatar is hidden in first person. */
+  readonly handLight = new Object3D();
 
   private readonly mood: Mood;
   private readonly reducedMotion: () => boolean;
@@ -172,6 +177,8 @@ export class Explorer implements PlayerVisual {
     this.mood = options.mood;
     this.reducedMotion = options.reducedMotion;
     this.object.name = 'explorer';
+    this.hand.name = 'explorer-hand';
+    this.handLight.name = 'explorer-hand-light';
   }
 
   /** Builds the figure and puts it in the world. Called once, by the scene that owns it. */
@@ -189,7 +196,7 @@ export class Explorer implements PlayerVisual {
         object.castShadow = ctx.quality.shadows;
       }
     });
-    ctx.scene.add(this.object);
+    ctx.scene.add(this.object, this.handLight);
   }
 
   /**
@@ -275,11 +282,15 @@ export class Explorer implements PlayerVisual {
     this.poseBody(rig, player, pace, forward, reduced);
     this.poseLimbs(rig, player, pace, forward, side);
     this.poseCoat(rig, player, pace, forward, side, reduced, dt);
+    this.object.updateMatrixWorld(true);
+    this.hand.getWorldPosition(this.handLight.position);
   }
 
   dispose(): void {
     disposeObject3D(this.object);
     this.object.clear();
+    this.handLight.removeFromParent();
+    this.handLight.clear();
     this.materials.length = 0;
     this.rig = null;
     this.following = false;
@@ -413,6 +424,12 @@ export class Explorer implements PlayerVisual {
       shoulder.position.set(sign * SHOULDER_SPAN, SHOULDER_HEIGHT, 0);
       // Darker than the coat, so the arms read against it while they swing.
       shoulder.add(mesh(armGeometry, body, 0, -0.255, 0));
+      if (sign > 0) {
+        // Capsule forearm ends around -0.51 m from its shoulder pivot. A socket there inherits
+        // the shoulder's walk and airborne rotations, so held props follow the hand naturally.
+        this.hand.position.set(0, -0.51, 0);
+        shoulder.add(this.hand);
+      }
       chest.add(shoulder);
       return shoulder;
     }) as [Group, Group];

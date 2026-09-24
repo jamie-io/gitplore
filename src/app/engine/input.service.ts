@@ -2,7 +2,8 @@ import { Service, signal } from '@angular/core';
 import { MoveIntent } from './player/player-controller';
 
 export type InputMode = 'world' | 'ui' | 'demo' | 'captured';
-export type InputAction = 'interact' | 'menu' | 'exit' | 'view' | 'up' | 'down' | 'left' | 'right';
+export type InputAction =
+  'interact' | 'menu' | 'exit' | 'view' | 'restart' | 'up' | 'down' | 'left' | 'right';
 
 /** Radians of turn per pixel of pointer movement, before the user's sensitivity multiplier. */
 const POINTER_SENSITIVITY = 0.0022;
@@ -25,6 +26,7 @@ const ACTION_KEYS: Record<string, InputAction> = {
   // First or third person. The settings dialog holds the same choice; this is the one that is
   // discoverable without leaving the world.
   KeyV: 'view',
+  KeyR: 'restart',
 };
 
 const CAPTURED_ACTION_KEYS: Record<string, InputAction> = {
@@ -232,6 +234,10 @@ export class InputService implements InputActionSource {
     }
 
     if (action === 'menu' && (event.repeat || event.ctrlKey || event.metaKey || event.altKey)) {
+      return;
+    }
+
+    if (action === 'restart' && (event.repeat || event.ctrlKey || event.metaKey || event.altKey)) {
       return;
     }
 

@@ -69,6 +69,19 @@ describe('Hud', () => {
     expect(text()).toContain('Clearing');
   });
 
+  it('shows the world’s own state line under the area, and nothing while it has none', async () => {
+    store.markReady();
+    store.setArea('Dschungel — Deslopify');
+    await fixture.whenStable();
+    expect(query('[data-role="world-status"]')).toBeNull();
+
+    store.setWorldStatus('Deslopify an · Entslopt 8/8');
+    await fixture.whenStable();
+    expect(query('[data-role="world-status"]')?.textContent?.trim()).toBe(
+      'Deslopify an · Entslopt 8/8',
+    );
+  });
+
   it('announces the area politely rather than interrupting', async () => {
     store.markReady();
     store.setArea('Clearing');

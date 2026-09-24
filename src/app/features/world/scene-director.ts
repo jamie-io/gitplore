@@ -1,5 +1,6 @@
 import { Service, effect, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { Vector3 } from 'three';
 import { AssetService } from '@engine/asset.service';
 import { AudioService } from '@engine/audio/audio.service';
 import { CapabilityService } from '@engine/capability.service';
@@ -13,6 +14,7 @@ import { WorldStore } from '@ui/store/world.store';
 import { HubScene } from '@world/hub/hub.scene';
 import { createEnvironment } from '@world/environments/create-environment';
 import type { Environment } from '@world/environments/environment';
+import { BRIDGE, BRIDGE_SOUTH } from '@world/environments/jungle-layout';
 import { createProjectScene } from '@world/project/create-project-scene';
 import { InWorldDemo, ProjectScene } from '@world/project/project.scene';
 
@@ -94,6 +96,8 @@ export class SceneDirector {
       }
 
       this.endDemo();
+      // Cleared before the swap: the incoming world writes its own state when it starts.
+      this.store.setWorldStatus(null);
       // `setScene` disposes the previous world; only a scene that reaches here was ever built.
       this.engine.setScene(scene);
       // After the scene, so the interaction reset it fires has already cleared what was nearby.
@@ -112,10 +116,17 @@ export class SceneDirector {
     }
   }
 
-  /** Starts the current world's in-world demo, if it has one. */
+  /**
+   * Starts the current world's in-world demo, if it has one. A world-mode demo only sets the world
+   * up and leaves the visitor walking: nothing is captured, and E still reaches the world.
+   */
   startDemo(): void {
     const demo = this.current instanceof ProjectScene ? this.current.demo : null;
     if (!demo || this.demo) {
+      return;
+    }
+    if (demo.mode === 'world') {
+      demo.enter(this.engine.player);
       return;
     }
 
@@ -140,6 +151,37 @@ export class SceneDirector {
     }
     this.demo.interact();
 
+    return true;
+  }
+
+  /** Restarts current world's local flow, if it exposes one. */
+  restart(): void {
+    this.current?.restart?.(this.engine.player);
+  }
+
+  /** Places a browser test visitor in front of a current-world interactable. */
+  teleportToInteractableForTest(id: string): boolean {
+    if (id === 'deslopify:bridge-south' && this.current?.id === 'project:deslopify') {
+      this.engine.player.teleport(
+        new Vector3(BRIDGE_SOUTH.x, BRIDGE.deckHeight + PLAYER_EYE_HEIGHT, BRIDGE_SOUTH.z),
+        0,
+      );
+      return true;
+    }
+
+    const target = this.current?.interactables.find((interactable) => interactable.id === id);
+    if (!target) {
+      return false;
+    }
+
+    this.engine.player.teleport(
+      new Vector3(
+        target.position.x,
+        target.position.y + PLAYER_EYE_HEIGHT,
+        target.position.z + 1.5,
+      ),
+      0,
+    );
     return true;
   }
 
@@ -200,6 +242,7 @@ export class SceneDirector {
       onOpenInfo: () => void this.router.navigate(['/p', project.slug, 'info']),
       onLeave: () => void this.router.navigate(['/']),
       onDemo: () => this.startDemo(),
+      onStatus: (status) => this.store.setWorldStatus(status),
       input: this.input,
       textures: this.assets,
     });

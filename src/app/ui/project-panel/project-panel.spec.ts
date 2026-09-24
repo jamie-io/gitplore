@@ -244,6 +244,10 @@ describe('ProjectPanel demos', () => {
     await open('deslopify');
 
     expect(host().querySelector('app-demo-frame')).toBeNull();
+    expect(host().textContent).toContain(
+      'Die Demo ist der Weg durch den Dschungel: Laterne am Südufer nehmen, unter dem Bogen hindurch, an der Wand umschalten.',
+    );
+    expect(host().textContent).not.toContain('direkt neben dem Portal');
     const button = host().querySelector<HTMLButtonElement>('button[data-role="try-in-world"]');
     expect(button?.textContent).toContain('In der Welt');
   });
