@@ -11,6 +11,7 @@ function canvasContext(): CanvasRenderingContext2D {
     textBaseline: 'middle',
     fillRect: vi.fn(),
     fillText: vi.fn(),
+    measureText: vi.fn(() => ({ width: 400 })),
   } as unknown as CanvasRenderingContext2D;
 }
 
