@@ -1,4 +1,13 @@
-import { BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import {
+  BoxGeometry,
+  CylinderGeometry,
+  DodecahedronGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  SphereGeometry,
+  Vector3,
+} from 'three';
 import { disposeObject3D } from '@engine/dispose';
 import { Collider, HeightField } from '@engine/player/collision';
 import { Interactable } from '@engine/interaction/interactable';
@@ -10,15 +19,21 @@ const BASE_HEIGHT = 0.55;
 /** How far the handle throws, and how long it stays down before it springs back. */
 const THROW = -0.65;
 const HOLD_SECONDS = 0.35;
+const JUNGLE_BRANCH_Y = 2.35;
+const JUNGLE_BRANCH_X = 0.25;
+const JUNGLE_BRANCH_LENGTH = 1.25;
+const JUNGLE_TRUNK_HEIGHT = 1.8;
 
 /** What the HUD offers at the lever. */
 export const SEED_LEVER_PROMPT = 'Dekoration neu würfeln';
+export const JUNGLE_SEED_LEVER_PROMPT = 'Liane ziehen';
 
 export interface SeedLeverOptions {
   readonly id: string;
   readonly position: Vector3;
   readonly rotationY?: number;
   readonly ground: HeightField;
+  readonly skin?: 'default' | 'jungle';
   /** Called with 1 on the first pull, 2 on the second, and so on; never stored anywhere. */
   readonly onReseed: (offset: number) => void;
   readonly reducedMotion?: () => boolean;
@@ -34,6 +49,7 @@ export class SeedLever implements WorldObject {
   readonly position: Vector3;
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
+  readonly skin: 'default' | 'jungle';
 
   private readonly group = new Group();
   private readonly options: SeedLeverOptions;
@@ -45,6 +61,7 @@ export class SeedLever implements WorldObject {
   constructor(options: SeedLeverOptions) {
     this.options = options;
     this.id = options.id;
+    this.skin = options.skin ?? 'default';
     this.position = options.position.clone();
     this.position.y = options.ground.heightAt(this.position.x, this.position.z);
     this.group.name = this.id;
@@ -58,13 +75,17 @@ export class SeedLever implements WorldObject {
         id: `${this.id}:pull`,
         position: this.position.clone(),
         radius: INTERACT_RADIUS,
-        prompt: SEED_LEVER_PROMPT,
+        prompt: this.skin === 'jungle' ? JUNGLE_SEED_LEVER_PROMPT : SEED_LEVER_PROMPT,
         onInteract: () => this.pull(),
       },
     ];
   }
 
   init(ctx: WorldContext): void {
+    if (this.skin === 'jungle') {
+      this.initJungle(ctx);
+      return;
+    }
     const base = new Mesh(
       new CylinderGeometry(BASE_RADIUS, BASE_RADIUS * 1.15, BASE_HEIGHT, 8),
       new MeshStandardMaterial({ color: 0x4d5561, roughness: 0.75 }),
@@ -91,6 +112,58 @@ export class SeedLever implements WorldObject {
     pivot.add(stem, grip);
     this.handle = pivot;
     this.group.add(pivot);
+    ctx.scene.add(this.group);
+  }
+
+  private initJungle(ctx: WorldContext): void {
+    const rock = new Mesh(
+      new DodecahedronGeometry(BASE_RADIUS, 0),
+      new MeshStandardMaterial({ color: 0x26361f, roughness: 1 }),
+    );
+    rock.name = `${this.id}:base`;
+    rock.position.y = BASE_HEIGHT / 2;
+    rock.scale.y = 0.75;
+    rock.castShadow = ctx.quality.shadows;
+
+    const trunk = new Mesh(
+      new CylinderGeometry(0.14, 0.18, JUNGLE_TRUNK_HEIGHT, 8),
+      new MeshStandardMaterial({ color: 0x3a3226, roughness: 1 }),
+    );
+    trunk.name = `${this.id}:trunk`;
+    trunk.position.y = BASE_HEIGHT + JUNGLE_TRUNK_HEIGHT / 2;
+    trunk.castShadow = ctx.quality.shadows;
+
+    const branch = new Mesh(
+      new CylinderGeometry(0.09, 0.13, JUNGLE_BRANCH_LENGTH, 8),
+      new MeshStandardMaterial({ color: 0x3a3226, roughness: 1 }),
+    );
+    branch.name = `${this.id}:branch`;
+    branch.rotation.z = Math.PI / 2;
+    branch.position.set(JUNGLE_BRANCH_X, JUNGLE_BRANCH_Y, 0);
+    branch.castShadow = ctx.quality.shadows;
+
+    const handle = new Group();
+    handle.name = `${this.id}:handle`;
+    handle.position.set(JUNGLE_BRANCH_X + JUNGLE_BRANCH_LENGTH / 2, JUNGLE_BRANCH_Y, 0);
+    const liana = new Mesh(
+      new CylinderGeometry(0.035, 0.055, 1.65, 8),
+      new MeshStandardMaterial({ color: 0x356f45, roughness: 0.9 }),
+    );
+    liana.name = `${this.id}:liana`;
+    liana.position.y = -0.825;
+    liana.castShadow = ctx.quality.shadows;
+
+    const grip = new Mesh(
+      new SphereGeometry(0.11, 8, 6),
+      new MeshStandardMaterial({ color: 0x4f8a3a, roughness: 0.8 }),
+    );
+    grip.name = `${this.id}:liana-grip`;
+    grip.position.y = -1.65;
+    grip.castShadow = ctx.quality.shadows;
+
+    handle.add(liana, grip);
+    this.handle = handle;
+    this.group.add(rock, trunk, branch, handle);
     ctx.scene.add(this.group);
   }
 

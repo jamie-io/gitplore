@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   CanvasTexture,
+  CylinderGeometry,
   Group,
   Mesh,
   MeshBasicMaterial,
@@ -28,6 +29,7 @@ import {
   repositoryReleases,
 } from '@content/repository-data';
 import { rotatedAabb } from './footprint';
+import { createLabel } from '../../landmarks/base/label';
 
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 640;
@@ -61,6 +63,35 @@ const INTERACT_RADIUS = 3;
 const READING_DISTANCE = 2.3;
 /** Radians the reader looks up while reading; positive pitch looks up. */
 const READING_PITCH = 0.2;
+const JUNGLE_SCREEN_WIDTH = 1.6;
+const JUNGLE_SCREEN_HEIGHT = 1;
+const JUNGLE_CASE_WIDTH = 1.69;
+const JUNGLE_CASE_HEIGHT = 1.09;
+const JUNGLE_CASE_DEPTH = 0.14;
+const JUNGLE_SCREEN_CENTRE = 2.1;
+const JUNGLE_SLAB_HEIGHT = 2.75;
+const JUNGLE_SLAB_WIDTH = 2.1;
+const JUNGLE_SLAB_DEPTH = 0.56;
+const JUNGLE_SLAB_RADIUS_TOP = 1.45;
+const JUNGLE_SLAB_RADIUS_BOTTOM = 1.5;
+const JUNGLE_TILT = -Math.PI / 15;
+const JUNGLE_BODY_FONT = '44px "IBM Plex Sans", system-ui, sans-serif';
+const JUNGLE_TITLE_FONT = '600 54px "IBM Plex Sans", system-ui, sans-serif';
+const JUNGLE_FOOTER_FONT = '500 26px "IBM Plex Mono", ui-monospace, monospace';
+const JUNGLE_BACKGROUND = '#141b17';
+const JUNGLE_INK = '#f4efe4';
+const JUNGLE_ACCENT = '#f4e6c8';
+const JUNGLE_MUTED = '#b7ad91';
+const JUNGLE_WOOD = 0x5a3d27;
+const JUNGLE_MOSS = 0x3b5a2f;
+const JUNGLE_MAX_LINES = 5;
+const JUNGLE_DOT_SIZE = 8;
+const JUNGLE_DOT_GAP = 12;
+const JUNGLE_KEYCAP_HEIGHT = 36;
+const JUNGLE_KEYCAP_RADIUS = 6;
+const JUNGLE_KEYCAP_PADDING = 10;
+const JUNGLE_KEYCAP_LABEL_GAP = 8;
+const JUNGLE_FOOTER_GAP = 18;
 /** Entries per page: a longer section — many languages or releases — runs on over more pages. */
 export const TERMINAL_LINES_PER_PAGE = 8;
 
@@ -80,6 +111,7 @@ export interface TerminalOptions {
   readonly rotationY?: number;
   readonly ground: HeightField;
   readonly project: Project;
+  readonly skin?: 'default' | 'jungle';
   /** The controls the terminal takes while it is used; headless specs may leave it out. */
   readonly input?: InputActionSource;
 }
@@ -187,6 +219,7 @@ export class Terminal implements WorldObject {
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
   readonly pages: readonly TerminalPage[];
+  readonly skin: 'default' | 'jungle';
   /** Where the visitor's eyes go while reading: square in front of the screen. */
   readonly reading: Vector3;
 
@@ -203,21 +236,30 @@ export class Terminal implements WorldObject {
   constructor(options: TerminalOptions) {
     this.options = options;
     this.id = options.id;
+    this.skin = options.skin ?? 'default';
     this.pages = buildTerminalPages(options.project);
     this.position = options.position.clone();
     this.position.y = options.ground.heightAt(this.position.x, this.position.z);
     this.group.name = this.id;
     this.group.position.copy(this.position);
     this.group.rotation.y = options.rotationY ?? 0;
+    const dimensions = terminalDimensions(this.skin);
     const rotationY = options.rotationY ?? 0;
     this.reading = this.position
       .clone()
       .add(
-        new Vector3(Math.sin(rotationY), 0, Math.cos(rotationY)).multiplyScalar(READING_DISTANCE),
+        new Vector3(Math.sin(rotationY), 0, Math.cos(rotationY)).multiplyScalar(
+          dimensions.readingDistance,
+        ),
       );
     this.reading.y = options.ground.heightAt(this.reading.x, this.reading.z) + PLAYER_EYE_HEIGHT;
     this.colliders = [
-      rotatedAabb(this.position, CASE_WIDTH / 2, CASE_DEPTH / 2, options.rotationY ?? 0),
+      rotatedAabb(
+        this.position,
+        dimensions.colliderWidth / 2,
+        dimensions.colliderDepth / 2,
+        options.rotationY ?? 0,
+      ),
     ];
     this.interactables = [
       {
@@ -248,16 +290,33 @@ export class Terminal implements WorldObject {
 
   init(ctx: WorldContext): void {
     this.player = ctx.player;
-    const casing = new MeshStandardMaterial({ color: 0x26323a, metalness: 0.25, roughness: 0.6 });
-    const body = new Mesh(new BoxGeometry(CASE_WIDTH, CASE_HEIGHT, CASE_DEPTH), casing);
-    body.name = `${this.id}:body`;
-    body.position.y = SCREEN_CENTRE;
-    body.castShadow = ctx.quality.shadows;
-    const postHeight = SCREEN_CENTRE - CASE_HEIGHT / 2;
-    const post = new Mesh(new BoxGeometry(POST_WIDTH, postHeight, CASE_DEPTH * 0.8), casing);
-    post.name = `${this.id}:post`;
-    post.position.y = postHeight / 2;
-    post.castShadow = ctx.quality.shadows;
+    const dimensions = terminalDimensions(this.skin);
+    let screenParent = this.group;
+    if (this.skin === 'jungle') {
+      screenParent = this.createJungleStele(ctx, dimensions);
+    } else {
+      const casing = new MeshStandardMaterial({
+        color: 0x26323a,
+        metalness: 0.25,
+        roughness: 0.6,
+      });
+      const body = new Mesh(
+        new BoxGeometry(dimensions.caseWidth, dimensions.caseHeight, dimensions.caseDepth),
+        casing,
+      );
+      body.name = `${this.id}:body`;
+      body.position.y = dimensions.screenCentre;
+      body.castShadow = ctx.quality.shadows;
+      const postHeight = dimensions.screenCentre - dimensions.caseHeight / 2;
+      const post = new Mesh(
+        new BoxGeometry(POST_WIDTH, postHeight, dimensions.caseDepth * 0.8),
+        casing,
+      );
+      post.name = `${this.id}:post`;
+      post.position.y = postHeight / 2;
+      post.castShadow = ctx.quality.shadows;
+      this.group.add(body, post);
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = CANVAS_WIDTH;
@@ -265,19 +324,34 @@ export class Terminal implements WorldObject {
     this.canvasContext = contextFor(canvas);
     // Without a 2-D context (jsdom, or a browser that refuses one) the screen stays dark and the
     // terminal still works: the pages turn, only nothing is drawn.
-    const material = new MeshBasicMaterial({ color: BACKGROUND });
+    const material = new MeshBasicMaterial({
+      color: this.skin === 'jungle' ? JUNGLE_BACKGROUND : BACKGROUND,
+    });
     if (this.canvasContext) {
       this.texture = new CanvasTexture(canvas);
       this.texture.colorSpace = SRGBColorSpace;
       material.map = this.texture;
       material.color.set(0xffffff);
       this.redraw();
+      if (this.skin === 'jungle') {
+        void document.fonts?.load(JUNGLE_BODY_FONT).then(
+          () => this.redraw(),
+          () => undefined,
+        );
+      }
     }
-    const screen = new Mesh(new PlaneGeometry(SCREEN_WIDTH, SCREEN_HEIGHT), material);
+    const screen = new Mesh(
+      new PlaneGeometry(dimensions.screenWidth, dimensions.screenHeight),
+      material,
+    );
     screen.name = `${this.id}:screen`;
-    screen.position.set(0, SCREEN_CENTRE, CASE_DEPTH / 2 + 0.005);
+    screen.position.set(
+      0,
+      this.skin === 'jungle' ? 0 : dimensions.screenCentre,
+      dimensions.caseDepth / 2 + 0.005,
+    );
 
-    this.group.add(body, post, screen);
+    screenParent.add(screen);
     ctx.scene.add(this.group);
   }
 
@@ -312,7 +386,11 @@ export class Terminal implements WorldObject {
     }
     // Square in front of the screen, as the bench seats its visitor: the controls are taken, so
     // the visitor could not turn to it otherwise.
-    this.player?.teleport(this.reading, this.options.rotationY ?? 0, READING_PITCH);
+    this.player?.teleport(
+      this.reading,
+      this.options.rotationY ?? 0,
+      this.skin === 'jungle' ? 0 : READING_PITCH,
+    );
     this.options.input.capture(TERMINAL_RELEASE_PROMPT);
   }
 
@@ -341,36 +419,249 @@ export class Terminal implements WorldObject {
       return;
     }
     const page = this.pages[this.pageIndexValue];
+    const jungle = this.skin === 'jungle';
     const width = CANVAS_WIDTH - MARGIN * 2;
     context.textBaseline = 'alphabetic';
     context.textAlign = 'left';
-    context.fillStyle = BACKGROUND;
+    context.fillStyle = jungle ? JUNGLE_BACKGROUND : BACKGROUND;
     context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-    context.fillStyle = MUTED;
-    context.font = SMALL_FONT;
-    context.fillText(this.options.project.title, MARGIN, 60, width);
-    context.fillStyle = ACCENT;
-    context.font = TITLE_FONT;
+    if (!jungle) {
+      context.fillStyle = MUTED;
+      context.font = SMALL_FONT;
+      context.fillText(this.options.project.title, MARGIN, 60, width);
+    }
+
+    context.fillStyle = jungle ? JUNGLE_ACCENT : ACCENT;
+    context.font = jungle ? JUNGLE_TITLE_FONT : TITLE_FONT;
     context.fillText(page.title, MARGIN, 116, width);
     context.fillRect(MARGIN, 136, width, 2);
 
-    context.fillStyle = INK;
-    context.font = BODY_FONT;
+    context.fillStyle = jungle ? JUNGLE_INK : INK;
+    context.font = jungle ? JUNGLE_BODY_FONT : BODY_FONT;
     const measure = (text: string) => context.measureText(text).width;
     const lines = page.lines.flatMap((line) => wrapLine(line, width, measure));
-    const room = Math.floor((FOOTER_Y - 48 - BODY_TOP) / LINE_HEIGHT) + 1;
+    const room = jungle
+      ? JUNGLE_MAX_LINES
+      : Math.floor((FOOTER_Y - 48 - BODY_TOP) / LINE_HEIGHT) + 1;
     const shown = lines.length > room ? [...lines.slice(0, room - 1), '…'] : lines;
     shown.forEach((line, index) => {
       context.fillText(line, MARGIN, BODY_TOP + 24 + index * LINE_HEIGHT, width);
     });
 
-    context.fillStyle = MUTED;
-    context.font = SMALL_FONT;
-    const footer = terminalFooter(this.pageIndexValue, this.pages.length);
-    context.fillText(footer, MARGIN, FOOTER_Y, width);
+    context.fillStyle = jungle ? JUNGLE_MUTED : MUTED;
+    context.font = jungle ? JUNGLE_FOOTER_FONT : SMALL_FONT;
+    if (jungle) {
+      drawJungleFooter(context, this.pageIndexValue, this.pages.length, FOOTER_Y);
+    } else {
+      const footer = terminalFooter(this.pageIndexValue, this.pages.length);
+      context.fillText(footer, MARGIN, FOOTER_Y, width);
+    }
     this.texture.needsUpdate = true;
   }
+
+  private createJungleStele(ctx: WorldContext, dimensions: TerminalDimensions): Group {
+    const slab = new Mesh(
+      new CylinderGeometry(
+        JUNGLE_SLAB_RADIUS_TOP,
+        JUNGLE_SLAB_RADIUS_BOTTOM,
+        JUNGLE_SLAB_HEIGHT,
+        4,
+        1,
+        false,
+        Math.PI / 4,
+      ),
+      new MeshStandardMaterial({
+        color: 0x3a4038,
+        roughness: 1,
+        flatShading: false,
+      }),
+    );
+    slab.name = `${this.id}:slab`;
+    slab.scale.z = JUNGLE_SLAB_DEPTH / ((2 * JUNGLE_SLAB_RADIUS_BOTTOM) / Math.SQRT2);
+    slab.position.y = JUNGLE_SLAB_HEIGHT / 2;
+    slab.castShadow = ctx.quality.shadows;
+    this.group.add(slab);
+    this.addMossEdges(ctx.quality.shadows);
+
+    const panel = new Group();
+    panel.name = `${this.id}:panel`;
+    panel.position.set(
+      0,
+      dimensions.screenCentre,
+      JUNGLE_SLAB_DEPTH / 2 + dimensions.caseDepth / 2,
+    );
+    panel.rotation.x = JUNGLE_TILT;
+    const frame = new Mesh(
+      new BoxGeometry(dimensions.caseWidth, dimensions.caseHeight, dimensions.caseDepth),
+      new MeshStandardMaterial({ color: JUNGLE_BACKGROUND, roughness: 1, metalness: 0 }),
+    );
+    frame.name = `${this.id}:body`;
+    frame.castShadow = ctx.quality.shadows;
+    panel.add(frame);
+    this.group.add(panel);
+    this.addPlankLabel();
+    return panel;
+  }
+
+  private addMossEdges(castShadow: boolean): void {
+    const edge = 0.045;
+    const depth = JUNGLE_SLAB_DEPTH + 0.018;
+    const edges = [
+      {
+        name: 'moss-left',
+        geometry: new BoxGeometry(edge, JUNGLE_SLAB_HEIGHT, depth),
+        x: -JUNGLE_SLAB_WIDTH / 2 + edge / 2,
+        y: JUNGLE_SLAB_HEIGHT / 2,
+      },
+      {
+        name: 'moss-right',
+        geometry: new BoxGeometry(edge, JUNGLE_SLAB_HEIGHT, depth),
+        x: JUNGLE_SLAB_WIDTH / 2 - edge / 2,
+        y: JUNGLE_SLAB_HEIGHT / 2,
+      },
+      {
+        name: 'moss-top',
+        geometry: new BoxGeometry(JUNGLE_SLAB_WIDTH, edge, depth),
+        x: 0,
+        y: JUNGLE_SLAB_HEIGHT - edge / 2,
+      },
+    ];
+    for (const item of edges) {
+      const edgeMesh = new Mesh(
+        item.geometry,
+        new MeshStandardMaterial({ color: JUNGLE_MOSS, roughness: 1 }),
+      );
+      edgeMesh.name = `${this.id}:${item.name}`;
+      edgeMesh.position.set(item.x, item.y, 0);
+      edgeMesh.castShadow = castShadow;
+      this.group.add(edgeMesh);
+    }
+  }
+
+  private addPlankLabel(): void {
+    const label = createLabel(this.options.project.title, '#5a3d27');
+    const labelGeometry = label?.geometry as PlaneGeometry | undefined;
+    const labelWidth = labelGeometry?.parameters.width ?? 1.8;
+    const labelHeight = labelGeometry?.parameters.height ?? 0.6;
+    const plankWidth = labelWidth + 0.2;
+    const plankHeight = labelHeight + 0.12;
+    const plank = new Mesh(
+      new BoxGeometry(plankWidth, plankHeight, 0.08),
+      new MeshStandardMaterial({ color: JUNGLE_WOOD, roughness: 0.9 }),
+    );
+    plank.name = `${this.id}:plank`;
+    plank.position.set(0, JUNGLE_SLAB_HEIGHT + plankHeight / 2, JUNGLE_SLAB_DEPTH / 2);
+    if (label) {
+      label.name = `${this.id}:label`;
+      label.position.set(0, 0, 0.045);
+      plank.add(label);
+    }
+    this.group.add(plank);
+  }
+}
+
+interface TerminalDimensions {
+  readonly screenWidth: number;
+  readonly screenHeight: number;
+  readonly screenCentre: number;
+  readonly caseWidth: number;
+  readonly caseHeight: number;
+  readonly caseDepth: number;
+  readonly colliderWidth: number;
+  readonly colliderDepth: number;
+  readonly readingDistance: number;
+}
+
+function terminalDimensions(skin: 'default' | 'jungle'): TerminalDimensions {
+  if (skin === 'jungle') {
+    return {
+      screenWidth: JUNGLE_SCREEN_WIDTH,
+      screenHeight: JUNGLE_SCREEN_HEIGHT,
+      screenCentre: JUNGLE_SCREEN_CENTRE,
+      caseWidth: JUNGLE_CASE_WIDTH,
+      caseHeight: JUNGLE_CASE_HEIGHT,
+      caseDepth: JUNGLE_CASE_DEPTH,
+      colliderWidth: JUNGLE_SLAB_WIDTH,
+      colliderDepth: JUNGLE_SLAB_DEPTH,
+      readingDistance: 1.9,
+    };
+  }
+  return {
+    screenWidth: SCREEN_WIDTH,
+    screenHeight: SCREEN_HEIGHT,
+    screenCentre: SCREEN_CENTRE,
+    caseWidth: CASE_WIDTH,
+    caseHeight: CASE_HEIGHT,
+    caseDepth: CASE_DEPTH,
+    colliderWidth: CASE_WIDTH,
+    colliderDepth: CASE_DEPTH,
+    readingDistance: READING_DISTANCE,
+  };
+}
+
+function drawJungleFooter(
+  context: CanvasRenderingContext2D,
+  page: number,
+  pages: number,
+  footerY: number,
+): void {
+  const rowWidth = pages * JUNGLE_DOT_SIZE + Math.max(0, pages - 1) * JUNGLE_DOT_GAP;
+  const firstCenter = (CANVAS_WIDTH - rowWidth) / 2 + JUNGLE_DOT_SIZE / 2;
+  for (let index = 0; index < pages; index++) {
+    context.fillStyle = index === page ? JUNGLE_ACCENT : JUNGLE_MUTED;
+    const centerX = firstCenter + index * (JUNGLE_DOT_SIZE + JUNGLE_DOT_GAP);
+    const centerY = footerY - 52;
+    if (
+      typeof context.beginPath === 'function' &&
+      typeof context.arc === 'function' &&
+      typeof context.fill === 'function'
+    ) {
+      context.beginPath();
+      context.arc(centerX, centerY, JUNGLE_DOT_SIZE / 2, 0, Math.PI * 2);
+      context.fill();
+    } else {
+      context.fillRect(
+        centerX - JUNGLE_DOT_SIZE / 2,
+        centerY - JUNGLE_DOT_SIZE / 2,
+        JUNGLE_DOT_SIZE,
+        JUNGLE_DOT_SIZE,
+      );
+    }
+  }
+  const right = CANVAS_WIDTH - MARGIN;
+  const exit = drawJungleControl(context, 'Esc', 'verlassen', right, footerY);
+  drawJungleControl(context, '↑↓', 'blättern', exit.left - JUNGLE_FOOTER_GAP, footerY);
+}
+
+function drawJungleControl(
+  context: CanvasRenderingContext2D,
+  key: string,
+  label: string,
+  right: number,
+  footerY: number,
+): { readonly left: number } {
+  const keyWidth = context.measureText(key).width + JUNGLE_KEYCAP_PADDING * 2;
+  const labelWidth = context.measureText(label).width;
+  const totalWidth = keyWidth + JUNGLE_KEYCAP_LABEL_GAP + labelWidth;
+  const left = right - totalWidth;
+  const top = footerY - JUNGLE_KEYCAP_HEIGHT + 4;
+
+  context.strokeStyle = JUNGLE_INK;
+  context.lineWidth = 2;
+  context.beginPath?.();
+  if (typeof context.roundRect === 'function') {
+    context.roundRect(left, top, keyWidth, JUNGLE_KEYCAP_HEIGHT, JUNGLE_KEYCAP_RADIUS);
+  } else {
+    context.rect?.(left, top, keyWidth, JUNGLE_KEYCAP_HEIGHT);
+  }
+  context.stroke?.();
+  context.fillStyle = JUNGLE_INK;
+  context.textAlign = 'center';
+  context.fillText(key, left + keyWidth / 2, footerY - 8);
+  context.textAlign = 'left';
+  context.fillText(label, left + keyWidth + JUNGLE_KEYCAP_LABEL_GAP, footerY - 8);
+  return { left };
 }
 
 function noop(): void {
