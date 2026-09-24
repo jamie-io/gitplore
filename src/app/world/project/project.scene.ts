@@ -223,6 +223,7 @@ export class ProjectScene implements WorldScene {
       ground: this.environment.ground,
       project: options.project,
       input: options.input,
+      skin: this.environment.id === 'jungle' ? 'jungle' : undefined,
     });
     this.seedLever = new SeedLever({
       id: `${this.id}:seed-lever`,
@@ -231,6 +232,7 @@ export class ProjectScene implements WorldScene {
       ground: this.environment.ground,
       onReseed: (offset) => this.environment.reseedDecoration?.(offset),
       reducedMotion: options.reducedMotion,
+      skin: this.environment.id === 'jungle' ? 'jungle' : undefined,
     });
     const side = new Vector3(
       Math.cos(this.exhibit.rotationY),
