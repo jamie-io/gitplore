@@ -44,7 +44,7 @@ export interface ProjectLandmark {
 
 /**
  * Which reusable world stands behind a project's portal
- * (repo-design-notes/specs/2026-09-10-repo-worlds-design.md §5). `clearing` is the start world and
+ * (the repo-world design record §5). `clearing` is the start world and
  * is not a destination; a repository that names it simply gets a second clearing. Nothing selects
  * `clearing` today, and it is not actually harmless: `ProjectScene` puts the return portal at
  * `environment.spawn`, which for the clearing is the origin, where the `Monument` stands with its

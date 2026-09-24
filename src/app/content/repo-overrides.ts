@@ -2,7 +2,7 @@ import type { EnvironmentId, ProjectDemo, ProjectLandmark } from './project.mode
 
 /**
  * Everything GitHub cannot express about one of Jamie's repositories, keyed by repository name
- * (repo-design-notes/specs/2026-09-10-repo-worlds-design.md §4).
+ * (the repo-world design record §4).
  *
  * German copy lives here because GitHub holds none and the site is German. Anything that is code
  * — a bespoke landmark kind, a panel component — necessarily lives here too.

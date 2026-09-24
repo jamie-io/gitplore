@@ -1,6 +1,6 @@
 /**
  * Which of Jamie's repositories become landmarks, and the shape the app reads them in
- * (repo-design-notes/specs/2026-09-10-repo-worlds-design.md §3).
+ * (the repo-world design record §3).
  */
 
 /** A safety net, not a curation tool: a walkable world, however many repositories exist. */

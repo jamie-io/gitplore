@@ -106,7 +106,7 @@ and stores but never Three directly.
 
 ## 3. Routing and scene model
 
-> **Reversed by `repo-design-notes/specs/2026-09-10-repo-worlds-design.md` §2 (Task 11 recorded
+> **Reversed by the repo-world design record §2 (Task 11 recorded
 > it here):** a project destination is **not** an overlay over a paused, permanent hub any more. A
 > destination is a world of its own. Walking through a portal disposes the start world (the
 > "Lichtung") and builds that repository's own themed world in its place; walking back disposes
@@ -177,7 +177,7 @@ export interface Project {
 }
 ```
 
-- The portfolio is synced, not hand-written (`repo-design-notes/specs/2026-09-10-repo-worlds-design.md`
+- The portfolio is synced, not hand-written (the repo-world design record
   §3–§4). `scripts/sync-repos.mjs` writes the committed `public/content/repos.json`;
   `content/repo-overrides.ts` holds everything GitHub cannot express (German copy, pinned
   landmarks, bespoke demos), keyed by repository name. `merge-repo.ts` resolves one `SyncedRepo`

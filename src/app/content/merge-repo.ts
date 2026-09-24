@@ -67,7 +67,7 @@ function defaultTags(repo: SyncedRepo): string[] {
  *
  * GitHub guarantees nothing about this field, and the deploy runs the schema test on whatever
  * `content:sync` discovered: a repository described as "wip" must fall back rather than break the
- * build (repo-design-notes/specs/2026-09-10-repo-worlds-design.md §3).
+ * build (the repo-world design record §3).
  */
 function usefulDescription(repo: SyncedRepo): string | undefined {
   const described = repo.description?.trim() ?? '';

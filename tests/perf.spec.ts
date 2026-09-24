@@ -5,7 +5,7 @@ import { framesRendered } from './helpers';
  * Opt-in frame-rate probe: `PERF=1 npx playwright test tests/perf.spec.ts --project=chromium
  * --workers=1`. It is not a gate: SwiftShader frame rates depend on what else the machine is doing.
  * It prints one line per world so a change can be compared with the numbers recorded before it in
- * repo-design-notes/plans/2026-09-18-pretty-worlds-fps.md.
+ * the performance test record.
  */
 const WORLDS = [
   { place: 'Lichtung', url: '/?stats=1' },

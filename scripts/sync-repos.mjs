@@ -4,7 +4,7 @@
  * The build makes the list request plus the small per-repository enrichment requests. When the
  * build environment provides GITHUB_TOKEN, every request uses it as a bearer token; it is never
  * written into committed content or shipped JavaScript. The file is committed so the app reads it
- * same-origin and an offline build still works (repo-design-notes/specs/2026-09-10-repo-worlds-design.md §3).
+ * same-origin and an offline build still works (the repo-world design record §3).
  */
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
