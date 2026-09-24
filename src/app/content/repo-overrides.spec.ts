@@ -62,6 +62,10 @@ describe('repo overrides', () => {
     expect(curatedRepoNames()).toContain('deslopify');
   });
 
+  it('gives Deslopify the ridge and engraving theme, because the red one turned brown against amber', () => {
+    expect(REPO_OVERRIDES['deslopify'].theme).toEqual({ primary: '#6b4712', accent: '#f4e6c8' });
+  });
+
   it('writes German copy for every repository the world shows', () => {
     // gitplore and webkatalog_demoshop used to fall through to the raw repository name and, for
     // gitplore, its English GitHub description — an underscored machine name and an English
