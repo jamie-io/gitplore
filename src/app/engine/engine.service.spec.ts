@@ -282,6 +282,15 @@ describe('EngineService', () => {
     expect(stats.sceneTextures).toBe(1);
   });
 
+  it('counts textures held by material shader uniforms as scene-owned', () => {
+    const texture = new Texture();
+    const material = new MeshStandardMaterial();
+    material.userData['uniforms'] = { slopMap: { value: texture } };
+    engine.scene.add(new Mesh(new BoxGeometry(), material));
+
+    expect(engine.stats().sceneTextures).toBe(1);
+  });
+
   it('counts every rendered frame', () => {
     tick(0);
     tick(16);

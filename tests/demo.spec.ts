@@ -11,50 +11,25 @@ test.describe('demos', () => {
     await expect(page.locator('a[data-role="open-tab"]')).toHaveAttribute('target', '_blank');
   });
 
-  test('the in-world demo starts from the panel and leaves with Esc', async ({ page }) => {
+  test('the in-world demo starts at the wall without capturing input', async ({ page }) => {
     await page.goto('/p/deslopify/info');
     await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
 
     await page.locator('button[data-role="try-in-world"]').click();
 
-    // Back to the jungle itself, with the demo running.
+    // Back to the jungle itself, facing the wall, with ordinary world input still active.
     await expect(page).toHaveURL(/\/p\/deslopify$/);
-    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'demo');
-    const hint = page.locator('app-hud .prompt');
-    await expect(hint).toContainText('Originaltitel');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
+    await expect(page.locator('app-hud .status')).toHaveText(/Deslopify an · Entslopt \d+\/8/);
+    await expect(page.locator('app-hud .prompt')).toContainText('Deslopify ausschalten');
 
-    // E flips the titles; the world keeps running, so nothing else changes.
+    // E toggles wall state; it is still the world, not a captured demo, that handles the key.
     await page.keyboard.press('KeyE');
-    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'demo');
-
-    await page.keyboard.press('Escape');
     await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
-    await expect(hint).not.toContainText('Originaltitel');
-  });
-
-  test('the in-world demo also starts from the video wall standing in the jungle', async ({
-    page,
-  }) => {
-    await page.goto('/p/deslopify');
-    await page.locator('button[data-role="start"]').click();
-    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
-    await page.locator('app-world-page canvas').focus();
-
-    // The exhibit board sits dead ahead of the arrival point, facing it; the wall stands beside
-    // it, off to the board's left, which is the arriving visitor's right (spec §5). The board is
-    // reached first and the wall by side-stepping past it.
-    await page.keyboard.down('KeyW');
-    await expect(page.locator('app-hud .prompt')).toContainText('ansehen', { timeout: 20_000 });
-    await page.keyboard.up('KeyW');
-
-    await page.keyboard.down('KeyD');
-    await expect(page.locator('app-hud .prompt')).toContainText('ausprobieren', {
-      timeout: 20_000,
-    });
-    await page.keyboard.up('KeyD');
+    await expect(page.locator('app-hud .status')).toHaveText(/Deslopify aus · Entslopt \d+\/8/);
 
     await page.keyboard.press('KeyE');
-
-    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'demo');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
+    await expect(page.locator('app-hud .status')).toHaveText(/Deslopify an · Entslopt \d+\/8/);
   });
 });

@@ -35,6 +35,8 @@ export interface WorldScene extends WorldObject {
   readonly ground: HeightField;
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
+  /** Optional world-local restart action, used by flows that expose the restart key. */
+  readonly restart?: (player: PlayerController) => void;
   /**
    * The body the player walks around in. The scene builds it, because `@engine` may not import
    * `@world` and the figure is cut from the place it stands in; the engine only drives and hides

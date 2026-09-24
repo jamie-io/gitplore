@@ -1,5 +1,6 @@
 import { Service, effect, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import { Vector3 } from 'three';
 import { AssetService } from '@engine/asset.service';
 import { AudioService } from '@engine/audio/audio.service';
 import { CapabilityService } from '@engine/capability.service';
@@ -149,6 +150,25 @@ export class SceneDirector {
     }
     this.demo.interact();
 
+    return true;
+  }
+
+  /** Restarts current world's local flow, if it exposes one. */
+  restart(): void {
+    this.current?.restart?.(this.engine.player);
+  }
+
+  /** Places a browser test visitor in front of a current-world interactable. */
+  teleportToInteractableForTest(id: string): boolean {
+    const target = this.current?.interactables.find((interactable) => interactable.id === id);
+    if (!target) {
+      return false;
+    }
+
+    this.engine.player.teleport(
+      new Vector3(target.position.x, target.position.y + PLAYER_EYE_HEIGHT, target.position.z + 1.5),
+      0,
+    );
     return true;
   }
 

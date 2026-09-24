@@ -19,6 +19,7 @@ import {
   CARD_SLOTS,
   LANTERN_POST,
   LANTERN_YAW,
+  SPAWN,
   Slot,
   TAG_SLOTS,
   VINE_SLOTS,
@@ -232,7 +233,7 @@ export class DeslopifyScene extends ProjectScene {
   override init(ctx: WorldContext): void {
     super.init(ctx);
     this.lantern.init(ctx);
-    this.lantern.attachTo(this.explorer.hand);
+    this.lantern.attachTo(this.explorer.hand, this.explorer.handLight);
     this.cards.forEach((card) => ctx.scene.add(card.object));
     ctx.scene.add(this.wall.object, this.vines.object, this.tags.object, this.ring);
     this.air?.setSlop(this.flow.haze);
@@ -309,6 +310,38 @@ export class DeslopifyScene extends ProjectScene {
   /** E at the wall: Deslopify off, or on with a new ring from the wall. Nothing before install. */
   toggleWall(): void {
     this.flow.toggleWall();
+  }
+
+  /** Restarts the entire Deslopify journey at the south-bank arrival point. */
+  restart(player: PlayerController): void {
+    this.flow.reset();
+    this.lantern.reset();
+    this.lanternIgnited = false;
+    this.shownOriginal.fill(false);
+    this.cards.forEach((card) => card.setOriginal(false));
+    this.wall.setOriginal(false);
+    this.ringFrom = null;
+    this.ring.visible = false;
+    this.air?.setSlop(1);
+    this.air?.clearing.origin.value.set(
+      SPAWN.position.x,
+      this.air.clearing.origin.value.y,
+      SPAWN.position.z,
+    );
+    if (this.air) {
+      this.air.clearing.radius.value = 0;
+      if (this.air.clearing.glow) {
+        this.air.clearing.glow.value = 0;
+      }
+    }
+    this.offers = [this.igniteOffer];
+    this.offersBase = null;
+    // The environment's spawn yaw, not the slot's: the player's yaw convention faces the other way.
+    player.teleport(
+      this.environment.spawn.clone().setY(this.environment.spawn.y + PLAYER_EYE_HEIGHT),
+      this.environment.spawnYaw,
+    );
+    this.publishStatus();
   }
 
   private tryAtWall(player: PlayerController): void {

@@ -6,33 +6,6 @@ import { settledStats, startWorld } from './helpers';
  * they come back (spec §2, reversing IMPLEMENTATION_PLAN.md §3). Resources must therefore be flat
  * across start world → repo world → start world, not just across opening and closing an overlay.
  */
-/**
- * Waits until the engine has simulated `seconds` of movement. The engine clamps each frame's step
- * to 50 ms (`ENGINE_MAX_FRAME_SECONDS`), so under a slow software renderer a second of wall-clock
- * time moves the visitor less than a second's walk; counting clamped animation frames instead
- * keeps a walk's length the same at any frame rate.
- */
-async function simulate(page: Page, seconds: number): Promise<void> {
-  await page.evaluate(
-    (target) =>
-      new Promise<void>((resolve) => {
-        let simulated = 0;
-        let last = performance.now();
-        const tick = (now: number) => {
-          simulated += Math.min((now - last) / 1000, 0.05);
-          last = now;
-          if (simulated >= target) {
-            resolve();
-          } else {
-            requestAnimationFrame(tick);
-          }
-        };
-        requestAnimationFrame(tick);
-      }),
-    seconds,
-  );
-}
-
 /** Waits, checking every frame, until the HUD offers `text`: a walk stops within a frame of it. */
 async function untilPrompt(page: Page, text: string): Promise<void> {
   await page.waitForFunction(
@@ -60,7 +33,7 @@ test.describe('memory', () => {
       // The exact text, not a substring: the jungle's own area reads "Dschungel — Deslopify", so a
       // substring match passed while the jungle was still standing and the start world was being
       // built behind it — and a stats read then could catch the jungle's counts, not the clearing's.
-      await expect(page.locator('app-hud .area')).toHaveText('Deslopify');
+      await expect(page.locator('app-hud .area')).toHaveText('Lichtung');
     };
 
     // Three agreeing reads over about two seconds: the portal's glTF arch is fetched again after
@@ -117,20 +90,19 @@ test.describe('memory', () => {
     await expect(page.locator('app-hud .area')).toContainText('Dschungel');
     await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
 
-    // Walk up to the lever as a visitor does. It stands 4.5 m left of the walk, 70 % of the way
-    // to the exhibit (`toyPlacements`). Forward-left runs at exactly 45°, so once the visitor is
-    // 3.5 m to the left, straight on brings the lever into reach, ahead of the eyes. Not the full
-    // 4.5 m: the first mistranslation sign's board ends at x −4.6, between the arrival and the
-    // lever, and a body of radius 0.35 m walking at x −4.5 catches its edge and never arrives.
-    await page.keyboard.down('KeyW');
-    await page.keyboard.down('KeyA');
-    // 3.5 m sideways at 45° of the 4.5 m/s walk, plus half the 0.16 s ramp up to it.
-    await simulate(page, 3.5 / (4.5 * Math.SQRT1_2) + 0.08);
-    await page.keyboard.up('KeyA');
-    await untilPrompt(page, 'Dekoration neu würfeln');
-    await page.keyboard.up('KeyW');
+    // The liana lives on the north-bank layout, not at the old straight-walk toy placement. The
+    // stats/debug hook places the visitor in front of its real interactable without changing the
+    // memory assertion below or adding a route-specific production behavior.
+    const teleported = await page.evaluate(
+      (id) =>
+        (window as Window & { __gitploreTestTeleport?: (target: string) => boolean })
+          .__gitploreTestTeleport?.(id) ?? false,
+      'project:deslopify:seed-lever:pull',
+    );
+    expect(teleported).toBe(true);
+    await untilPrompt(page, 'Liane ziehen');
     const prompt = page.locator('app-hud .prompt');
-    await expect(prompt).toContainText('Dekoration neu würfeln');
+    await expect(prompt).toContainText('Liane ziehen');
 
     const KEYS = ['scene-geometries', 'scene-textures', 'geometries', 'textures'] as const;
     const baseline = await settledStats(page, KEYS, 3);
@@ -139,7 +111,7 @@ test.describe('memory', () => {
       await page.keyboard.press('KeyE');
       // One stats interval between pulls, so each rebuild is drawn at least once.
       await page.waitForTimeout(700);
-      await expect(prompt).toContainText('Dekoration neu würfeln');
+      await expect(prompt).toContainText('Liane ziehen');
     }
 
     // The same pair rules as above: the scene's counts must be identical, the renderer's may only
