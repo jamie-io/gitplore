@@ -1,15 +1,16 @@
 import {
   BoxGeometry,
-  Color,
   CylinderGeometry,
   Mesh,
+  MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
   SRGBColorSpace,
 } from 'three';
 import { WorldContext } from '@engine/world-object';
 import { createLabel } from './label';
-import { Landmark, LandmarkShape } from './landmark';
+import { Landmark, LandmarkOptions, LandmarkShape } from './landmark';
+import { createPosterMaterial, type PosterComparison } from './poster';
 
 const SCREEN_WIDTH = 3.2;
 const SCREEN_HEIGHT = 2;
@@ -18,12 +19,28 @@ const SCREEN_DEPTH = 0.16;
 const SCREEN_CENTRE = 1.9;
 const INTERACT_RADIUS = 4;
 
+export interface ScreenLandmarkOptions extends LandmarkOptions {
+  readonly comparison?: PosterComparison;
+  readonly englishSummary?: string;
+  readonly kicker?: string;
+}
+
 /**
  * A billboard showing the project's screenshot (IMPLEMENTATION_PLAN.md §5): the in-world stand-in
  * for the live demo, which opens in the panel.
  */
 export class ScreenLandmark extends Landmark {
   private screenshotUrl: string | null = null;
+  private readonly comparison?: PosterComparison;
+  private readonly englishSummary?: string;
+  private readonly kicker?: string;
+
+  constructor(options: ScreenLandmarkOptions) {
+    super(options);
+    this.comparison = options.comparison;
+    this.englishSummary = options.englishSummary;
+    this.kicker = options.kicker;
+  }
 
   protected describe(): LandmarkShape {
     return {
@@ -58,6 +75,7 @@ export class ScreenLandmark extends Landmark {
     this.group.add(body);
 
     const surface = new Mesh(new PlaneGeometry(SCREEN_WIDTH, SCREEN_HEIGHT), this.screenMaterial());
+    surface.name = 'surface';
     surface.position.set(0, SCREEN_CENTRE, SCREEN_DEPTH / 2 + 0.01);
     this.group.add(surface);
 
@@ -76,10 +94,14 @@ export class ScreenLandmark extends Landmark {
     }
   }
 
-  private screenMaterial(): MeshStandardMaterial {
+  private screenMaterial(): MeshStandardMaterial | MeshBasicMaterial {
     const demo = this.project.demo;
     if (demo.kind !== 'iframe') {
-      return new MeshStandardMaterial({ color: new Color(this.project.theme.primary) });
+      return createPosterMaterial(this.project, {
+        comparison: this.comparison,
+        englishSummary: this.englishSummary,
+        kicker: this.kicker,
+      });
     }
 
     this.screenshotUrl = demo.screenshot;
