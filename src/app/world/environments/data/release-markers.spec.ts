@@ -167,6 +167,7 @@ describe('ReleaseMarkers', () => {
     const canvasContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
       fillRect: vi.fn(),
       fillText: vi.fn(),
+      measureText: vi.fn(() => ({ width: 300 })),
     } as unknown as CanvasRenderingContext2D);
 
     markers.init(ctx);

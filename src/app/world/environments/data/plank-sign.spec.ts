@@ -6,6 +6,7 @@ function canvasContext(): CanvasRenderingContext2D {
   return {
     fillRect: vi.fn(),
     fillText: vi.fn(),
+    measureText: vi.fn(() => ({ width: 300 })),
   } as unknown as CanvasRenderingContext2D;
 }
 
