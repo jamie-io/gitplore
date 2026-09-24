@@ -1,4 +1,4 @@
-import { Points } from 'three';
+import { Points, ShaderMaterial } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { qualitySettings } from '@engine/capability.service';
 import type { QualityTier } from '@engine/capability.service';
@@ -59,6 +59,20 @@ describe('StarLanterns', () => {
     lanterns.init(ctx);
     lanterns.dispose();
 
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('uses amber firefly motes and one swarm point per jungle star', () => {
+    const ctx = stubContext();
+    const jungle = new StarLanterns({ ...options({ ...PROJECT, stars: 5 }), skin: 'jungle' });
+
+    jungle.init(ctx);
+
+    const fireflies = ctx.scene.getObjectByName('star-lanterns') as Points;
+    expect(fireflies.geometry.getAttribute('position').count).toBe(5);
+    expect((fireflies.material as ShaderMaterial).uniforms['colour'].value.getHex()).toBe(0xe0a13c);
+
+    jungle.dispose();
     expect(ctx.scene.children).toHaveLength(0);
   });
 });

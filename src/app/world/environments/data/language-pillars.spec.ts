@@ -2,14 +2,20 @@ import { Color, Mesh, Vector3 } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
-import { LANGUAGE_COLOURS, LanguagePillars } from './language-pillars';
+import {
+  JUNGLE_BAMBOO_COLOUR,
+  JUNGLE_BAMBOO_NODE_COLOUR,
+  LANGUAGE_COLOURS,
+  LanguagePillars,
+} from './language-pillars';
 
 const PROJECT = PROJECT_FIXTURES[0];
-const options = (project: Project) => ({
+const options = (project: Project, skin?: 'jungle') => ({
   project,
   origin: new Vector3(0, 0, -12),
   rotationY: 0,
   ground: { heightAt: () => 0 },
+  skin,
 });
 
 describe('LanguagePillars', () => {
@@ -107,5 +113,39 @@ describe('LanguagePillars', () => {
       pillars.dispose();
       expect(ctx.scene.children).toHaveLength(0);
     }
+  });
+
+  it('builds jungle bamboo at language-share heights with coloured bands', () => {
+    const ctx = stubContext();
+    const pillars = new LanguagePillars(
+      options({ ...PROJECT, languages: { TypeScript: 3, HTML: 1 } }, 'jungle'),
+    );
+    pillars.init(ctx);
+
+    const mesh = ctx.scene.getObjectByName('language-pillars') as Mesh;
+    mesh.geometry.computeBoundingBox();
+    expect(mesh.userData['stalkCount']).toBe(2);
+    expect(mesh.userData['nodeCount']).toBe(14);
+    expect(mesh.userData['stalkHeights']).toEqual([4.1, 2.3]);
+    expect(mesh.geometry.boundingBox?.max.y).toBeGreaterThan(4);
+    const colours = mesh.geometry.getAttribute('color');
+    const bamboo = new Color(JUNGLE_BAMBOO_COLOUR);
+    const node = new Color(JUNGLE_BAMBOO_NODE_COLOUR);
+    const hasBamboo = Array.from({ length: colours.count }, (_, index) =>
+      [colours.getX(index), colours.getY(index), colours.getZ(index)].every(
+        (component, axis) => Math.abs(component - [bamboo.r, bamboo.g, bamboo.b][axis]) < 0.00001,
+      ),
+    ).some(Boolean);
+    expect(hasBamboo).toBe(true);
+    expect(
+      Array.from({ length: colours.count }, (_, index) =>
+        [colours.getX(index), colours.getY(index), colours.getZ(index)].every(
+          (component, axis) => Math.abs(component - [node.r, node.g, node.b][axis]) < 0.00001,
+        ),
+      ).some(Boolean),
+    ).toBe(true);
+
+    pillars.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
   });
 });

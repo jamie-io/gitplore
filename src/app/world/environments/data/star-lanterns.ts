@@ -1,4 +1,4 @@
-import { Mesh, Vector3 } from 'three';
+import { Group, Mesh, Vector3 } from 'three';
 import type { Project } from '@content/project.model';
 import type { QualitySettings } from '@engine/capability.service';
 import { disposeObject3D } from '@engine/dispose';
@@ -7,10 +7,13 @@ import { GALERIE } from '../mood';
 import { Motes } from '../motes';
 import { SharedUniforms } from '../shaders/shared-uniforms';
 import { createLabel } from '../../landmarks/base/label';
+import { createPlankSign } from './plank-sign';
 
 /** A high repository star count is still only this many points; empty worlds use path lamps. */
 export const MAX_STAR_LANTERNS = 12;
 export const PATH_LAMP_COUNT = 6;
+
+type ToySkin = 'default' | 'jungle';
 
 interface Point3 {
   readonly x: number;
@@ -23,6 +26,7 @@ export interface StarLanternsOptions {
   readonly from: Point3;
   readonly to: Point3;
   readonly reducedMotion: () => boolean;
+  readonly skin?: ToySkin;
 }
 
 /**
@@ -41,6 +45,7 @@ export class StarLanterns implements WorldObject {
   private readonly midpoint: Vector3;
   private readonly radius: number;
   private label?: Mesh;
+  private sign?: Group;
 
   constructor(private readonly options: StarLanternsOptions) {
     this.midpoint = new Vector3(
@@ -57,9 +62,17 @@ export class StarLanterns implements WorldObject {
   }
 
   init(ctx: WorldContext): void {
-    const count = this.lanterns
-      ? Math.min(this.stars, MAX_STAR_LANTERNS)
-      : fixedMoteInput(PATH_LAMP_COUNT, ctx.quality);
+    const jungle = this.options.skin === 'jungle';
+    const target = Math.min(this.stars, MAX_STAR_LANTERNS);
+    if (jungle && target === 0) {
+      this.addLabel(ctx);
+      return;
+    }
+    const count = jungle
+      ? fixedMoteInput(target, ctx.quality)
+      : this.lanterns
+        ? target
+        : fixedMoteInput(PATH_LAMP_COUNT, ctx.quality);
     this.motes = new Motes({
       shared: this.shared,
       seed: seedFor(this.options.project.slug),
@@ -68,16 +81,16 @@ export class StarLanterns implements WorldObject {
         x: this.midpoint.x,
         z: this.midpoint.z,
         radius: this.radius,
-        minY: this.midpoint.y + (this.lanterns ? 2.4 : 1.6),
-        maxY: this.midpoint.y + (this.lanterns ? 4.5 : 2.2),
+        minY: this.midpoint.y + (jungle || this.lanterns ? 2.4 : 1.6),
+        maxY: this.midpoint.y + (jungle || this.lanterns ? 4.5 : 2.2),
       },
       followCamera: false,
-      colour: this.lanterns ? 0xffd27a : 0xcfe7ff,
-      size: this.lanterns ? 0.12 : 0.08,
-      glow: this.lanterns ? 4 : 1.8,
-      directGlow: this.lanterns ? 1.2 : 0.65,
-      drift: this.lanterns ? 0.4 : 0.15,
-      flicker: this.lanterns ? 0.65 : 0.15,
+      colour: jungle ? 0xe0a13c : this.lanterns ? 0xffd27a : 0xcfe7ff,
+      size: jungle ? 0.16 : this.lanterns ? 0.12 : 0.08,
+      glow: jungle || this.lanterns ? 4 : 1.8,
+      directGlow: jungle || this.lanterns ? 1.2 : 0.65,
+      drift: jungle || this.lanterns ? 0.4 : 0.15,
+      flicker: jungle || this.lanterns ? 0.65 : 0.15,
     });
 
     const before = new Set(ctx.scene.children);
@@ -87,15 +100,8 @@ export class StarLanterns implements WorldObject {
       points.name = this.id;
     }
 
-    if (this.lanterns) {
-      const label = createLabel('Sterne', this.options.project.theme.primary);
-      if (label) {
-        label.name = 'star-lanterns-label';
-        label.position.set(this.midpoint.x, this.midpoint.y + 3.2, this.midpoint.z);
-        label.rotation.y = facingYaw(this.options.from, this.options.to);
-        this.label = label;
-        ctx.scene.add(label);
-      }
+    if (jungle || this.lanterns) {
+      this.addLabel(ctx);
     }
   }
 
@@ -110,6 +116,33 @@ export class StarLanterns implements WorldObject {
     if (this.label) {
       disposeObject3D(this.label);
       this.label = undefined;
+    }
+    if (this.sign) {
+      disposeObject3D(this.sign);
+      this.sign = undefined;
+    }
+  }
+
+  private addLabel(ctx: WorldContext): void {
+    if (this.options.skin === 'jungle') {
+      const sign = createPlankSign('Sterne · Fireflies', this.options.project.theme.primary);
+      if (sign) {
+        sign.name = 'star-lanterns-sign';
+        sign.position.copy(this.midpoint);
+        sign.rotation.y = facingYaw(this.options.from, this.options.to);
+        this.sign = sign;
+        ctx.scene.add(sign);
+      }
+      return;
+    }
+
+    const label = createLabel('Sterne', this.options.project.theme.primary);
+    if (label) {
+      label.name = 'star-lanterns-label';
+      label.position.set(this.midpoint.x, this.midpoint.y + 3.2, this.midpoint.z);
+      label.rotation.y = facingYaw(this.options.from, this.options.to);
+      this.label = label;
+      ctx.scene.add(label);
     }
   }
 }

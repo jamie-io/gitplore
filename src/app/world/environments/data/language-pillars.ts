@@ -1,9 +1,10 @@
-import { CylinderGeometry, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { assemble, paint } from '../flora';
 import type { Project } from '@content/project.model';
 import { disposeObject3D } from '@engine/dispose';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import type { HeightField } from '@engine/player/collision';
+import { createPlankSign } from './plank-sign';
 
 /** Stable colours keep the same language recognisable across repository worlds. */
 export const LANGUAGE_COLOURS: Readonly<Record<string, number>> = {
@@ -27,15 +28,21 @@ const PILLAR_BASE = 0.35;
 const PILLAR_MAX = 3.6;
 const PILLAR_SPACING = 1.2;
 const PILLAR_SIDE_GAP = 0.5;
+export const JUNGLE_BAMBOO_COLOUR = 0x4f7a3a;
+export const JUNGLE_BAMBOO_NODE_COLOUR = 0x3d6230;
+export const JUNGLE_BAMBOO_BAND_OFFSET = 0.18;
 
 /** Keep repository-controlled rows within one side of the visitor's walk. */
 export const MAX_LANGUAGE_PILLARS = 12;
+
+type ToySkin = 'default' | 'jungle';
 
 export interface LanguagePillarsOptions {
   readonly project: Project;
   readonly origin: Vector3;
   readonly rotationY: number;
   readonly ground: HeightField;
+  readonly skin?: ToySkin;
 }
 
 /** One capped pillar per language, merged into one coloured mesh. Missing data stays silent. */
@@ -43,6 +50,7 @@ export class LanguagePillars implements WorldObject {
   readonly id = 'language-pillars';
 
   private mesh?: Mesh;
+  private sign?: Group;
 
   constructor(private readonly options: LanguagePillarsOptions) {}
 
@@ -52,21 +60,67 @@ export class LanguagePillars implements WorldObject {
       return;
     }
 
+    const jungle = this.options.skin === 'jungle';
     const total = languages.reduce((sum, [, bytes]) => sum + bytes, 0);
-    const parts = languages.map(([language, bytes], index) => {
+    const stalkHeights = languages.map(([, bytes]) =>
+      jungle ? 1.4 + (total > 0 ? bytes / total : 0) * 3.6 : 0,
+    );
+    let nodeCount = 0;
+    const parts = languages.flatMap(([language, bytes], index) => {
       const share = total > 0 ? bytes / total : 0;
-      const height = PILLAR_BASE + share * PILLAR_MAX;
       const offset = (index - (languages.length - 1) / 2) * PILLAR_SPACING;
       const x = this.options.origin.x + Math.cos(this.options.rotationY) * offset;
       const z = this.options.origin.z - Math.sin(this.options.rotationY) * offset;
-      return paint(
-        new CylinderGeometry(PILLAR_WIDTH / 2, PILLAR_WIDTH / 1.8, height, 6).translate(
-          x,
-          this.options.ground.heightAt(x, z) + height / 2,
-          z,
+      if (!jungle) {
+        const height = PILLAR_BASE + share * PILLAR_MAX;
+        return [
+          paint(
+            new CylinderGeometry(PILLAR_WIDTH / 2, PILLAR_WIDTH / 1.8, height, 6).translate(
+              x,
+              this.options.ground.heightAt(x, z) + height / 2,
+              z,
+            ),
+            LANGUAGE_COLOURS[language] ?? FALLBACK_COLOUR,
+          ),
+        ];
+      }
+
+      const height = 1.4 + share * 3.6;
+      const ground = this.options.ground.heightAt(x, z);
+      const lean = (((index * 53 + 17) % 9) - 4) * (Math.PI / 180);
+      const bamboo: ReturnType<typeof paint>[] = [
+        paint(
+          new CylinderGeometry(0.09, 0.13, height, 8)
+            .translate(0, height / 2, 0)
+            .rotateZ(lean)
+            .translate(x, ground, z),
+          JUNGLE_BAMBOO_COLOUR,
         ),
-        LANGUAGE_COLOURS[language] ?? FALLBACK_COLOUR,
+      ];
+      for (let nodeY = 0.45; nodeY < height; nodeY += 0.45) {
+        nodeCount++;
+        const stemRadius = 0.09 + (0.13 - 0.09) * (1 - nodeY / height);
+        const nodeRadius = stemRadius + 0.015;
+        bamboo.push(
+          paint(
+            new CylinderGeometry(nodeRadius, nodeRadius, 0.03, 8)
+              .translate(0, nodeY, 0)
+              .rotateZ(lean)
+              .translate(x, ground, z),
+            JUNGLE_BAMBOO_NODE_COLOUR,
+          ),
+        );
+      }
+      bamboo.push(
+        paint(
+          new CylinderGeometry(0.14, 0.14, 0.08, 8)
+            .translate(0, height - JUNGLE_BAMBOO_BAND_OFFSET, 0)
+            .rotateZ(lean)
+            .translate(x, ground, z),
+          LANGUAGE_COLOURS[language] ?? FALLBACK_COLOUR,
+        ),
       );
+      return bamboo;
     });
     const geometry = assemble(parts);
     const mesh = new Mesh(
@@ -74,10 +128,28 @@ export class LanguagePillars implements WorldObject {
       new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.08 }),
     );
     mesh.name = this.id;
+    mesh.userData['stalkCount'] = languages.length;
+    mesh.userData['nodeCount'] = jungle ? nodeCount : 0;
+    mesh.userData['stalkHeights'] = stalkHeights;
     mesh.castShadow = ctx.quality.shadows;
     mesh.receiveShadow = ctx.quality.shadows;
     this.mesh = mesh;
     ctx.scene.add(mesh);
+
+    if (jungle) {
+      const sign = createPlankSign('Sprachen · Languages', this.options.project.theme.primary);
+      if (sign) {
+        sign.name = 'language-pillars-sign';
+        sign.position.set(
+          this.options.origin.x,
+          this.options.ground.heightAt(this.options.origin.x, this.options.origin.z),
+          this.options.origin.z,
+        );
+        sign.rotation.y = this.options.rotationY;
+        this.sign = sign;
+        ctx.scene.add(sign);
+      }
+    }
   }
 
   update(): void {
@@ -88,6 +160,10 @@ export class LanguagePillars implements WorldObject {
     if (this.mesh) {
       disposeObject3D(this.mesh);
       this.mesh = undefined;
+    }
+    if (this.sign) {
+      disposeObject3D(this.sign);
+      this.sign = undefined;
     }
   }
 }
