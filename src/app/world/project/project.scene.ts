@@ -216,6 +216,8 @@ export class ProjectScene implements WorldScene {
       this.exhibit.position,
       this.environment.colliders,
     );
+    // The jungle dresses the shared toys in its own materials; every other world keeps the default.
+    const skin = this.environment.id === 'jungle' ? 'jungle' : undefined;
     this.terminal = new Terminal({
       id: `${this.id}:terminal`,
       position: toys.terminal.position,
@@ -223,7 +225,7 @@ export class ProjectScene implements WorldScene {
       ground: this.environment.ground,
       project: options.project,
       input: options.input,
-      skin: this.environment.id === 'jungle' ? 'jungle' : undefined,
+      skin,
     });
     this.seedLever = new SeedLever({
       id: `${this.id}:seed-lever`,
@@ -232,7 +234,7 @@ export class ProjectScene implements WorldScene {
       ground: this.environment.ground,
       onReseed: (offset) => this.environment.reseedDecoration?.(offset),
       reducedMotion: options.reducedMotion,
-      skin: this.environment.id === 'jungle' ? 'jungle' : undefined,
+      skin,
     });
     const side = new Vector3(
       Math.cos(this.exhibit.rotationY),
@@ -253,24 +255,29 @@ export class ProjectScene implements WorldScene {
         from: this.arrival.position,
         to: this.exhibit.position,
         ground: this.environment.ground,
+        skin,
+        reducedMotion: options.reducedMotion,
       }),
       new LanguagePillars({
         project: options.project,
         origin: dataOrigin,
         rotationY: this.exhibit.rotationY,
         ground: this.environment.ground,
+        skin,
       }),
       new ReleaseMarkers({
         project: options.project,
         from: this.arrival.position,
         to: this.exhibit.position,
         ground: this.environment.ground,
+        skin,
       }),
       new StarLanterns({
         project: options.project,
         from: this.arrival.position,
         to: this.exhibit.position,
         reducedMotion: options.reducedMotion,
+        skin,
       }),
     ];
   }
