@@ -175,7 +175,7 @@ Translated badge: `Automatisch übersetzt · Audio: Deutsch (KI)`. Original badg
 
 ### Four canonical tags
 
-1. Slop `Kapitel · übersetzt`, original `Kapitel · original`; details `Kapitel 3: Die Platine löten` / `Chapter 3: Soldering the PCB`.
+1. Slop `Kapitel · übersetzt`, original `Chapter · original`; details `Kapitel 3: Die Platine löten` / `Chapter 3: Soldering the PCB`.
 2. Slop `Tonspur · KI`, original `Audio · original`; details `Deutsch (KI-Synchronisation)` / `English (original)`.
 3. Slop `Kanalname · übersetzt`, original `Channel · original`; details `Schlüsselbrett-Labor` / `keeb lab`.
 4. Slop `Beschreibung · übersetzt`, original `Description · original`; details `In diesem Video bauen wir …` / `In this video we build …`.
