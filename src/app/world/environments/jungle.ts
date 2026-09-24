@@ -1,11 +1,16 @@
 import {
+  BufferGeometry,
   Color,
+  DoubleSide,
   IcosahedronGeometry,
   InstancedMesh,
+  Material,
   Mesh,
   MeshStandardMaterial,
+  Object3D,
   Vector3,
 } from 'three';
+import { QualitySettings, QualityTier } from '@engine/capability.service';
 import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
 import { WorldContext } from '@engine/world-object';
@@ -16,10 +21,9 @@ import type { EnvironmentOptions } from './create-environment';
 import { Anchor, Environment } from './environment';
 import {
   CLIFF_LIP,
-  bigLeafPlant,
   cliffWall,
-  groundFern,
   kapokTree,
+  leafCluster,
   liana,
   mossyBoulder,
   palmTree,
@@ -31,20 +35,22 @@ import { LightShafts } from './light-shafts';
 import { DSCHUNGEL, applyMood, clearMood } from './mood';
 import { Motes } from './motes';
 import { Position, arcAnchors } from './placement';
-import { valueNoise } from './random';
+import { Random, between, seededRandom, valueNoise } from './random';
 import {
   Exclusion,
   Placement,
   buildInstanced,
   cylinderColliders,
   foliageTint,
-  replaceVariants,
+  isExcluded,
   scatter,
   stoneTint,
   variants,
 } from './scatter';
 import { withAtmosphere } from './shaders/atmosphere';
 import { withDapple } from './shaders/dapple';
+import { withFoliage } from './shaders/foliage';
+import { withGroundDetail } from './shaders/ground-detail';
 import { SharedUniforms } from './shaders/shared-uniforms';
 import { withWind } from './shaders/wind';
 import { Sky } from './sky';
@@ -106,8 +112,8 @@ const ROCK: readonly Exclusion[] = [
   { kind: 'circle', x: POOL.x, z: POOL.z, radius: POOL.radius + 2.5 },
 ];
 
-/** Where even ferns stay out: the arrival point, the path, the exhibit arc itself, the cliff and the water. */
-const STAGE_FLOOR: readonly Exclusion[] = [
+/** Where even the undergrowth stays out: the arrival point, the path, the exhibit arc itself, the cliff and the water. */
+export const STAGE_FLOOR: readonly Exclusion[] = [
   { kind: 'circle', x: 0, z: 0, radius: 4 },
   {
     kind: 'arc',
@@ -122,6 +128,43 @@ const STAGE_FLOOR: readonly Exclusion[] = [
   { kind: 'circle', x: POOL.x, z: POOL.z, radius: POOL.radius + 0.5 },
   ROCK[0],
 ];
+
+/**
+ * The leaf clusters on the floor and hung overhead, per tier, and how much sun shines through a
+ * leaf seen against it. Instanced, so the counts cost two draw calls whatever they are.
+ */
+export const FOLIAGE: Readonly<
+  Record<
+    QualityTier,
+    { readonly plants: number; readonly canopy: number; readonly translucency: number }
+  >
+> = {
+  low: { plants: 320, canopy: 40, translucency: 0 },
+  medium: { plants: 900, canopy: 110, translucency: 0.7 },
+  high: { plants: 1400, canopy: 200, translucency: 1.1 },
+};
+/** `QualitySettings` names no tier; its shader detail is 0, 1 and 2 on the three of them. */
+const TIER_BY_DETAIL: readonly QualityTier[] = ['low', 'medium', 'high'];
+const LEAF_GREENS: readonly number[] = [0x3f7a34, 0x4f8a3a, 0x2f6a36, 0x5d8f3c, 0x356f45];
+/** Plants stand this far around the arrival point: the haze has swallowed anything further out. */
+const PLANT_AREA = { inner: 4, outer: 40 } as const;
+/** Canopy clusters hang over this ring; the arrival point keeps its patch of open sky. */
+const CANOPY_AREA = { inner: 5, outer: 36 } as const;
+/** Where no canopy hangs: across the view to the falls, over the pool, and against the cliff. */
+const OPEN_SKY: readonly Exclusion[] = [
+  { kind: 'segment', ax: 0, az: 0, bx: POOL.x, bz: POOL.z, halfWidth: 6 },
+  ...ROCK,
+];
+/** Metres between the ground and a canopy cluster's lowest leaf, well over the camera. */
+const CANOPY_CLEARANCE = 4.2;
+/** How far a cluster hung upside down reaches below its root, in leaf-cluster heights at scale 1. */
+const CANOPY_DROOP = 1.3;
+/**
+ * Metres a shadow lookup moves out along the normal: the Lookdev's 3 cm rather than the other
+ * worlds' 5, so plants' shadows stay attached at their bases. The smooth floor takes it without
+ * acne even on the medium tier's coarse texels, because this sun stands 60° high over gentle relief.
+ */
+export const JUNGLE_SHADOW_NORMAL_BIAS = 0.03;
 
 const MOSS = new Color(0x3f6230);
 const MOSS_LIT = new Color(0x5a7f38);
@@ -181,13 +224,20 @@ export class JungleEnvironment implements Environment {
     segments: 120,
     heightAt: jungleHeightAt,
     colorAt: jungleGround,
-    decorate: (material) =>
-      void withDapple(withAtmosphere(material, this.shared), this.shared, 0.75),
+    decorate: (material, quality) =>
+      void withGroundDetail(
+        withDapple(withAtmosphere(material, this.shared), this.shared, 0.75),
+        quality.shaderDetail,
+      ),
   });
   private readonly cliffBase = jungleHeightAt(CLIFF.x, CLIFF.z);
   private readonly lipHeight = this.cliffBase + CLIFF.height * CLIFF_LIP;
   private readonly sky = new Sky({ mood: DSCHUNGEL, shared: this.shared });
-  private readonly sun = new Sun({ mood: DSCHUNGEL, shared: this.shared });
+  private readonly sun = new Sun({
+    mood: DSCHUNGEL,
+    shared: this.shared,
+    normalBias: JUNGLE_SHADOW_NORMAL_BIAS,
+  });
   private readonly pool = new Water({
     shared: this.shared,
     mood: DSCHUNGEL,
@@ -272,12 +322,7 @@ export class JungleEnvironment implements Environment {
   };
   private props: InstancedMesh[] = [];
   /** The collider-free undergrowth the seed lever scatters again; also listed in `props`. */
-  private undergrowth: {
-    readonly leaves: InstancedMesh[];
-    readonly ferns: InstancedMesh[];
-    readonly shadows: boolean;
-    readonly density: number;
-  } | null = null;
+  private plants: InstancedMesh | null = null;
   private scene: WorldContext['scene'] | null = null;
 
   constructor(private readonly options: EnvironmentOptions) {
@@ -415,29 +460,15 @@ export class JungleEnvironment implements Environment {
   /**
    * The seed lever: scatters the undergrowth, the spores, the fireflies and the far hills again
    * from their seeds shifted by `offset`. Everything that places a collider — the groves, the
-   * boulders, the cliff — and the lianas hung from the kapok trees stay where they are. Geometry
-   * and materials are kept, so a pull compiles no shader.
+   * boulders, the cliff — the canopy and the lianas hung from the kapok trees stay where they are.
+   * Geometry and materials are kept, so a pull compiles no shader; the plants are even the same
+   * instanced mesh, restood in place.
    */
   reseedDecoration(offset: number): void {
-    const undergrowth = this.undergrowth;
-    if (!undergrowth) {
+    if (!this.plants) {
       return;
     }
-    const { leaves, fronds } = this.undergrowthPlacements(undergrowth.density, offset);
-    const replacedLeaves = replaceVariants(undergrowth.leaves, leaves, {
-      castShadow: undergrowth.shadows,
-      tint: foliageTint,
-    });
-    const replacedFerns = replaceVariants(undergrowth.ferns, fronds, { tint: foliageTint });
-    this.props = this.props.map((mesh) => {
-      const leaf = undergrowth.leaves.indexOf(mesh);
-      if (leaf >= 0) {
-        return replacedLeaves[leaf];
-      }
-      const fern = undergrowth.ferns.indexOf(mesh);
-      return fern >= 0 ? replacedFerns[fern] : mesh;
-    });
-    this.undergrowth = { ...undergrowth, leaves: replacedLeaves, ferns: replacedFerns };
+    standPlants(this.plants, PLANT_SEED + offset);
     this.spores.reseed(offset);
     this.fireflies.reseed(offset);
     this.backdrop.reseed(offset);
@@ -447,7 +478,7 @@ export class JungleEnvironment implements Environment {
     this.props.forEach(disposeObject3D);
     this.props = [];
     this.cave.dispose();
-    this.undergrowth = null;
+    this.plants = null;
     this.backdrop.dispose();
     this.fireflies.dispose();
     this.spores.dispose();
@@ -465,7 +496,6 @@ export class JungleEnvironment implements Environment {
 
   private buildProps(ctx: WorldContext): InstancedMesh[] {
     const shadows = ctx.quality.shadows;
-    const density = ctx.quality.propDensity;
     const leafy = (height: number, sway = 0.03) =>
       withWind(
         withAtmosphere(
@@ -483,7 +513,6 @@ export class JungleEnvironment implements Environment {
     );
     const tall = { castShadow: shadows, receiveShadow: shadows, tint: foliageTint, sink: 0.15 };
 
-    const { leaves, fronds } = this.undergrowthPlacements(density, 0);
     const vines: Placement[] = this.groves.kapok.flatMap((tree, index) =>
       [0.9, 2.6].map((turn, k) => {
         const reach = 2.2 + k * 1.3;
@@ -510,16 +539,8 @@ export class JungleEnvironment implements Environment {
       { name: 'cliff', castShadow: shadows, receiveShadow: shadows },
     );
 
-    const bigLeaves = variants(bigLeafPlant, [10, 11], leaves, leafy(1.8), {
-      name: 'big-leaf',
-      castShadow: shadows,
-      tint: foliageTint,
-    });
-    const groundFerns = variants(groundFern, [12, 13], fronds, leafy(0.6), {
-      name: 'fern',
-      tint: foliageTint,
-    });
-    this.undergrowth = { leaves: bigLeaves, ferns: groundFerns, shadows, density };
+    const { plants, canopy } = this.buildFoliage(ctx.quality);
+    this.plants = plants;
 
     return [
       cliff,
@@ -535,43 +556,150 @@ export class JungleEnvironment implements Environment {
         receiveShadow: shadows,
         tint: stoneTint,
       }),
-      ...bigLeaves,
-      ...groundFerns,
+      plants,
+      canopy,
       ...variants(liana, [14, 15, 16], vines, still, { name: 'liana', tint: foliageTint }),
     ];
   }
 
   /**
-   * Where the undergrowth stands. Its scatters place no collider, so the seed lever may shift their
-   * seeds; the groves' scatters also place trunks and never move.
+   * The leaf clusters: plants on the floor that sway and give way to the visitor, and clusters hung
+   * upside down under the kapok crowns. One geometry and two draw calls, the counts set by the tier.
    */
-  private undergrowthPlacements(
-    density: number,
-    offset: number,
-  ): { readonly leaves: Placement[]; readonly fronds: Placement[] } {
-    return {
-      leaves: scatter(
-        {
-          seed: 61 + offset,
-          count: Math.round(110 * density),
-          area: { inner: 5, outer: EDGE },
-          clusters: { count: 16, radius: 6 },
-          scale: [0.8, 1.4],
-          exclusions: STAGE_FLOOR,
-        },
-        this.floor,
-      ),
-      fronds: scatter(
-        {
-          seed: 62 + offset,
-          count: Math.round(600 * density),
-          area: { inner: 4, outer: EDGE },
-          clusters: { count: 30, radius: 7 },
-          scale: [0.7, 1.4],
-          exclusions: STAGE_FLOOR,
-        },
-        this.floor,
-      ),
-    };
+  private buildFoliage(quality: QualitySettings): {
+    readonly plants: InstancedMesh;
+    readonly canopy: InstancedMesh;
+  } {
+    const tier = FOLIAGE[TIER_BY_DETAIL[quality.shaderDetail]];
+    const cluster = leafCluster();
+    const leaves = (push: number) =>
+      withFoliage(
+        withAtmosphere(
+          new MeshStandardMaterial({ color: 0xffffff, side: DoubleSide, roughness: 0.62 }),
+          this.shared,
+        ),
+        this.shared,
+        { push, translucency: tier.translucency },
+      );
+
+    const plants = foliage(cluster, leaves(1), tier.plants, 'plants');
+    plants.castShadow = quality.shadows;
+    plants.receiveShadow = quality.shadows;
+    standPlants(plants, PLANT_SEED);
+
+    const canopy = foliage(cluster, leaves(0), tier.canopy, 'canopy');
+    canopy.castShadow = quality.shadows;
+    hangCanopy(canopy, CANOPY_SEED);
+
+    return { plants, canopy };
   }
+}
+
+const PLANT_SEED = 61;
+const CANOPY_SEED = 63;
+const cursor = new Object3D();
+const leafColour = new Color();
+
+function foliage(
+  geometry: BufferGeometry,
+  material: Material,
+  count: number,
+  name: string,
+): InstancedMesh {
+  const mesh = new InstancedMesh(geometry, material, count);
+  mesh.name = name;
+  return mesh;
+}
+
+/** A point spread evenly over the annulus: every call draws exactly two numbers. */
+function ringPoint(random: Random, area: { readonly inner: number; readonly outer: number }) {
+  const radius = Math.sqrt(between(random, area.inner ** 2, area.outer ** 2));
+  const angle = random() * Math.PI * 2;
+  return { x: Math.sin(angle) * radius, z: -Math.cos(angle) * radius };
+}
+
+/**
+ * Stands every plant of `mesh` from `seed`: kept off the stage floor, small where visitors walk
+ * and up to three times the size out in the groves, leaning a little, in one of five greens. Every
+ * candidate draws the same numbers whether it is kept or not, like `scatter`.
+ */
+function standPlants(mesh: InstancedMesh, seed: number): void {
+  const random = seededRandom(seed);
+  // The capacity, not `count`: an earlier stand may have drawn fewer.
+  const capacity = mesh.instanceMatrix.count;
+  const attempts = capacity * 30;
+  let placed = 0;
+
+  for (let attempt = 0; attempt < attempts && placed < capacity; attempt++) {
+    const { x, z } = ringPoint(random, PLANT_AREA);
+    const growth = random() ** 1.6;
+    const stretch = between(random, 0.8, 1.3);
+    const tiltX = (random() - 0.5) * 0.25;
+    const turn = random() * Math.PI * 2;
+    const tiltZ = (random() - 0.5) * 0.25;
+    const hue = (random() - 0.5) * 0.03;
+    const lightness = (random() - 0.5) * 0.08;
+    if (isExcluded(x, z, STAGE_FLOOR)) {
+      continue;
+    }
+
+    const size = 0.55 + growth * (isExcluded(x, z, STAGE) ? 0.55 : 2);
+    cursor.position.set(x, jungleHeightAt(x, z) - 0.05, z);
+    cursor.rotation.set(tiltX, turn, tiltZ);
+    cursor.scale.set(size, size * stretch, size);
+    cursor.updateMatrix();
+    mesh.setMatrixAt(placed, cursor.matrix);
+    leafColour.setHex(LEAF_GREENS[placed % LEAF_GREENS.length]).offsetHSL(hue, 0, lightness);
+    mesh.setColorAt(placed, leafColour);
+    placed++;
+  }
+
+  // Too crowded a stage to place them all: draw only those that found a spot.
+  mesh.count = placed;
+  finish(mesh);
+}
+
+/**
+ * Hangs every canopy cluster of `mesh` upside down 7 to 11 m over the ground, lifted where needed
+ * so its lowest leaf stays `CANOPY_CLEARANCE` above the visitor and the camera behind them.
+ */
+function hangCanopy(mesh: InstancedMesh, seed: number): void {
+  const random = seededRandom(seed);
+  // The capacity, not `count`: an earlier stand may have drawn fewer.
+  const capacity = mesh.instanceMatrix.count;
+  const attempts = capacity * 30;
+  let placed = 0;
+
+  for (let attempt = 0; attempt < attempts && placed < capacity; attempt++) {
+    const { x, z } = ringPoint(random, CANOPY_AREA);
+    const size = between(random, 2.5, 5);
+    const lift = between(random, 7, 11);
+    const tiltX = (random() - 0.5) * 0.6;
+    const turn = random() * Math.PI * 2;
+    const tiltZ = (random() - 0.5) * 0.6;
+    if (isExcluded(x, z, OPEN_SKY)) {
+      continue;
+    }
+
+    const above = Math.max(lift, CANOPY_CLEARANCE + CANOPY_DROOP * size);
+    cursor.position.set(x, jungleHeightAt(x, z) + above, z);
+    cursor.rotation.set(Math.PI + tiltX, turn, tiltZ);
+    cursor.scale.setScalar(size);
+    cursor.updateMatrix();
+    mesh.setMatrixAt(placed, cursor.matrix);
+    leafColour.setHex(LEAF_GREENS[(placed + 2) % LEAF_GREENS.length]).offsetHSL(0, 0, -0.05);
+    mesh.setColorAt(placed, leafColour);
+    placed++;
+  }
+
+  mesh.count = placed;
+  finish(mesh);
+}
+
+function finish(mesh: InstancedMesh): void {
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) {
+    mesh.instanceColor.needsUpdate = true;
+  }
+  mesh.computeBoundingSphere();
 }

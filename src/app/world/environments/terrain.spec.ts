@@ -49,7 +49,7 @@ describe('terrainHeightAt', () => {
 });
 
 describe('Terrain shading', () => {
-  it('bakes per-face normals rather than relying on flat shading derivatives', () => {
+  it('shades smoothly from vertex normals rather than relying on flat shading derivatives', () => {
     const ctx = {
       scene: new Scene(),
       camera: new PerspectiveCamera(),
@@ -62,7 +62,7 @@ describe('Terrain shading', () => {
     terrain.init(ctx);
 
     const mesh = ctx.scene.children[0] as Mesh;
-    expect(mesh.geometry.index).toBeNull();
+    expect(mesh.geometry.index).not.toBeNull();
     expect((mesh.material as MeshStandardMaterial).flatShading).toBe(false);
     expect(mesh.geometry.getAttribute('normal').count).toBe(
       mesh.geometry.getAttribute('position').count,

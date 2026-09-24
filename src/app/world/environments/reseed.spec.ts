@@ -16,7 +16,7 @@ const CASES: readonly [string, () => Environment, RegExp][] = [
   [
     'Dschungel',
     () => new JungleEnvironment({ reducedMotion: () => true }),
-    /^(big-leaf|fern)-|^motes$|^backdrop$/,
+    /^plants$|^motes$|^backdrop$/,
   ],
   ['Plaza', () => new PlazaEnvironment({ reducedMotion: () => true }), /^backdrop$/],
   ['Showroom', () => new ShowroomEnvironment({ reducedMotion: () => true }), /^motes$/],

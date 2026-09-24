@@ -1,4 +1,4 @@
-import { BufferGeometry } from 'three';
+import { BufferGeometry, Vector3 } from 'three';
 import {
   bigLeafPlant,
   birchTree,
@@ -9,6 +9,7 @@ import {
   flowerTuft,
   groundFern,
   kapokTree,
+  leafCluster,
   lilyPad,
   liana,
   mossyBoulder,
@@ -138,5 +139,48 @@ describe('cliffWall', () => {
         .filter((i) => attribute.getX(i) < -20)
         .map((i) => [attribute.getX(i), attribute.getY(i), attribute.getZ(i)].join());
     expect(far(open)).toEqual(far(position));
+  });
+});
+
+describe('leafCluster', () => {
+  const cluster = leafCluster();
+  const position = cluster.getAttribute('position');
+  const normal = cluster.getAttribute('normal');
+
+  it('is seven curved leaves of 2 × 8 segments, indexed and smooth-shaded', () => {
+    // A 2 × 8 plane has 3 × 9 corners and 2 × 8 × 2 triangles.
+    expect(position.count).toBe(7 * 27);
+    expect(cluster.index?.count).toBe(7 * 32 * 3);
+    expect(normal.count).toBe(position.count);
+    // Tinted per instance, so it carries no colour of its own.
+    expect(cluster.getAttribute('color')).toBeUndefined();
+  });
+
+  it('rises from its root to about the length of one leaf and spreads around it', () => {
+    cluster.computeBoundingBox();
+    const box = cluster.boundingBox;
+
+    expect(box?.min.y).toBeGreaterThanOrEqual(-0.05);
+    expect(box?.max.y).toBeGreaterThan(0.7);
+    expect(box?.max.y).toBeLessThanOrEqual(1.4);
+    expect(box?.max.x).toBeGreaterThan(0.5);
+    expect(box?.min.x).toBeLessThan(-0.5);
+  });
+
+  it('curves each leaf, so its normals are not those of a flat card', () => {
+    const first = new Vector3().fromBufferAttribute(normal, 0);
+    let bent = 0;
+    for (let i = 1; i < 27; i++) {
+      if (new Vector3().fromBufferAttribute(normal, i).dot(first) < 0.95) {
+        bent++;
+      }
+    }
+    expect(bent).toBeGreaterThan(0);
+  });
+
+  it('is the same every time: the variety comes from each instance', () => {
+    expect(Array.from(leafCluster().getAttribute('position').array)).toEqual(
+      Array.from(position.array),
+    );
   });
 });

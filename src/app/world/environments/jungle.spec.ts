@@ -1,9 +1,31 @@
-import { InstancedMesh, PerspectiveCamera, Scene, Vector3 } from 'three';
+import {
+  DirectionalLight,
+  InstancedMesh,
+  Matrix4,
+  Mesh,
+  MeshStandardMaterial,
+  PerspectiveCamera,
+  Scene,
+  ShaderLib,
+  Vector3,
+  WebGLProgramParametersWithUniforms,
+  WebGLRenderer,
+} from 'three';
 import { QualityTier, qualitySettings } from '@engine/capability.service';
 import { NO_INTENT, PLAYER_EYE_HEIGHT, PlayerController } from '@engine/player/player-controller';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
-import { CAVE, JungleEnvironment, POOL, POOL_LEVEL, STAGE, jungleHeightAt } from './jungle';
+import {
+  CAVE,
+  FOLIAGE,
+  JUNGLE_SHADOW_NORMAL_BIAS,
+  JungleEnvironment,
+  POOL,
+  POOL_LEVEL,
+  STAGE,
+  STAGE_FLOOR,
+  jungleHeightAt,
+} from './jungle';
 import { isExcluded } from './scatter';
 import { clearance } from './testing/clearance';
 
@@ -18,6 +40,38 @@ function contextAt(tier: QualityTier): WorldContext {
     quality: qualitySettings(tier),
     assets: new StubAssets(),
   };
+}
+
+function compile(material: MeshStandardMaterial): WebGLProgramParametersWithUniforms {
+  const shader = {
+    vertexShader: ShaderLib.standard.vertexShader,
+    fragmentShader: ShaderLib.standard.fragmentShader,
+    uniforms: {},
+    defines: {},
+  } as unknown as WebGLProgramParametersWithUniforms;
+  material.onBeforeCompile(shader, {} as WebGLRenderer);
+  return shader;
+}
+
+function instanced(ctx: WorldContext, name: string): InstancedMesh {
+  const mesh = ctx.scene.getObjectByName(name);
+  if (!(mesh instanceof InstancedMesh)) {
+    throw new Error(`no instanced ${name} in the scene`);
+  }
+  return mesh;
+}
+
+/** Every instance's root position and its horizontal scale. */
+function roots(mesh: InstancedMesh, position: Vector3): [number, number, number, number][] {
+  const matrix = new Matrix4();
+  const result: [number, number, number, number][] = [];
+  for (let i = 0; i < mesh.count; i++) {
+    mesh.getMatrixAt(i, matrix);
+    position.setFromMatrixPosition(matrix);
+    const scale = new Vector3().setFromMatrixColumn(matrix, 0).length();
+    result.push([position.x, position.y, position.z, scale]);
+  }
+  return result;
 }
 
 const original = (x: number, z: number) =>
@@ -143,20 +197,136 @@ describe('JungleEnvironment', () => {
     expect(jungle().colliders).toEqual(jungle().colliders);
   });
 
-  it('grows less undergrowth on weaker machines', () => {
-    const ferns = (tier: QualityTier) => {
+  it('stands 320, 900 and 1400 plants and 40, 110 and 200 canopy clusters by tier', () => {
+    for (const tier of ['low', 'medium', 'high'] as const) {
       const ctx = contextAt(tier);
       const environment = jungle();
       environment.init(ctx);
-      const count = ctx.scene.children
-        .filter((child): child is InstancedMesh => child instanceof InstancedMesh)
-        .filter((mesh) => mesh.name.startsWith('fern'))
-        .reduce((sum, mesh) => sum + mesh.count, 0);
+
+      const plants = instanced(ctx, 'plants');
+      const canopy = instanced(ctx, 'canopy');
+      expect(plants.count).toBe(FOLIAGE[tier].plants);
+      expect(canopy.count).toBe(FOLIAGE[tier].canopy);
+      // One leaf cluster for both: two draw calls for all the foliage.
+      expect(canopy.geometry).toBe(plants.geometry);
       environment.dispose();
-      return count;
+    }
+    expect(FOLIAGE.low).toMatchObject({ plants: 320, canopy: 40 });
+    expect(FOLIAGE.medium).toMatchObject({ plants: 900, canopy: 110 });
+    expect(FOLIAGE.high).toMatchObject({ plants: 1400, canopy: 200 });
+  });
+
+  it('lets the sun shine through the leaves on the medium and high tiers only', () => {
+    const translucency = (tier: QualityTier) => {
+      const ctx = contextAt(tier);
+      const environment = jungle();
+      environment.init(ctx);
+      const shaders = ['plants', 'canopy'].map((name) =>
+        compile(instanced(ctx, name).material as MeshStandardMaterial),
+      );
+      environment.dispose();
+      return shaders.map((shader) =>
+        shader.fragmentShader.includes('foliageBacklight')
+          ? shader.uniforms['foliageTranslucency'].value
+          : 0,
+      );
     };
 
-    expect(ferns('low')).toBeLessThan(ferns('high'));
+    expect(translucency('low')).toEqual([0, 0]);
+    expect(translucency('medium')).toEqual([0.7, 0.7]);
+    expect(translucency('high')).toEqual([1.1, 1.1]);
+  });
+
+  it('bends the plants away from the visitor but not the canopy overhead', () => {
+    const ctx = contextAt('high');
+    const environment = jungle();
+    environment.init(ctx);
+    const [plants, canopy] = ['plants', 'canopy'].map((name) =>
+      compile(instanced(ctx, name).material as MeshStandardMaterial),
+    );
+
+    expect(plants.uniforms['foliagePush'].value).toBe(1);
+    expect(canopy.uniforms['foliagePush'].value).toBe(0);
+    expect(plants.uniforms['foliagePlayer']).toBe(environment.shared.playerPosition);
+    expect(plants.uniforms['foliageTime']).toBe(environment.shared.time);
+    environment.dispose();
+  });
+
+  it('keeps the plants off the arrival point, the trail and the exhibit arc', () => {
+    const ctx = contextAt('high');
+    const environment = jungle();
+    environment.init(ctx);
+    const position = new Vector3();
+
+    for (const [x, , z] of roots(instanced(ctx, 'plants'), position)) {
+      expect(
+        STAGE_FLOOR.some((zone) => isExcluded(x, z, [zone])),
+        `plant at ${x}, ${z}`,
+      ).toBe(false);
+    }
+    environment.dispose();
+  });
+
+  it('hangs the canopy 7 to 11 m up, its lowest leaves well above the visitor', () => {
+    const ctx = contextAt('high');
+    const environment = jungle();
+    environment.init(ctx);
+    const canopy = instanced(ctx, 'canopy');
+
+    for (const [x, y, z, scale] of roots(canopy, new Vector3())) {
+      const above = y - jungleHeightAt(x, z);
+      expect(above).toBeGreaterThanOrEqual(7);
+      expect(above).toBeLessThanOrEqual(11);
+      // Hung upside down, a cluster reaches about 1.3 leaf lengths below its root.
+      expect(above - 1.3 * scale).toBeGreaterThanOrEqual(4);
+    }
+    environment.dispose();
+  });
+
+  it('does no foliage work per frame: the shaders read the shared uniforms', () => {
+    const ctx = contextAt('high');
+    const environment = jungle();
+    environment.init(ctx);
+    const meshes = [instanced(ctx, 'plants'), instanced(ctx, 'canopy')];
+    const versions = meshes.map((mesh) => mesh.instanceMatrix.version);
+    const time = environment.shared.time;
+
+    for (let frame = 0; frame < 30; frame++) {
+      ctx.player.position.set(frame * 0.1, 0, -5);
+      environment.update(1 / 60, ctx);
+    }
+
+    expect(meshes.map((mesh) => mesh.instanceMatrix.version)).toEqual(versions);
+    expect(environment.shared.time).toBe(time);
+    environment.dispose();
+  });
+
+  it('adds wet patches on the medium tier and leaf litter on the high tier to the floor', () => {
+    const floor = (tier: QualityTier) => {
+      const ctx = contextAt(tier);
+      const environment = jungle();
+      environment.init(ctx);
+      const mesh = ctx.scene.getObjectByName('jungle-floor') as Mesh;
+      const shader = compile(mesh.material as MeshStandardMaterial);
+      environment.dispose();
+      return shader.fragmentShader;
+    };
+
+    expect(floor('low')).not.toContain('groundWet');
+    expect(floor('low')).toContain('dappleFactor');
+    expect(floor('medium')).toContain('groundWet');
+    expect(floor('medium')).not.toContain('groundLitter');
+    expect(floor('high')).toContain('groundLitter');
+  });
+
+  it('offsets its shadow lookups by its own normal bias, leaving other worlds alone', () => {
+    const ctx = contextAt('high');
+    const environment = jungle();
+    environment.init(ctx);
+    const sun = ctx.scene.getObjectByName('sun') as DirectionalLight;
+
+    expect(sun.shadow.normalBias).toBe(JUNGLE_SHADOW_NORMAL_BIAS);
+    environment.dispose();
   });
 
   it('holds every animation still for visitors who prefer reduced motion', () => {
