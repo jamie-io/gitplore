@@ -141,6 +141,8 @@ export class Explorer implements PlayerVisual {
   readonly object = new Group();
   /** Socket for held world objects; parented to the animated right forearm when built. */
   readonly hand = new Object3D();
+  /** Scene-level socket for lights held by the hand while the avatar is hidden in first person. */
+  readonly handLight = new Object3D();
 
   private readonly mood: Mood;
   private readonly reducedMotion: () => boolean;
@@ -176,6 +178,7 @@ export class Explorer implements PlayerVisual {
     this.reducedMotion = options.reducedMotion;
     this.object.name = 'explorer';
     this.hand.name = 'explorer-hand';
+    this.handLight.name = 'explorer-hand-light';
   }
 
   /** Builds the figure and puts it in the world. Called once, by the scene that owns it. */
@@ -193,7 +196,7 @@ export class Explorer implements PlayerVisual {
         object.castShadow = ctx.quality.shadows;
       }
     });
-    ctx.scene.add(this.object);
+    ctx.scene.add(this.object, this.handLight);
   }
 
   /**
@@ -279,11 +282,15 @@ export class Explorer implements PlayerVisual {
     this.poseBody(rig, player, pace, forward, reduced);
     this.poseLimbs(rig, player, pace, forward, side);
     this.poseCoat(rig, player, pace, forward, side, reduced, dt);
+    this.object.updateMatrixWorld(true);
+    this.hand.getWorldPosition(this.handLight.position);
   }
 
   dispose(): void {
     disposeObject3D(this.object);
     this.object.clear();
+    this.handLight.removeFromParent();
+    this.handLight.clear();
     this.materials.length = 0;
     this.rig = null;
     this.following = false;

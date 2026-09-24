@@ -152,7 +152,7 @@ export const POSTER = {
 } as const;
 
 /** The world's in-world demo hint: the wall is what "try it in the world" leads to. */
-export const DEMO_HINT = 'E an der Wand: Deslopify aus- und einschalten';
+export const DEMO_HINT = 'E an der Wand: Deslopify aus- und einschalten · R Neustart';
 
 /** Colours shared by the cards, the ground props and the stele. */
 export const PALETTE = {

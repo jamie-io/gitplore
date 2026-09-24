@@ -33,7 +33,7 @@ export default defineConfig({
       name: 'iphone',
       // The phone is redirected away from the hub, so the world suite does not apply here.
       testIgnore:
-        /(world|worlds|panel|interaction|demo|memory|a11y|shaders|perf|capture|audio)\.spec\.ts/,
+        /(world|worlds|panel|interaction|demo|deslopify|memory|a11y|shaders|perf|capture|audio)\.spec\.ts/,
       use: { ...devices['iPhone 14'], browserName: 'chromium' },
     },
   ],

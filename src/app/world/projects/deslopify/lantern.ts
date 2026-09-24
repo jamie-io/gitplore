@@ -54,6 +54,7 @@ export class Lantern implements SceneObject {
   private carryElapsed = 0;
   private glowValue = 0;
   private socket: Object3D | null = null;
+  private lightSocket: Object3D | null = null;
   private glass: MeshStandardMaterial | null = null;
   private light: PointLight | null = null;
   private initialized = false;
@@ -163,6 +164,7 @@ export class Lantern implements SceneObject {
     this.initialized = true;
     this.applyGlow();
     ctx.scene.add(this.group);
+    this.attachLight();
   }
 
   update(dt: number): void {
@@ -212,11 +214,36 @@ export class Lantern implements SceneObject {
   }
 
   /** Supplies holder socket. If lantern already travels, reparent while preserving world pose. */
-  attachTo(socket: Object3D): void {
+  attachTo(socket: Object3D, lightSocket?: Object3D): void {
     this.socket = socket;
+    this.lightSocket = lightSocket ?? null;
     if (this.state === 'carried' || this.state === 'out') {
       this.attachBody();
+      this.attachLight();
     }
+  }
+
+  reset(): void {
+    this.state = 'unlit';
+    this.transition = null;
+    this.transitionElapsed = 0;
+    this.ignitionElapsed = 0;
+    this.carryElapsed = 0;
+    this.glowValue = 0;
+    if (this.initialized) {
+      this.group.updateMatrixWorld(true);
+      this.body.updateMatrixWorld(true);
+      if (this.body.parent !== this.group) {
+        this.group.attach(this.body);
+      }
+      this.body.position.set(-0.42, 1.5, 0);
+      this.body.updateMatrixWorld(true);
+      if (this.light && this.light.parent !== this.body) {
+        this.body.attach(this.light);
+      }
+      this.light?.position.set(0, 0.16, 0);
+    }
+    this.applyGlow();
   }
 
   dispose(): void {
@@ -230,6 +257,7 @@ export class Lantern implements SceneObject {
     this.light = null;
     this.glass = null;
     this.socket = null;
+    this.lightSocket = null;
     this.initialized = false;
   }
 
@@ -242,6 +270,7 @@ export class Lantern implements SceneObject {
     this.state = 'carried';
     this.carryElapsed = 0;
     this.attachBody();
+    this.attachLight();
     if (reduced) {
       this.carryElapsed = 1;
       this.body.position.copy(HANG);
@@ -257,6 +286,20 @@ export class Lantern implements SceneObject {
     this.socket.attach(this.body);
     this.carryStart.copy(this.body.position);
     this.carryElapsed = 0;
+  }
+
+  private attachLight(): void {
+    if (
+      !this.lightSocket ||
+      !this.light ||
+      !this.initialized ||
+      this.light.parent === this.lightSocket
+    ) {
+      return;
+    }
+    this.group.updateMatrixWorld(true);
+    this.lightSocket.updateMatrixWorld(true);
+    this.lightSocket.attach(this.light);
   }
 
   private carryStep(dt: number, reduced: boolean): void {

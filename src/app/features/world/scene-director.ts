@@ -152,6 +152,11 @@ export class SceneDirector {
     return true;
   }
 
+  /** Restarts current world's local flow, if it exposes one. */
+  restart(): void {
+    this.current?.restart?.(this.engine.player);
+  }
+
   /**
    * The project menu's direct travel (spec §7). Inside the start world it is a teleport to that
    * project's portal; from a repo world there is nothing to teleport to, so it becomes a

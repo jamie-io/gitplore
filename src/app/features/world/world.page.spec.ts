@@ -197,6 +197,19 @@ describe('WorldPage', () => {
     expect(settings.viewMode()).toBe('third');
   });
 
+  it('forwards R to the active world restart hook', async () => {
+    await bootWithoutManifest();
+    store.markStarted();
+    TestBed.tick();
+    await TestBed.inject(Router).navigate(['/p', 'deslopify']);
+    await settle(() => engine.world?.id === 'project:deslopify', 'Deslopify world');
+
+    const restart = vi.spyOn(TestBed.inject(SceneDirector), 'restart');
+    press('KeyR');
+
+    expect(restart).toHaveBeenCalledOnce();
+  });
+
   it('marks the world inert while an overlay owns the input', async () => {
     await bootWithoutManifest();
     // jsdom knows the property, not the attribute; the e2e suite checks the attribute in Chrome.

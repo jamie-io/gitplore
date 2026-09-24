@@ -411,6 +411,7 @@ describe('DeslopifyScene', () => {
       const built = build();
       const demo = built.target.demo;
       expect(demo.mode).toBe('world');
+      expect(demo.demoHint).toContain('R Neustart');
 
       demo.enter(built.ctx.player);
       run(built, 1 / 30);
@@ -435,6 +436,31 @@ describe('DeslopifyScene', () => {
       built.target.demo.enter(built.ctx.player);
 
       expect(built.target.flow.state).toBe('an');
+    });
+  });
+
+  describe('restart', () => {
+    it('resets flow, lantern visuals, air, cards, and player position', () => {
+      const built = build({ reduced: true });
+      crossArch(built);
+      run(built, 1);
+      built.target.toggleWall();
+      stand(built.ctx, WALL_SLOT.position, WALL_SLOT.yaw);
+
+      built.target.restart(built.ctx.player);
+      run(built, 1 / 30);
+
+      expect(built.ctx.player.position.x).toBeCloseTo(SPAWN.position.x, 6);
+      expect(built.ctx.player.position.z).toBeCloseTo(SPAWN.position.z, 6);
+      // Facing along the trail, as on arrival: the engine yaw is the slot yaw turned half round.
+      expect(built.ctx.player.yaw).toBeCloseTo(SPAWN.yaw + Math.PI, 6);
+      expect(built.target.flow.lantern).toBe('unlit');
+      expect(built.target.flow.state).toBe('noch nicht');
+      expect(built.target.flow.clearedCards).toBe(0);
+      expect(built.target.lantern.lightRadius).toBe(0);
+      expect(built.environment.slop).toBe(1);
+      expect(built.statuses.at(-1)).toBe('Deslopify noch nicht · Entslopt 0/8');
+      expect(prompts(built.target)).toContain(PROMPTS.lanternOn);
     });
   });
 

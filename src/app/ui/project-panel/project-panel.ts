@@ -60,7 +60,14 @@ import { WorldStore } from '../store/world.store';
                   }
                 }
                 @case ('in-world') {
-                  <p>Die Demo dazu steht in der 3D-Welt, direkt neben dem Portal.</p>
+                  @if (project.slug === 'deslopify') {
+                    <p>
+                      Die Demo ist der Weg durch den Dschungel: Laterne am Südufer nehmen, unter dem
+                      Bogen hindurch, an der Wand umschalten.
+                    </p>
+                  } @else {
+                    <p>Die Demo dazu steht in der 3D-Welt, direkt neben dem Portal.</p>
+                  }
                   <button type="button" data-role="try-in-world" (click)="tryInWorld(project.slug)">
                     In der Welt ausprobieren
                   </button>

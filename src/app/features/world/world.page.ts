@@ -336,6 +336,9 @@ export class WorldPage {
         // preference can never disagree about which view is open.
         this.settings.setViewMode(this.settings.viewMode() === 'first' ? 'third' : 'first');
         break;
+      case 'restart':
+        this.director.restart();
+        break;
       case 'up':
       case 'down':
       case 'left':

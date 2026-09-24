@@ -133,6 +133,21 @@ describe('Lantern', () => {
     expect(lantern.worldPosition(new Vector3())).toEqual(expect.any(Vector3));
   });
 
+  it('keeps its point light on a visible hand socket while the avatar is hidden', () => {
+    const { ctx, lantern } = built();
+    const hand = new Object3D();
+    const visibleHand = new Object3D();
+    ctx.scene.add(hand, visibleHand);
+    lantern.attachTo(hand, visibleHand);
+    lantern.ignite();
+    lantern.update(0.9);
+
+    const light = ctx.scene.getObjectByName('lantern-light');
+    expect(light?.parent).toBe(visibleHand);
+    expect(light).toBeInstanceOf(PointLight);
+    expect((light as PointLight).intensity).toBeGreaterThan(0);
+  });
+
   it('toggles carried light off over 0.4 seconds and back on', () => {
     const { ctx, lantern } = built();
     const hand = new Object3D();
