@@ -140,6 +140,20 @@ export const PROMPTS = {
   lanternOff: 'Laterne löschen',
 } as const;
 
+/**
+ * What the exhibit poster says beyond the project's own summary (spec §"HUD, map, poster, terminal
+ * copy"): the kicker, the English line, and the second card's before and after.
+ */
+export const POSTER = {
+  kicker: 'Projekt · Browser-Erweiterung',
+  englishSummary:
+    'Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube.',
+  comparison: { without: FEED_CARDS[1].slop, with: FEED_CARDS[1].original },
+} as const;
+
+/** The world's in-world demo hint: the wall is what "try it in the world" leads to. */
+export const DEMO_HINT = 'E an der Wand: Deslopify aus- und einschalten';
+
 /** Colours shared by the cards, the ground props and the stele. */
 export const PALETTE = {
   original: '#e0a13c',

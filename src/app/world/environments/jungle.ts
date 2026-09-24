@@ -21,7 +21,8 @@ import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import { Backdrop } from './backdrop';
 import type { EnvironmentOptions } from './create-environment';
-import { Anchor, Environment } from './environment';
+import { MARKER_OFFSET } from './data/release-markers';
+import { Anchor, Environment, ToyLayout, ToyLine, ToySpot } from './environment';
 import {
   CLIFF_LIP,
   cliffWall,
@@ -47,8 +48,10 @@ import {
   EXHIBIT,
   LANTERN_POST,
   LIANA,
+  NORTH_TRAIL,
   PATHS,
   POOL,
+  RIDGE,
   SPAWN,
   STELE,
   STREAM,
@@ -81,6 +84,7 @@ import {
   variants,
 } from './scatter';
 import { withAtmosphere } from './shaders/atmosphere';
+import { withClearingRing } from './shaders/clearing-ring';
 import { withDapple } from './shaders/dapple';
 import { withFoliage } from './shaders/foliage';
 import { withGroundDetail } from './shaders/ground-detail';
@@ -473,12 +477,14 @@ export class JungleEnvironment implements Environment {
   readonly shared = new SharedUniforms(DSCHUNGEL);
   /**
    * The clearing Deslopify spreads, as uniforms any material can take by identity: the ring's
-   * centre in world space (`uClearOrigin`) and its radius in metres (`uClearRadius`). The flow
-   * writes them; the ring starts at the arch with nothing cleared.
+   * centre in world space (`uClearOrigin`) and its radius in metres (`uClearRadius`), and how
+   * brightly its edge glows on the floor (`uClearGlow`, 0 while no ring runs). The flow writes
+   * them; the ring starts at the arch with nothing cleared.
    */
   readonly clearing = {
     origin: { value: ARCH.clone() },
     radius: { value: 0 },
+    glow: { value: 0 },
   };
   readonly colliders: readonly Collider[];
   /** A nook behind the waterfall. It holds a stone and nothing else: no text, no tally. */
@@ -495,9 +501,12 @@ export class JungleEnvironment implements Environment {
     heightAt: jungleHeightAt,
     colorAt: jungleGround,
     decorate: (material, quality) =>
-      void withGroundDetail(
-        withDapple(withAtmosphere(material, this.shared), this.shared, 0.75),
-        quality.shaderDetail,
+      void withClearingRing(
+        withGroundDetail(
+          withDapple(withAtmosphere(material, this.shared), this.shared, 0.75),
+          quality.shaderDetail,
+        ),
+        this.clearing,
       ),
   });
   private readonly cliffBase = jungleHeightAt(CLIFF.x, CLIFF.z);
@@ -743,6 +752,22 @@ export class JungleEnvironment implements Environment {
     }));
   }
 
+  /**
+   * The shared toys at the spots the layout keeps for them: the stele at the bridge head, the
+   * liana on the north bank, the bamboo and the cairns beside the south trail, the commit ridge as
+   * the boardwalk along the trail's longest leg, and the star lanterns over the north trail.
+   */
+  toyLayout(): ToyLayout {
+    return {
+      terminal: toySpot(STELE),
+      lever: toySpot(LIANA),
+      ridge: { from: RIDGE.from.clone(), to: RIDGE.to.clone() },
+      languages: toySpot(BAMBOO),
+      releases: cairnLine(CAIRNS),
+      stars: { from: NORTH_TRAIL[0].clone(), to: NORTH_TRAIL[1].clone() },
+    };
+  }
+
   init(ctx: WorldContext): void {
     this.scene = ctx.scene;
     applyMood(ctx.scene, DSCHUNGEL);
@@ -957,6 +982,29 @@ export class JungleEnvironment implements Environment {
 
     return { plants, canopy };
   }
+}
+
+function toySpot(slot: Slot): ToySpot {
+  return { position: slot.position.clone(), rotationY: slot.yaw };
+}
+
+/** Metres either side of their spot the release cairns spread. */
+const CAIRN_SPREAD = 2.5;
+
+/**
+ * The line the release cairns are laid beside, so they stand across `slot`, square to the way it
+ * faces: `ReleaseMarkers` lays them `MARKER_OFFSET` behind the line, so the line runs that far in
+ * front of the spot, towards the trail, and their version labels face it.
+ */
+function cairnLine(slot: Slot): ToyLine {
+  const across = new Vector3(Math.cos(slot.yaw), 0, -Math.sin(slot.yaw));
+  const centre = slot.position
+    .clone()
+    .addScaledVector(new Vector3(Math.sin(slot.yaw), 0, Math.cos(slot.yaw)), MARKER_OFFSET);
+  return {
+    from: centre.clone().addScaledVector(across, -CAIRN_SPREAD),
+    to: centre.clone().addScaledVector(across, CAIRN_SPREAD),
+  };
 }
 
 /** The fog, the lights and the sky dome the kit objects built, for the slop to tint. */

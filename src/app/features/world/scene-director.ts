@@ -94,6 +94,8 @@ export class SceneDirector {
       }
 
       this.endDemo();
+      // Cleared before the swap: the incoming world writes its own state when it starts.
+      this.store.setWorldStatus(null);
       // `setScene` disposes the previous world; only a scene that reaches here was ever built.
       this.engine.setScene(scene);
       // After the scene, so the interaction reset it fires has already cleared what was nearby.
@@ -112,10 +114,17 @@ export class SceneDirector {
     }
   }
 
-  /** Starts the current world's in-world demo, if it has one. */
+  /**
+   * Starts the current world's in-world demo, if it has one. A world-mode demo only sets the world
+   * up and leaves the visitor walking: nothing is captured, and E still reaches the world.
+   */
   startDemo(): void {
     const demo = this.current instanceof ProjectScene ? this.current.demo : null;
     if (!demo || this.demo) {
+      return;
+    }
+    if (demo.mode === 'world') {
+      demo.enter(this.engine.player);
       return;
     }
 
@@ -200,6 +209,7 @@ export class SceneDirector {
       onOpenInfo: () => void this.router.navigate(['/p', project.slug, 'info']),
       onLeave: () => void this.router.navigate(['/']),
       onDemo: () => this.startDemo(),
+      onStatus: (status) => this.store.setWorldStatus(status),
       input: this.input,
       textures: this.assets,
     });

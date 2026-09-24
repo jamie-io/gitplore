@@ -740,8 +740,25 @@ describe('JungleEnvironment', () => {
 
       expect(origin.value.equals(ARCH)).toBe(true);
       expect(radius.value).toBe(0);
+      expect(environment.clearing.glow.value).toBe(0);
       radius.value = 12;
       expect(environment.clearing.radius).toBe(radius);
+    });
+
+    it('draws the clearing’s edge on the floor from those same uniforms, on every tier', () => {
+      for (const tier of ['low', 'high'] as const) {
+        const ctx = contextAt(tier);
+        const environment = jungle();
+        environment.init(ctx);
+        const mesh = ctx.scene.getObjectByName('jungle-floor') as Mesh;
+        const shader = compile(mesh.material as MeshStandardMaterial);
+
+        expect(shader.uniforms['uClearOrigin']).toBe(environment.clearing.origin);
+        expect(shader.uniforms['uClearRadius']).toBe(environment.clearing.radius);
+        expect(shader.uniforms['uClearGlow']).toBe(environment.clearing.glow);
+        expect(shader.fragmentShader).toContain('uClearGlow > 0.0');
+        environment.dispose();
+      }
     });
   });
 });

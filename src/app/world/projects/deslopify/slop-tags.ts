@@ -19,9 +19,18 @@ const TAG_HEIGHT = 0.42;
 const TAG_FONTS = ['500 24px "IBM Plex Mono"', '700 50px "Barlow Semi Condensed"'];
 const FLIP_FORWARD_RATE = 2.6;
 const FLIP_BACK_RATE = 1.4;
+/** Metres from the anchor to the tag's centre when no `ropeLength` is given. */
+export const DEFAULT_ROPE_LENGTH = 0.55;
 
 export interface SlopTagsOptions {
   readonly anchors: readonly Vector3[];
+  /**
+   * Metres from each anchor down to its tag's centre, one for all or one per tag. Anchors hang
+   * from the canopy, so the scene lengthens the cords to bring the tags down to eye level.
+   */
+  readonly ropeLength?: number | ((index: number, anchor: Vector3) => number);
+  /** Each tag's `rotationY`, in anchor order; missing entries face +Z. */
+  readonly yaws?: readonly number[];
   readonly reducedMotion?: boolean | (() => boolean);
 }
 
@@ -51,21 +60,30 @@ export class SlopTags {
 
     const planeGeometry = new PlaneGeometry(TAG_WIDTH, TAG_HEIGHT);
     const stringMaterial = new LineBasicMaterial({ color: 0x241323 });
+    const rope = options.ropeLength ?? DEFAULT_ROPE_LENGTH;
     options.anchors.forEach((sourceAnchor, index) => {
       const anchor = sourceAnchor.clone();
+      const length = Math.max(
+        TAG_HEIGHT / 2,
+        typeof rope === 'function' ? rope(index, anchor.clone()) : rope,
+      );
       const hang = new Group();
       hang.name = `slop-tag:${index}`;
       hang.position.copy(anchor);
+      hang.rotation.y = options.yaws?.[index] ?? 0;
       hang.userData['anchor'] = anchor.clone();
+      hang.userData['ropeLength'] = length;
 
-      const leftString = stringLine(-0.28, 0, -0.3, stringMaterial);
-      const rightString = stringLine(0.28, 0, -0.3, stringMaterial);
+      // The two cords run from the anchor to the tag's top edge.
+      const cordEnd = -(length - TAG_HEIGHT / 2);
+      const leftString = stringLine(-0.28, 0, cordEnd, stringMaterial);
+      const rightString = stringLine(0.28, 0, cordEnd, stringMaterial);
       hang.add(leftString, rightString);
 
       const data = SLOP_TAGS[index % SLOP_TAGS.length]!;
       const tag = new Group();
       tag.name = `slop-tag-face:${index}`;
-      tag.position.y = -0.55;
+      tag.position.y = -length;
       const slopMaterial = faceMaterial(data, false);
       const originalMaterial = faceMaterial(data, true);
       this.textures.push(slopMaterial.map as CanvasTexture, originalMaterial.map as CanvasTexture);

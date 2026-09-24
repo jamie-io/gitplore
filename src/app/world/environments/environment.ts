@@ -21,6 +21,33 @@ export interface GroundClearing {
   readonly radius: number;
 }
 
+/** Where a shared toy stands and the way it faces (exhibit convention: 0 faces +Z). */
+export interface ToySpot {
+  readonly position: Vector3;
+  readonly rotationY: number;
+}
+
+/** A line a shared toy is laid along, from the end nearer the arrival. */
+export interface ToyLine {
+  readonly from: Vector3;
+  readonly to: Vector3;
+}
+
+/**
+ * Where a project world's shared toys stand, for an environment that lays its ground out around
+ * them: the terminal, the seed lever, the commit ridge, the language row (its centre, the row
+ * running across the way it faces), the release cairns (laid beside their line like the ridge's
+ * cairns) and the star lanterns (over their line's midpoint).
+ */
+export interface ToyLayout {
+  readonly terminal: ToySpot;
+  readonly lever: ToySpot;
+  readonly ridge: ToyLine;
+  readonly languages: ToySpot;
+  readonly releases: ToyLine;
+  readonly stars: ToyLine;
+}
+
 /**
  * The surroundings, knowing nothing about projects (spec §5).
  *
@@ -58,6 +85,11 @@ export interface Environment extends WorldObject {
    * moves for it.
    */
   keepClear?(areas: readonly GroundClearing[]): void;
+  /**
+   * Where a project world's shared toys stand, if this environment lays them out itself. Without
+   * it the scene stands them along the straight walk from the arrival to the exhibit.
+   */
+  toyLayout?(): ToyLayout;
   /**
    * `count` places to stand a landmark, turned to face an approaching visitor. Layout is the
    * environment's business: a clearing scatters differently from a plaza.

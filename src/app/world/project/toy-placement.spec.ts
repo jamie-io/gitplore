@@ -5,6 +5,7 @@ import { PLAYER_RADIUS } from '@engine/player/player-controller';
 import type { Project } from '@content/project.model';
 import { mergedProjects } from '../../../../scripts/lib/portfolio.mjs';
 import { createEnvironment } from '../environments/create-environment';
+import { LIANA, STELE } from '../environments/jungle-layout';
 import { clearance } from '../environments/testing/clearance';
 import { createProjectScene } from './create-project-scene';
 import { ProjectScene, TOY_SIDE_OFFSET } from './project.scene';
@@ -94,12 +95,19 @@ async function expectToysClear(project: Project): Promise<void> {
   for (const toy of toys) {
     const where = `${toy.id} at (${toy.position.x.toFixed(2)}, ${toy.position.z.toFixed(2)})`;
 
-    const from = toy.position.clone().sub(scene.arrival.position).setY(0);
-    const along = from.dot(walk);
-    const lateral = Math.abs(from.x * walk.z - from.z * walk.x);
-    expect(along, `${where} is not beside the walk`).toBeGreaterThan(0);
-    expect(along, `${where} is not beside the walk`).toBeLessThan(length);
-    expect(lateral, `${where} stands on the walk`).toBeCloseTo(TOY_SIDE_OFFSET, 5);
+    if (project.environment === 'jungle') {
+      // The jungle lays its toys out itself, at the spots its layout keeps clear for them.
+      const spot = toy === scene.terminal ? STELE : LIANA;
+      expect(toy.position.x, `${where} is not at its spot`).toBeCloseTo(spot.position.x, 5);
+      expect(toy.position.z, `${where} is not at its spot`).toBeCloseTo(spot.position.z, 5);
+    } else {
+      const from = toy.position.clone().sub(scene.arrival.position).setY(0);
+      const along = from.dot(walk);
+      const lateral = Math.abs(from.x * walk.z - from.z * walk.x);
+      expect(along, `${where} is not beside the walk`).toBeGreaterThan(0);
+      expect(along, `${where} is not beside the walk`).toBeLessThan(length);
+      expect(lateral, `${where} stands on the walk`).toBeCloseTo(TOY_SIDE_OFFSET, 5);
+    }
 
     if (toy === scene.terminal) {
       const reading = scene.terminal.reading;

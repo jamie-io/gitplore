@@ -7,7 +7,7 @@ import { PlayerVisual } from '@engine/player/player-visual';
 import { WorldContext, WorldObject, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import { Explorer } from '../avatar/explorer';
-import { Environment } from '../environments/environment';
+import { Environment, ToyLayout } from '../environments/environment';
 import { CommitRidge } from '../environments/data/commit-ridge';
 import { LanguagePillars, languageSideOffset } from '../environments/data/language-pillars';
 import { ReleaseMarkers } from '../environments/data/release-markers';
@@ -15,7 +15,7 @@ import { StarLanterns } from '../environments/data/star-lanterns';
 import { SeedLever } from '../environments/props/seed-lever';
 import { Terminal } from '../environments/props/terminal';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
-import { ScreenLandmark } from '../landmarks/base/screen.landmark';
+import { ScreenLandmark, ScreenLandmarkOptions } from '../landmarks/base/screen.landmark';
 import { ReturnPortal } from './return.landmark';
 
 /** Metres from the walk's centre line to either toy: past the ridge and release cairns on one side. */
@@ -51,6 +51,9 @@ export interface ToyPlacement {
   /** Exhibit convention: 0 faces +Z. */
   readonly rotationY: number;
 }
+
+/** What the exhibit poster adds to the project's own copy, for a world that has more to say. */
+export type PosterCopy = Pick<ScreenLandmarkOptions, 'kicker' | 'englishSummary' | 'comparison'>;
 
 /**
  * Where the terminal and the seed lever stand: beside the walk from the arrival point to the
@@ -121,6 +124,11 @@ export interface SceneObject extends WorldObject {
  * a demo is a thing you use, not a place you walk to.
  */
 export interface InWorldDemo {
+  /**
+   * `captured` (the default) hands the demo the controls until Esc, and the HUD shows its hint;
+   * `world` only calls `enter`, which sets the world up for the visitor, and leaves them walking.
+   */
+  readonly mode?: 'captured' | 'world';
   /** What the HUD tells the visitor while the demo runs. */
   readonly demoHint: string;
   enter(player: PlayerController): void;
@@ -142,6 +150,13 @@ export interface ProjectSceneOptions {
   /** Captured controls for the terminal; omitted by headless scene specs. */
   readonly input?: InputActionSource;
   readonly textures?: TextureProvider;
+  /** Extra copy for the exhibit poster; a bespoke scene passes its own. */
+  readonly poster?: PosterCopy;
+  /**
+   * A short line of world state for the HUD, e.g. `Deslopify an · Entslopt 8/8`, written only when
+   * it changes; `null` clears it. Only worlds with a state of their own write it.
+   */
+  readonly onStatus?: (status: string | null) => void;
 }
 
 /**
@@ -157,8 +172,11 @@ export class ProjectScene implements WorldScene {
   /** Where the director puts the player on arrival, and which way they look. */
   readonly arrival: { readonly position: Vector3; readonly yaw: number };
 
-  /** Built with the world and disposed with it, cut from this environment's own accent. */
-  private readonly explorer: Explorer;
+  /**
+   * Built with the world and disposed with it, cut from this environment's own accent. Protected
+   * so a bespoke scene can hand the explorer something to carry.
+   */
+  protected readonly explorer: Explorer;
 
   protected readonly environment: Environment;
   protected readonly project: Project;
@@ -189,6 +207,7 @@ export class ProjectScene implements WorldScene {
       reducedMotion: options.reducedMotion,
       onEnter: options.onOpenInfo,
       textures: options.textures,
+      ...options.poster,
     });
 
     // Turned to face the arriving player's back: `Landmark` then derives a spawn point a few
@@ -211,11 +230,7 @@ export class ProjectScene implements WorldScene {
 
     this.arrival = { position: this.returnPortal.spawn, yaw: this.returnPortal.spawnYaw };
     this.landmarks = [this.exhibit, this.returnPortal];
-    const toys = toyPlacements(
-      this.arrival.position,
-      this.exhibit.position,
-      this.environment.colliders,
-    );
+    const toys = this.environment.toyLayout?.() ?? this.walkLayout(options.project);
     // The jungle dresses the shared toys in its own materials; every other world keeps the default.
     const skin = this.environment.id === 'jungle' ? 'jungle' : undefined;
     this.terminal = new Terminal({
@@ -236,15 +251,6 @@ export class ProjectScene implements WorldScene {
       reducedMotion: options.reducedMotion,
       skin,
     });
-    const side = new Vector3(
-      Math.cos(this.exhibit.rotationY),
-      0,
-      -Math.sin(this.exhibit.rotationY),
-    );
-    const dataOrigin = this.arrival.position
-      .clone()
-      .lerp(this.exhibit.position, 0.5)
-      .addScaledVector(side, languageSideOffset(options.project));
     this.parts = [
       this.terminal,
       this.seedLever,
@@ -252,34 +258,67 @@ export class ProjectScene implements WorldScene {
       this.returnPortal,
       new CommitRidge({
         project: options.project,
-        from: this.arrival.position,
-        to: this.exhibit.position,
+        from: toys.ridge.from,
+        to: toys.ridge.to,
         ground: this.environment.ground,
         skin,
         reducedMotion: options.reducedMotion,
       }),
       new LanguagePillars({
         project: options.project,
-        origin: dataOrigin,
-        rotationY: this.exhibit.rotationY,
+        origin: toys.languages.position,
+        rotationY: toys.languages.rotationY,
         ground: this.environment.ground,
         skin,
       }),
       new ReleaseMarkers({
         project: options.project,
-        from: this.arrival.position,
-        to: this.exhibit.position,
+        from: toys.releases.from,
+        to: toys.releases.to,
         ground: this.environment.ground,
         skin,
       }),
       new StarLanterns({
         project: options.project,
-        from: this.arrival.position,
-        to: this.exhibit.position,
+        from: toys.stars.from,
+        to: toys.stars.to,
         reducedMotion: options.reducedMotion,
         skin,
       }),
     ];
+  }
+
+  /**
+   * The toys along the straight walk from the arrival to the exhibit, for every environment that
+   * does not lay them out itself: the terminal and the lever beside it, the ridge, the cairns and
+   * the lanterns along it, and the language row across its midpoint on its own side.
+   */
+  private walkLayout(project: Project): ToyLayout {
+    const { terminal, lever } = toyPlacements(
+      this.arrival.position,
+      this.exhibit.position,
+      this.environment.colliders,
+    );
+    const side = new Vector3(
+      Math.cos(this.exhibit.rotationY),
+      0,
+      -Math.sin(this.exhibit.rotationY),
+    );
+    const walk = { from: this.arrival.position, to: this.exhibit.position };
+    return {
+      terminal,
+      lever,
+      ridge: walk,
+      languages: {
+        position: this.arrival.position
+          .clone()
+          .lerp(this.exhibit.position, 0.5)
+          .addScaledVector(side, languageSideOffset(project)),
+        rotationY: this.exhibit.rotationY,
+      },
+      releases: walk,
+      stars: walk,
+    };
   }
 
   /**
