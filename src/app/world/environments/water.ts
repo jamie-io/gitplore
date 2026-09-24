@@ -2,10 +2,12 @@ import {
   BufferGeometry,
   Color,
   Float32BufferAttribute,
+  IUniform,
   Mesh,
   ShaderMaterial,
   UniformsLib,
   UniformsUtils,
+  Vector2,
 } from 'three';
 import { disposeObject3D } from '@engine/dispose';
 import { HeightField } from '@engine/player/collision';
@@ -15,19 +17,49 @@ import { ATMOSPHERE_FOG_GLSL } from './shaders/atmosphere';
 import { NOISE_GLSL } from './shaders/noise.glsl';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
-export interface WaterOptions {
+interface WaterBase {
   readonly shared: SharedUniforms;
   readonly mood: Mood;
-  /** World x, z of the disc's centre. */
-  readonly centre: readonly [number, number];
-  readonly radius: number;
   /** World y of the surface. */
   readonly level: number;
   /** Bed height, sampled per vertex for depth and foam. */
   readonly ground: HeightField;
   /** sRGB hex: the body colour over a shallow bed, over a deep one, and the shore foam. */
   readonly colours: { readonly shallow: number; readonly deep: number; readonly foam: number };
+  /**
+   * Metres per second the ripples and the foam drift, as world x, z: a stream's current. Left
+   * out, the water stands still and compiles exactly the shader a pond always has.
+   */
+  readonly flow?: readonly [number, number];
+  /**
+   * 0 … 1: how much of the sky the surface mirrors. A stream under a canopy sees leaves more than
+   * sky, and at a walker's grazing angle a full mirror turns it into a pale band. Left out, the
+   * surface mirrors the sky fully and compiles exactly the shader a pond always has.
+   */
+  readonly reflection?: number;
+  /**
+   * Fogs after the tone curve and the colour space, where Three's fog chunk sits in every standard
+   * material: Three uploads `fogColor` in the output colour space, so fogging before the conversion
+   * paints the haze on the water paler than on the bank beside it. Left out, the fog keeps the
+   * order the other worlds' ponds were tuned with, and their shader stays exactly as it was.
+   */
+  readonly bankFog?: boolean;
 }
+
+/** A round pond. */
+export interface PondShape {
+  /** World x, z of the disc's centre. */
+  readonly centre: readonly [number, number];
+  readonly radius: number;
+}
+
+/** A watercourse: a band `halfWidth` either side of the line through `path`'s world x, z points. */
+export interface StreamShape {
+  readonly path: readonly (readonly [number, number])[];
+  readonly halfWidth: number;
+}
+
+export type WaterOptions = WaterBase & (PondShape | StreamShape);
 
 /** Metres of depth over which the body colour goes from `shallow` to `deep`. */
 const DEPTH_TINT_METRES = 1.4;
@@ -39,12 +71,18 @@ const EDGE_FADE_DEPTH = 0.15;
 /** Segments around the disc and rings across it, per `shaderDetail` tier. */
 const SEGMENTS: readonly [number, number, number] = [48, 96, 160];
 const RINGS: readonly [number, number, number] = [4, 8, 12];
+/** A stream's rows: metres between two along its line, and vertices across it, per tier. */
+const ROW_SPACING: readonly [number, number, number] = [2, 1.2, 0.8];
+const ACROSS: readonly [number, number, number] = [5, 7, 9];
 
 /**
  * A pond surface: a disc at the water line whose colour deepens with the bed below it, reflects
  * an analytic sky through a Fresnel term, glints towards the sun in HDR, and foams where the bed
  * comes up to meet it. Everything that moves reads `shared.time`, so reduced motion holds it
  * still along with the rest of the world.
+ *
+ * Given a `path` instead of a centre it lays the same surface as a ribbon along a watercourse,
+ * wide enough to reach under the banks: the depth fade hides whatever lies above the water line.
  */
 export class Water implements WorldObject {
   readonly id = 'water';
@@ -55,12 +93,17 @@ export class Water implements WorldObject {
 
   init(ctx: WorldContext): void {
     const detail = ctx.quality.shaderDetail;
-    const geometry = discGeometry(this.options.radius, SEGMENTS[detail], RINGS[detail]);
-    this.bakeDepth(geometry);
+    const { options } = this;
+    const geometry =
+      'path' in options
+        ? ribbonGeometry(options.path, options.halfWidth, ROW_SPACING[detail], ACROSS[detail])
+        : discGeometry(options.radius, SEGMENTS[detail], RINGS[detail]);
+    const [x, z] = this.origin();
+    this.bakeDepth(geometry, x, z);
 
-    this.mesh = new Mesh(geometry, waterMaterial(this.options, detail));
+    this.mesh = new Mesh(geometry, waterMaterial(options, detail));
     this.mesh.name = this.id;
-    this.mesh.position.set(this.options.centre[0], this.options.level, this.options.centre[1]);
+    this.mesh.position.set(x, options.level, z);
     ctx.scene.add(this.mesh);
   }
 
@@ -80,16 +123,72 @@ export class Water implements WorldObject {
    * at the water line, negative where the bank is above the surface and the terrain hides the disc
    * anyway. The fragment shader tints, foams and fades on it.
    */
-  private bakeDepth(geometry: BufferGeometry): void {
-    const { centre, level, ground } = this.options;
+  private bakeDepth(geometry: BufferGeometry, x: number, z: number): void {
+    const { level, ground } = this.options;
     const position = geometry.getAttribute('position');
     const depth = new Float32Array(position.count);
     for (let i = 0; i < position.count; i++) {
-      depth[i] =
-        level - ground.heightAt(centre[0] + position.getX(i), centre[1] + position.getZ(i));
+      depth[i] = level - ground.heightAt(x + position.getX(i), z + position.getZ(i));
     }
     geometry.setAttribute('aDepth', new Float32BufferAttribute(depth, 1));
   }
+
+  /** World x, z the mesh stands on: a pond's centre, or the origin for a stream laid in world space. */
+  private origin(): readonly [number, number] {
+    return 'path' in this.options ? [0, 0] : this.options.centre;
+  }
+}
+
+/**
+ * A flat band in the XZ plane facing +Y: rows of `across` vertices square to the line through
+ * `path`, one every `spacing` metres or less, so the per-vertex depth follows the channel's
+ * profile. Every vertex lies within `halfWidth` of the line, and the middle one of each row on it.
+ */
+function ribbonGeometry(
+  path: readonly (readonly [number, number])[],
+  halfWidth: number,
+  spacing: number,
+  across: number,
+): BufferGeometry {
+  const rows: [number, number][] = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const [ax, az] = path[i];
+    const [bx, bz] = path[i + 1];
+    const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / spacing));
+    for (let step = 0; step < steps; step++) {
+      rows.push([ax + ((bx - ax) * step) / steps, az + ((bz - az) * step) / steps]);
+    }
+  }
+  rows.push([path[path.length - 1][0], path[path.length - 1][1]]);
+
+  const positions: number[] = [];
+  rows.forEach(([x, z], row) => {
+    // The line's direction here, averaged over the rows either side, so a bend fans out.
+    const [px, pz] = rows[Math.max(row - 1, 0)];
+    const [nx, nz] = rows[Math.min(row + 1, rows.length - 1)];
+    const length = Math.hypot(nx - px, nz - pz) || 1;
+    const sideX = -(nz - pz) / length;
+    const sideZ = (nx - px) / length;
+    for (let column = 0; column < across; column++) {
+      const offset = -halfWidth + (2 * halfWidth * column) / (across - 1);
+      positions.push(x + sideX * offset, 0, z + sideZ * offset);
+    }
+  });
+
+  const index: number[] = [];
+  for (let row = 0; row < rows.length - 1; row++) {
+    for (let column = 0; column < across - 1; column++) {
+      const a = row * across + column;
+      const b = a + across;
+      index.push(a, a + 1, b, a + 1, b + 1, b);
+    }
+  }
+
+  const geometry = new BufferGeometry();
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setIndex(index);
+  geometry.computeBoundingSphere();
+  return geometry;
 }
 
 /**
@@ -157,6 +256,9 @@ uniform vec3 skyBelow;
 uniform vec3 shallowColor;
 uniform vec3 deepColor;
 uniform vec3 foamColor;
+#ifdef WATER_FLOW
+  uniform vec2 flow;
+#endif
 
 #ifdef USE_FOG
   uniform vec3 fogColor;
@@ -212,6 +314,9 @@ vec3 skyTowards(vec3 dir) {
 
 void main() {
   vec2 p = vWorld.xz;
+  #ifdef WATER_FLOW
+    p -= flow * time;
+  #endif
   vec3 normal = rippleNormal(p);
 
   vec3 toCamera = cameraPosition - vWorld;
@@ -219,6 +324,9 @@ void main() {
   vec3 viewDir = toCamera / max(camDist, 1e-4);
   float cosTheta = max(dot(viewDir, normal), 0.0);
   float fresnel = 0.03 + 0.97 * pow(1.0 - cosTheta, 5.0);
+  #ifdef WATER_REFLECTION
+    fresnel *= WATER_REFLECTION;
+  #endif
 
   float depth = max(vDepth, 0.0);
   float depthMix = 1.0 - exp(-depth / ${DEPTH_TINT_METRES.toFixed(2)});
@@ -248,22 +356,38 @@ void main() {
   alpha = mix(alpha, 1.0, foam);
   alpha *= smoothstep(0.0, ${EDGE_FADE_DEPTH.toFixed(2)}, vDepth);
 
-  colour = atmosphereFog(colour, vWorld, sunDirection, sunColor, heightFog);
+  #ifndef WATER_BANK_FOG
+    colour = atmosphereFog(colour, vWorld, sunDirection, sunColor, heightFog);
+  #endif
 
   gl_FragColor = vec4(colour, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  #ifdef WATER_BANK_FOG
+    // Where Three's own fog chunk sits in every standard material: see WaterOptions.bankFog.
+    gl_FragColor.rgb = atmosphereFog(gl_FragColor.rgb, vWorld, sunDirection, sunColor, heightFog);
+  #endif
 }
 `;
 
 function waterMaterial(options: WaterOptions, detail: 0 | 1 | 2): ShaderMaterial {
-  const { shared, mood, colours } = options;
+  const { shared, mood, colours, flow, reflection, bankFog } = options;
+  // Only a flowing surface declares the current, so a pond's program is the one it always was.
+  const current: { defines: Record<string, string>; uniforms: Record<string, IUniform> } = flow
+    ? { defines: { WATER_FLOW: '' }, uniforms: { flow: { value: new Vector2(flow[0], flow[1]) } } }
+    : { defines: {}, uniforms: {} };
   // Three refreshes `fogColor`, `fogNear` and `fogFar` from `scene.fog` on any material with
   // `fog: true` that declares them, so the water follows the same fog the terrain does.
   return new ShaderMaterial({
     name: 'water',
-    defines: { WATER_LAYERS: detail + 1 },
+    defines: {
+      WATER_LAYERS: detail + 1,
+      ...current.defines,
+      ...(reflection === undefined ? {} : { WATER_REFLECTION: reflection.toFixed(3) }),
+      ...(bankFog ? { WATER_BANK_FOG: '' } : {}),
+    },
     uniforms: {
+      ...current.uniforms,
       ...UniformsUtils.clone(UniformsLib.fog),
       time: shared.time,
       sunDirection: shared.sunDirection,

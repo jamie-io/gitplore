@@ -193,9 +193,10 @@ describe('ProjectScene', () => {
     expect(ctx.scene.children).toHaveLength(0);
   });
 
+  // Not the jungle: Deslopify's walk from the arrival over the bridge is the demo itself, 15–20 s
+  // long by design (jungle-layout.spec.ts holds it to that).
   it.each([
     ['Showroom', () => new ShowroomEnvironment({ reducedMotion: () => true })],
-    ['Dschungel', () => new JungleEnvironment({ reducedMotion: () => true })],
     ['Plaza', () => new PlazaEnvironment({ reducedMotion: () => true })],
   ] as const)('keeps the %s arrival walk at or below 25 metres', (_name, buildEnvironment) => {
     const target = scene({ environment: buildEnvironment() });

@@ -1,5 +1,9 @@
 import {
+  Color,
   DirectionalLight,
+  Fog,
+  Group,
+  HemisphereLight,
   InstancedMesh,
   Matrix4,
   Mesh,
@@ -12,20 +16,48 @@ import {
   WebGLRenderer,
 } from 'three';
 import { QualityTier, qualitySettings } from '@engine/capability.service';
-import { NO_INTENT, PLAYER_EYE_HEIGHT, PlayerController } from '@engine/player/player-controller';
+import { Collider, STEP_HEIGHT, floorHeightAt } from '@engine/player/collision';
+import {
+  NO_INTENT,
+  PLAYER_EYE_HEIGHT,
+  PLAYER_RADIUS,
+  PlayerController,
+} from '@engine/player/player-controller';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
+import { DSCHUNGEL } from './mood';
 import {
   CAVE,
   FOLIAGE,
   JUNGLE_SHADOW_NORMAL_BIAS,
   JungleEnvironment,
+  NORTH_BANK_HAZE,
   POOL,
   POOL_LEVEL,
+  SLOP_AIR,
   STAGE,
   STAGE_FLOOR,
   jungleHeightAt,
 } from './jungle';
+import { ARCH_MODEL } from './jungle-bridge';
+import {
+  ARCH,
+  BRIDGE,
+  BRIDGE_NORTH,
+  BROOK,
+  EXHIBIT,
+  LANTERN_POST,
+  NORTH_TRAIL,
+  SOUTH_TRAIL,
+  SPAWN,
+  STREAM,
+  WALL_SLOT,
+  WATER_LEVEL,
+  jungleRelief,
+  onSouthBank,
+  pointAlong,
+  streamCentreZ,
+} from './jungle-layout';
 import { isExcluded } from './scatter';
 import { clearance } from './testing/clearance';
 
@@ -77,17 +109,75 @@ function roots(mesh: InstancedMesh, position: Vector3): [number, number, number,
 const original = (x: number, z: number) =>
   1.4 * Math.sin(x * 0.09) * Math.cos(z * 0.07) + 0.55 * Math.sin((x - z) * 0.21);
 
+/** Walks `player` to each waypoint in turn at walking pace; fails the spec where it gets stuck. */
+function walk(
+  player: PlayerController,
+  environment: JungleEnvironment,
+  waypoints: readonly Vector3[],
+): void {
+  for (const waypoint of waypoints) {
+    for (let frame = 0; frame < 60 * 30; frame++) {
+      const dx = waypoint.x - player.position.x;
+      const dz = waypoint.z - player.position.z;
+      if (Math.hypot(dx, dz) < 0.1) {
+        break;
+      }
+      player.yaw = Math.atan2(-dx, -dz);
+      player.update(
+        1 / 60,
+        { ...NO_INTENT, forward: 1 },
+        environment.ground,
+        environment.colliders,
+      );
+    }
+    expect(
+      Math.hypot(waypoint.x - player.position.x, waypoint.z - player.position.z),
+      `stuck short of ${waypoint.x.toFixed(2)}, ${waypoint.z.toFixed(2)}`,
+    ).toBeLessThan(0.2);
+  }
+}
+
+function arrive(environment: JungleEnvironment): PlayerController {
+  const player = new PlayerController();
+  player.teleport(environment.spawn.clone().setY(environment.spawn.y + PLAYER_EYE_HEIGHT));
+  return player;
+}
+
+/** Whether a body standing at (x, z) would overlap any of `colliders`. */
+function blocked(x: number, z: number, colliders: readonly Collider[]): boolean {
+  return colliders.some((collider) =>
+    collider.kind === 'cylinder'
+      ? Math.hypot(x - collider.x, z - collider.z) < collider.radius + PLAYER_RADIUS
+      : x > collider.minX - PLAYER_RADIUS &&
+        x < collider.maxX + PLAYER_RADIUS &&
+        z > collider.minZ - PLAYER_RADIUS &&
+        z < collider.maxZ + PLAYER_RADIUS,
+  );
+}
+
 describe('JungleEnvironment', () => {
   it('keeps every tree, fern and boulder off the stage', () => {
-    // The first four colliders are the rock around the cave and the pool; the cave's walls come last.
+    // After the cliff and the pool: every disc that is not the brook, the arch or the cave is a
+    // trunk or a boulder.
     const environment = jungle();
-    for (const collider of environment.colliders
+    const fixed = new Set<Collider>([
+      ...environment.bridge.colliders,
+      ...environment.cave.colliders,
+    ]);
+    const groves = environment.colliders
       .slice(4)
-      .filter((collider) => !environment.cave.colliders.includes(collider))) {
-      if (collider.kind !== 'cylinder') {
-        throw new Error('expected plant and boulder cylinders after the cliff and the pool');
+      .filter(
+        (collider) =>
+          collider.kind === 'cylinder' && !fixed.has(collider) && collider.radius !== BROOK.band,
+      );
+
+    expect(groves.length).toBeGreaterThan(80);
+    for (const collider of groves) {
+      if (collider.kind === 'cylinder') {
+        expect(isExcluded(collider.x, collider.z, STAGE), `${collider.x}, ${collider.z}`).toBe(
+          false,
+        );
       }
-      expect(isExcluded(collider.x, collider.z, STAGE)).toBe(false);
     }
   });
 
@@ -114,38 +204,241 @@ describe('JungleEnvironment', () => {
     }
   });
 
-  it('walks a visitor from the arrival point through the waterfall into the cave', () => {
+  it('walks a visitor down the trail, over the bridge and through the waterfall into the cave', () => {
     const environment = jungle();
-    const player = new PlayerController();
-    player.teleport(environment.spawn.clone().setY(environment.spawn.y + PLAYER_EYE_HEIGHT));
-    // Along the rock face between the pool and the cliff, then in through the falling water.
-    const waypoints = [
-      new Vector3(14, 0, -48.8),
-      new Vector3(10.9, 0, -49.05),
+    const player = arrive(environment);
+
+    walk(player, environment, [...SOUTH_TRAIL.slice(1), ARCH]);
+    // On the deck, standing on its planks rather than wading in the stream under it.
+    expect(player.position.y).toBeCloseTo(BRIDGE.deckHeight + PLAYER_EYE_HEIGHT, 5);
+
+    // Along the north trail to the pool, round its west side and in through the falling water.
+    walk(player, environment, [
+      BRIDGE_NORTH,
+      ...NORTH_TRAIL.slice(1),
+      new Vector3(3.5, 0, -44),
+      new Vector3(4, 0, -48.8),
+      new Vector3(7.1, 0, -49.05),
       new Vector3(CAVE.x, 0, -49.9),
       new Vector3(CAVE.x, 0, CAVE.z),
-    ];
-    for (const waypoint of waypoints) {
-      for (let frame = 0; frame < 60 * 20; frame++) {
-        const dx = waypoint.x - player.position.x;
-        const dz = waypoint.z - player.position.z;
-        if (Math.hypot(dx, dz) < 0.1) {
-          break;
+    ]);
+    expect(environment.interactables).toEqual(environment.cave.interactables);
+  });
+
+  it('walks a visitor from the bridge to the exhibit and to the feed wall', () => {
+    const environment = jungle();
+    const player = arrive(environment);
+    walk(player, environment, [...SOUTH_TRAIL.slice(1), BRIDGE_NORTH]);
+
+    const front = (slot: { position: Vector3; yaw: number }, metres: number) =>
+      new Vector3(
+        slot.position.x + Math.sin(slot.yaw) * metres,
+        0,
+        slot.position.z + Math.cos(slot.yaw) * metres,
+      );
+    walk(player, environment, [front(EXHIBIT, 3)]);
+    walk(player, environment, [BRIDGE_NORTH, NORTH_TRAIL[1], front(WALL_SLOT, 3)]);
+  });
+
+  it('lets no one across the stream but on the bridge', () => {
+    const environment = jungle();
+    // The deck is a floor, not a wall: without it, the band either side of the stream's line
+    // is closed everywhere but the walkway between the bridge's sides.
+    const walls = environment.colliders.filter((collider) => collider.top === undefined);
+    const walkway = BRIDGE.halfWidth - PLAYER_RADIUS;
+
+    for (let x = -87; x <= 87; x += 0.1) {
+      // A body at the walkway's very edge only touches the wall beside it.
+      const onDeck = Math.abs(x - BRIDGE.centre.x) < walkway + 0.05;
+      for (const dz of [-STREAM.halfWidth, 0, STREAM.halfWidth]) {
+        const z = streamCentreZ(x) + dz;
+        if (!onDeck) {
+          expect(blocked(x, z, walls), `a body fits in the stream at ${x.toFixed(1)}`).toBe(true);
         }
-        player.yaw = Math.atan2(-dx, -dz);
+      }
+    }
+    // The middle of the deck is open, arch and all.
+    expect(blocked(BRIDGE.centre.x, ARCH.z, walls)).toBe(false);
+    expect(blocked(BRIDGE.centre.x, BRIDGE.centre.z + 3, walls)).toBe(false);
+  });
+
+  it('closes the north bank off from the arrival everywhere but the bridge', () => {
+    const environment = jungle();
+    // Flood the ground a body fits on from the arrival, with the deck taken away. Nothing it
+    // reaches may lie across the stream: the brook, the pool, the cliff and the jungle's edge
+    // must seal every other way round.
+    const cell = 0.5;
+    const minX = -92;
+    const maxX = 92;
+    const minZ = -70;
+    const maxZ = 92;
+    const columns = Math.round((maxX - minX) / cell) + 1;
+    const rows = Math.round((maxZ - minZ) / cell) + 1;
+    const deck = {
+      kind: 'aabb' as const,
+      minX: BRIDGE.centre.x - BRIDGE.halfWidth,
+      maxX: BRIDGE.centre.x + BRIDGE.halfWidth,
+      minZ: BRIDGE.centre.z - BRIDGE.halfLength,
+      maxZ: BRIDGE.centre.z + BRIDGE.halfLength,
+    };
+    const walls = [...environment.colliders.filter((c) => c.top === undefined), deck];
+    const seen = new Uint8Array(columns * rows);
+    const index = (x: number, z: number) =>
+      Math.round((z - minZ) / cell) * columns + Math.round((x - minX) / cell);
+    const queue: number[] = [index(SPAWN.position.x, SPAWN.position.z)];
+    seen[queue[0]] = 1;
+    let reachedNorth: string | null = null;
+
+    while (queue.length > 0 && reachedNorth === null) {
+      const at = queue.pop()!;
+      const column = at % columns;
+      const row = (at - column) / columns;
+      for (const [dc, dr] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const c = column + dc;
+        const r = row + dr;
+        if (c < 0 || r < 0 || c >= columns || r >= rows || seen[r * columns + c]) {
+          continue;
+        }
+        seen[r * columns + c] = 1;
+        const x = minX + c * cell;
+        const z = minZ + r * cell;
+        if (blocked(x, z, walls)) {
+          continue;
+        }
+        if (!onSouthBank(x, z)) {
+          reachedNorth = `${x}, ${z}`;
+        }
+        queue.push(r * columns + c);
+      }
+    }
+
+    expect(reachedNorth).toBe(null);
+  });
+
+  it('walks nobody across the stream beside the bridge, jumping or not', () => {
+    const environment = jungle();
+    for (const x of [BRIDGE.centre.x - 4, BRIDGE.centre.x + 4, -30, 40]) {
+      const player = new PlayerController();
+      const z = streamCentreZ(x) + 9;
+      player.teleport(new Vector3(x, jungleHeightAt(x, z) + PLAYER_EYE_HEIGHT, z));
+      player.yaw = 0;
+      for (let frame = 0; frame < 60 * 6; frame++) {
         player.update(
           1 / 60,
-          { ...NO_INTENT, forward: 1 },
+          { ...NO_INTENT, forward: 1, jump: frame % 30 === 0 },
           environment.ground,
           environment.colliders,
         );
       }
-      expect(
-        Math.hypot(waypoint.x - player.position.x, waypoint.z - player.position.z),
-        `stuck short of ${waypoint.x}, ${waypoint.z}`,
-      ).toBeLessThan(0.2);
+      expect(onSouthBank(player.position.x, player.position.z), `crossed at ${x}`).toBe(true);
     }
-    expect(environment.interactables).toEqual(environment.cave.interactables);
+  });
+
+  it('cuts the stream below the water line all the way across, with smooth banks', () => {
+    const mouth = BROOK.path[BROOK.path.length - 1].x;
+    for (let x = -85; x <= 85; x += 2.5) {
+      const centre = streamCentreZ(x);
+      // Where the brook runs in from the north, its own cut deepens the bank.
+      const brook = Math.abs(x - mouth) < BROOK.halfWidth + 2.5;
+      expect(jungleHeightAt(x, centre), `bed at ${x}`).toBeLessThan(WATER_LEVEL - 0.8);
+      expect(jungleHeightAt(x, centre + STREAM.halfWidth * 0.8)).toBeLessThan(WATER_LEVEL);
+      expect(jungleHeightAt(x, centre - STREAM.halfWidth * 0.8)).toBeLessThan(WATER_LEVEL);
+      // Where a visitor may stand, the ground is out of the water.
+      expect(jungleHeightAt(x, centre + STREAM.band + PLAYER_RADIUS)).toBeGreaterThanOrEqual(
+        WATER_LEVEL,
+      );
+      if (!brook) {
+        expect(jungleHeightAt(x, centre - STREAM.band - PLAYER_RADIUS)).toBeGreaterThanOrEqual(
+          WATER_LEVEL,
+        );
+      }
+      // No cliffs: the bank climbs less than 0.1 m per 10 cm anywhere across it.
+      for (let dz = -16; dz < 16; dz += 0.1) {
+        const step = Math.abs(
+          jungleHeightAt(x, centre + dz + 0.1) - jungleHeightAt(x, centre + dz),
+        );
+        expect(step, `bank at ${x}, ${dz}`).toBeLessThan(0.1);
+      }
+    }
+  });
+
+  it('cuts the brook from the pool down into the stream, all of it under water', () => {
+    const path = BROOK.path;
+    const length = path.slice(1).reduce((sum, point, i) => sum + point.distanceTo(path[i]), 0);
+    for (let along = 0; along <= length; along += 1) {
+      const point = pointAlong(path, along);
+      expect(jungleHeightAt(point.x, point.z), `brook at ${along}`).toBeLessThan(WATER_LEVEL - 0.3);
+    }
+  });
+
+  it('stands the deck 20 cm over the banks at either end, one easy step up', () => {
+    for (const end of [-1, 1]) {
+      const z = BRIDGE.centre.z + end * (BRIDGE.halfLength + 0.2);
+      for (const x of [-1, 0, 1].map((side) => BRIDGE.centre.x + side * BRIDGE.halfWidth * 0.8)) {
+        const bank = jungleHeightAt(x, z);
+        expect(BRIDGE.deckHeight - bank).toBeGreaterThan(0);
+        expect(BRIDGE.deckHeight - bank).toBeLessThan(STEP_HEIGHT);
+      }
+    }
+    // Over the water, the deck is the floor.
+    const environment = jungle();
+    expect(
+      floorHeightAt(
+        BRIDGE.centre.x,
+        BRIDGE.centre.z,
+        BRIDGE.deckHeight,
+        environment.ground,
+        environment.colliders,
+      ),
+    ).toBe(BRIDGE.deckHeight);
+    expect(jungleHeightAt(BRIDGE.centre.x, BRIDGE.centre.z)).toBeLessThan(WATER_LEVEL - 0.8);
+  });
+
+  it('lays the stream and the brook at the pool’s own water line', () => {
+    const ctx = stubContext();
+    const environment = jungle();
+    environment.init(ctx);
+    const water: Mesh[] = [];
+    ctx.scene.traverse((object) => {
+      if (object instanceof Mesh && object.name === 'water') {
+        water.push(object);
+      }
+    });
+
+    expect(water).toHaveLength(3);
+    for (const mesh of water) {
+      expect(mesh.position.y).toBe(POOL_LEVEL);
+    }
+    environment.dispose();
+  });
+
+  it('builds the bridge and sets the arch on it, and hands the arch back when it goes', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const environment = jungle();
+    environment.init(ctx);
+
+    expect(ctx.scene.getObjectByName('bridge')).toBeDefined();
+    expect(ctx.scene.getObjectByName('arch-proxy')).toBeDefined();
+    expect(assets.requested).toContain(ARCH_MODEL);
+    await assets.resolve(new Group());
+    expect(ctx.scene.getObjectByName('arch-model')).toBeDefined();
+    expect(ctx.scene.getObjectByName('arch-proxy')).toBeUndefined();
+    const arch = ctx.scene.getObjectByName('deslopify-arch')!;
+    expect([arch.position.x, arch.position.y, arch.position.z]).toEqual([
+      ARCH.x,
+      BRIDGE.deckHeight,
+      ARCH.z,
+    ]);
+
+    environment.dispose();
+    expect(assets.releasedModels).toEqual([ARCH_MODEL]);
+    expect(ctx.scene.children).toHaveLength(0);
   });
 
   it('builds the cave and disposes it with the jungle', () => {
@@ -168,28 +461,55 @@ describe('JungleEnvironment', () => {
         for (const offset of [0, 6.5, -6.5]) {
           expect(
             clearance(x + side[0] * offset, z + side[1] * offset, environment.colliders),
+            `${offset} m beside the exhibit at ${x.toFixed(1)}, ${z.toFixed(1)}`,
           ).toBeGreaterThanOrEqual(4);
         }
       }
     }
   });
 
-  it('keeps the arrival glade open', () => {
-    expect(clearance(0, 0, jungle().colliders)).toBeGreaterThanOrEqual(8);
+  it('puts the exhibit on the north bank where the map has it, turned to the bridge', () => {
+    const [exhibit] = jungle().anchors(1);
+
+    expect(exhibit.position).toEqual([EXHIBIT.position.x, 0, EXHIBIT.position.z]);
+    expect(exhibit.rotationY).toBe(EXHIBIT.yaw);
+    for (const anchor of jungle().anchors(4)) {
+      expect(onSouthBank(anchor.position[0], anchor.position[2])).toBe(false);
+    }
+  });
+
+  it('stands the arriving player at the south trail’s start, facing along it', () => {
+    const environment = jungle();
+
+    expect(environment.spawn.x).toBe(SOUTH_TRAIL[0].x);
+    expect(environment.spawn.z).toBe(SOUTH_TRAIL[0].z);
+    // Forward is (−sin yaw, −cos yaw): towards the trail's first bend.
+    const next = SOUTH_TRAIL[1].clone().sub(SOUTH_TRAIL[0]).normalize();
+    expect(-Math.sin(environment.spawnYaw)).toBeCloseTo(next.x, 10);
+    expect(-Math.cos(environment.spawnYaw)).toBeCloseTo(next.z, 10);
+  });
+
+  it('keeps the arrival open', () => {
+    expect(
+      clearance(SPAWN.position.x, SPAWN.position.z, jungle().colliders),
+    ).toBeGreaterThanOrEqual(5);
   });
 
   it('holds water in the plunge pool', () => {
     expect(jungleHeightAt(POOL.x, POOL.z)).toBeCloseTo(POOL_LEVEL - POOL.depth, 6);
   });
 
-  it('keeps the ground where the visitor and the exhibits stand exactly as it was', () => {
-    for (const [x, z] of [
-      [0, 0],
-      [0, -19],
-      [-6.5, -19],
-      [20, 10],
-    ] as const) {
-      expect(jungleHeightAt(x, z)).toBe(original(x, z));
+  it('keeps the ground away from the water exactly as it was', () => {
+    for (const point of [
+      SPAWN.position,
+      LANTERN_POST,
+      EXHIBIT.position,
+      WALL_SLOT.position,
+      SOUTH_TRAIL[1],
+      SOUTH_TRAIL[2],
+    ]) {
+      expect(jungleHeightAt(point.x, point.z)).toBe(original(point.x, point.z));
+      expect(jungleRelief(point.x, point.z)).toBe(original(point.x, point.z));
     }
   });
 
@@ -338,5 +658,90 @@ describe('JungleEnvironment', () => {
 
     expect(environment.shared.time.value).toBe(0);
     environment.dispose();
+  });
+
+  describe('slop', () => {
+    function slopped(cameraZ = SPAWN.position.z) {
+      const ctx = stubContext();
+      const environment = jungle();
+      environment.init(ctx);
+      ctx.camera.position.set(SPAWN.position.x, 2, cameraZ);
+      environment.update(1 / 60, ctx);
+      return { ctx, environment, fog: ctx.scene.fog as Fog };
+    }
+    const hex = (colour: Color) => colour.getHex();
+    const mix = (from: number, to: number, t: number) => new Color(from).lerp(new Color(to), t);
+
+    it('starts fully slopped: violet fog, closer and thicker, over the south bank', () => {
+      const { ctx, environment, fog } = slopped();
+
+      expect(environment.slop).toBe(1);
+      expect(environment.haze).toBe(1);
+      expect(hex(fog.color)).toBe(new Color(SLOP_AIR.fog.color).getHex());
+      expect(fog.near).toBe(SLOP_AIR.fog.near);
+      expect(fog.far).toBe(SLOP_AIR.fog.far);
+      expect(environment.shared.heightFog.value.x).toBe(SLOP_AIR.fog.heightDensity);
+      expect(hex(environment.backdrop.airlight.value)).toBe(hex(fog.color));
+      const hemisphere = ctx.scene.getObjectByName('sky-light') as HemisphereLight;
+      expect(hex(hemisphere.color)).toBe(new Color(SLOP_AIR.hemisphere.sky).getHex());
+      const sun = ctx.scene.getObjectByName('sun') as DirectionalLight;
+      expect(hex(sun.color)).toBe(new Color(SLOP_AIR.sun).getHex());
+      environment.dispose();
+    });
+
+    it('lerps the fog, the light and the sky back to DSCHUNGEL as the slop goes', () => {
+      const { ctx, environment, fog } = slopped();
+
+      environment.setSlop(0);
+      environment.update(1 / 60, ctx);
+      expect(hex(fog.color)).toBe(new Color(DSCHUNGEL.fog.color).getHex());
+      expect(fog.near).toBe(DSCHUNGEL.fog.near);
+      expect(environment.shared.heightFog.value.x).toBe(DSCHUNGEL.fog.heightDensity);
+      expect(hex(environment.shared.sunColor.value)).toBe(new Color(DSCHUNGEL.sun.color).getHex());
+      const hemisphere = ctx.scene.getObjectByName('sky-light') as HemisphereLight;
+      expect(hex(hemisphere.groundColor)).toBe(new Color(DSCHUNGEL.hemisphere.ground).getHex());
+
+      environment.setSlop(0.5);
+      environment.update(1 / 60, ctx);
+      expect(hex(fog.color)).toBe(hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, 0.5)));
+      expect(environment.shared.heightFog.value.x).toBeCloseTo(
+        (DSCHUNGEL.fog.heightDensity + SLOP_AIR.fog.heightDensity) / 2,
+        10,
+      );
+      environment.dispose();
+    });
+
+    it('clamps the slop to 0 … 1', () => {
+      const environment = jungle();
+
+      environment.setSlop(3);
+      expect(environment.slop).toBe(1);
+      environment.setSlop(-2);
+      expect(environment.slop).toBe(0);
+    });
+
+    it('thins the haze over the north bank, across the span of the bridge', () => {
+      const north = slopped(BRIDGE_NORTH.z - 1);
+      expect(north.environment.haze).toBeCloseTo(NORTH_BANK_HAZE, 10);
+      expect(hex(north.fog.color)).toBe(
+        hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, NORTH_BANK_HAZE)),
+      );
+      north.environment.dispose();
+
+      const midspan = slopped(BRIDGE.centre.z);
+      expect(midspan.environment.haze).toBeGreaterThan(NORTH_BANK_HAZE);
+      expect(midspan.environment.haze).toBeLessThan(1);
+      midspan.environment.dispose();
+    });
+
+    it('shares a clearing origin and radius any material can read, starting at the arch', () => {
+      const environment = jungle();
+      const { origin, radius } = environment.clearing;
+
+      expect(origin.value.equals(ARCH)).toBe(true);
+      expect(radius.value).toBe(0);
+      radius.value = 12;
+      expect(environment.clearing.radius).toBe(radius);
+    });
   });
 });
