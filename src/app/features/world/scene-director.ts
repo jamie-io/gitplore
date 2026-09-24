@@ -14,7 +14,7 @@ import { WorldStore } from '@ui/store/world.store';
 import { HubScene } from '@world/hub/hub.scene';
 import { createEnvironment } from '@world/environments/create-environment';
 import type { Environment } from '@world/environments/environment';
-import { BRIDGE, BRIDGE_SOUTH } from '@world/environments/jungle-layout';
+import { ARCH, BRIDGE, BRIDGE_SOUTH } from '@world/environments/jungle-layout';
 import { createProjectScene } from '@world/project/create-project-scene';
 import { InWorldDemo, ProjectScene } from '@world/project/project.scene';
 
@@ -162,8 +162,10 @@ export class SceneDirector {
   /** Places a browser test visitor in front of a current-world interactable. */
   teleportToInteractableForTest(id: string): boolean {
     if (id === 'deslopify:bridge-south' && this.current?.id === 'project:deslopify') {
+      // On the deck, 3 m short of the arch: a few steps from the trigger even at SwiftShader's
+      // frame rate in CI, where every frame advances at most `ENGINE_MAX_FRAME_SECONDS`.
       this.engine.player.teleport(
-        new Vector3(BRIDGE_SOUTH.x, BRIDGE.deckHeight + PLAYER_EYE_HEIGHT, BRIDGE_SOUTH.z),
+        new Vector3(BRIDGE_SOUTH.x, BRIDGE.deckHeight + PLAYER_EYE_HEIGHT, ARCH.z + 3),
         0,
       );
       return true;

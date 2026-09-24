@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Deslopify world', () => {
   test('boots cleanly, lights the lantern, and toggles the wall', async ({ page }) => {
+    // Under SwiftShader in CI the jungle renders a few frames a second, and walking is frame-bound.
+    test.setTimeout(150_000);
     const problems: string[] = [];
     page.on('console', (message) => {
       const text = message.text();
@@ -23,7 +25,7 @@ test.describe('Deslopify world', () => {
 
     const prompt = page.locator('app-hud .prompt');
     await page.keyboard.down('KeyW');
-    await expect(prompt).toContainText('Laterne anzünden', { timeout: 20_000 });
+    await expect(prompt).toContainText('Laterne anzünden', { timeout: 40_000 });
     await page.keyboard.up('KeyW');
     await page.keyboard.press('KeyE');
     await expect(prompt).not.toContainText('Laterne anzünden');
@@ -37,7 +39,7 @@ test.describe('Deslopify world', () => {
     expect(placedAtBridge).toBe(true);
     await page.keyboard.down('KeyW');
     await expect(page.locator('app-hud .status')).toHaveText(/Deslopify an · Entslopt \d+\/8/, {
-      timeout: 10_000,
+      timeout: 40_000,
     });
     await page.keyboard.up('KeyW');
 
@@ -58,7 +60,7 @@ test.describe('Deslopify world', () => {
     await expect(page.locator('app-hud .status')).toHaveText('Deslopify noch nicht · Entslopt 0/8');
     // R puts the visitor back at the arrival, and the lantern back on its post, unlit.
     await page.keyboard.down('KeyW');
-    await expect(prompt).toContainText('Laterne anzünden', { timeout: 20_000 });
+    await expect(prompt).toContainText('Laterne anzünden', { timeout: 40_000 });
     await page.keyboard.up('KeyW');
 
     expect(problems).toEqual([]);
