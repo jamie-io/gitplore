@@ -51,12 +51,20 @@ gl_FragColor.rgb = mix(gl_FragColor.rgb, backdropHorizon, vBackdropHaze);
 export class Backdrop implements WorldObject {
   readonly id = 'backdrop';
 
+  /**
+   * The airlight every ring's shader mixes towards, by identity: a world whose air changes colour
+   * (the jungle's slop) moves this and the hills follow. Starts as the horizon they were built for.
+   */
+  readonly airlight: { value: Color };
+
   private readonly meshes: Mesh[] = [];
 
   constructor(
     private readonly rings: readonly HillRing[],
     private readonly horizon: number,
-  ) {}
+  ) {
+    this.airlight = { value: new Color(horizon) };
+  }
 
   init(ctx: WorldContext): void {
     const horizon = new Color(this.horizon);
@@ -65,7 +73,7 @@ export class Backdrop implements WorldObject {
         new MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, fog: false }),
         'backdrop-airlight',
         (shader) => {
-          shader.uniforms['backdropHorizon'] = { value: horizon };
+          shader.uniforms['backdropHorizon'] = this.airlight;
           shader.vertexShader = shader.vertexShader
             .replace('#include <common>', VERTEX_DECLARATIONS)
             .replace('#include <begin_vertex>', VERTEX_HAZE);
