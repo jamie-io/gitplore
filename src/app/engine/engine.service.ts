@@ -326,9 +326,31 @@ function countSceneResources(scene: Scene): { geometries: number; textures: numb
   const textures = new Set<Texture>();
   forEachResource(scene, {
     geometry: (geometry) => geometries.add(geometry),
+    material: (material) => {
+      const visited = new Set<object>();
+      collectTextures(material.userData, textures, visited);
+      collectTextures((material as MaterialWithUniforms).uniforms, textures, visited);
+    },
     texture: (texture) => textures.add(texture),
   });
   return { geometries: geometries.size, textures: textures.size };
+}
+
+interface MaterialWithUniforms {
+  readonly uniforms?: unknown;
+}
+
+/** Counts textures held by shader uniforms, including uniforms kept in material userData. */
+function collectTextures(value: unknown, textures: Set<Texture>, visited: Set<object>): void {
+  if (value instanceof Texture) {
+    textures.add(value);
+    return;
+  }
+  if (value === null || typeof value !== 'object' || visited.has(value)) {
+    return;
+  }
+  visited.add(value);
+  Object.values(value).forEach((entry) => collectTextures(entry, textures, visited));
 }
 
 /**

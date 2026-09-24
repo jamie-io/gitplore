@@ -359,6 +359,16 @@ describe('SceneDirector', () => {
     expect(navigate).toHaveBeenCalledWith(['/p', 'poetzscher']);
   });
 
+  it('places a browser test visitor in front of a named interactable', async () => {
+    await director.show('deslopify');
+    const scene = engine.world as ProjectScene;
+
+    expect(director.teleportToInteractableForTest(`${scene.id}:seed-lever:pull`)).toBe(true);
+    expect(engine.player.position.x).toBeCloseTo(scene.seedLever.position.x, 6);
+    expect(engine.player.position.z).toBeCloseTo(scene.seedLever.position.z + 1.5, 6);
+    expect(engine.player.yaw).toBe(0);
+  });
+
   it('opens the current project panel instead of navigating to the same world', async () => {
     await director.show('novaverta');
     const router = TestBed.inject(Router);
