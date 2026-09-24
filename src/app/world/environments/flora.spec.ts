@@ -1,13 +1,11 @@
 import { BufferGeometry, Vector3 } from 'three';
 import {
-  bigLeafPlant,
   birchTree,
   boulder,
   broadleafTree,
   bush,
   cliffWall,
   flowerTuft,
-  groundFern,
   kapokTree,
   leafCluster,
   lilyPad,
@@ -43,8 +41,6 @@ const CASES: readonly {
   { name: 'kapokTree', build: kapokTree, base: [-0.08, 0.08], top: [13.5, 17.5] },
   { name: 'palmTree', build: palmTree, base: [-0.01, 0.01], top: [6.4, 7.9] },
   { name: 'treeFern', build: treeFern, base: [-0.02, 0.01], top: [2.9, 4.1] },
-  { name: 'bigLeafPlant', build: bigLeafPlant, base: [-0.02, 0.01], top: [1.2, 2.3] },
-  { name: 'groundFern', build: groundFern, base: [-0.06, 0.01], top: [0.35, 0.75] },
   { name: 'mossyBoulder', build: mossyBoulder, base: [-0.7, -0.15], top: [0.95, 1.4] },
 ];
 

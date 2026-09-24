@@ -172,7 +172,7 @@ describe('FeedCard', () => {
     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
     expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
-    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+    expect(shader.fragmentShader).toContain('(1.0 - smoothstep(0.96, 1.0, uWipe))');
     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');

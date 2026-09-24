@@ -236,6 +236,16 @@ describe('ScreenLandmark', () => {
 
     expect(entered).toEqual(['novaverta']);
   });
+
+  it('uses an optional prompt override while keeping the project title default', () => {
+    const override = new ScreenLandmark(
+      options({ textures: new StubTextures(), prompt: 'Details, README & Code' }),
+    );
+    const defaultPrompt = new ScreenLandmark(options({ textures: new StubTextures() }));
+
+    expect(override.interactables[0]?.prompt).toBe('Details, README & Code');
+    expect(defaultPrompt.interactables[0]?.prompt).toBe(`${defaultPrompt.project.title} ansehen`);
+  });
 });
 
 describe('ScreenLandmark geometry', () => {

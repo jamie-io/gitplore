@@ -149,6 +149,17 @@ describe('createLabel', () => {
     expect(fillText).toHaveBeenCalledOnce();
   });
 
+  it('ignores a late font redraw after its texture was disposed', async () => {
+    const { fillText } = mockCanvas();
+    stubFonts('resolve');
+
+    const label = createLabel(LONG, '#2c3a40')!;
+    textureOf(label).dispose();
+    await flush();
+
+    expect(fillText).toHaveBeenCalledOnce();
+  });
+
   it('draws without document.fonts at all', () => {
     Reflect.deleteProperty(document, 'fonts');
     const { fillText } = mockCanvas();

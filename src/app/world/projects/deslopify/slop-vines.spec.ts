@@ -66,6 +66,15 @@ describe('SlopVines', () => {
     expect(vines.object.children[0]?.scale.y).toBe(1);
   });
 
+  it('resets every vine to full size', () => {
+    const vines = new SlopVines({ anchors: ANCHORS, seed: 2 });
+
+    vines.update(1, () => true);
+    vines.reset();
+
+    expect(vines.object.children.every((child) => child.scale.y === 1)).toBe(true);
+  });
+
   it('disposes shared materials, geometries, and object graph', () => {
     const vines = new SlopVines({ anchors: ANCHORS, seed: 3 });
     const resources: { dispose: ReturnType<typeof vi.spyOn> }[] = [];

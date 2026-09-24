@@ -55,11 +55,20 @@ export function createLabel(text: string, color: string): Mesh | null {
   let width = draw();
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
+  let disposed = false;
+  const onDispose = (): void => {
+    disposed = true;
+    texture.removeEventListener('dispose', onDispose);
+  };
+  texture.addEventListener('dispose', onDispose);
   texture.repeat.x = width / canvas.width;
   const mesh = new Mesh(plane(width), new MeshBasicMaterial({ map: texture, transparent: false }));
   mesh.name = 'label';
 
   const redraw = (): void => {
+    if (disposed) {
+      return;
+    }
     const fitted = draw();
     texture.repeat.x = fitted / canvas.width;
     if (fitted !== width) {

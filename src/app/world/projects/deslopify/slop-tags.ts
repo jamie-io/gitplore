@@ -123,6 +123,16 @@ export class SlopTags {
     return (this.tags[index]?.w ?? 0) > 0.5;
   }
 
+  /** Restore every tag to its translated/slop face. */
+  reset(): void {
+    for (const tag of this.tags) {
+      tag.w = 0;
+      tag.tag.userData['w'] = 0;
+    }
+    this.time = 0;
+    this.applyVisuals();
+  }
+
   dispose(): void {
     this.object.traverse((child) => {
       if (!(child instanceof Mesh)) return;

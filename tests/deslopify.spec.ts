@@ -14,7 +14,7 @@ test.describe('Deslopify world', () => {
     });
     page.on('pageerror', (error) => problems.push(`pageerror: ${error.message}`));
 
-    await page.goto('/p/deslopify');
+    await page.goto('/p/deslopify?stats=1');
     await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
     await page.locator('button[data-role="start"]').click();
     await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
@@ -27,6 +27,19 @@ test.describe('Deslopify world', () => {
     await page.keyboard.up('KeyW');
     await page.keyboard.press('KeyE');
     await expect(prompt).not.toContainText('Laterne anzünden');
+
+    const placedAtBridge = await page.evaluate(
+      () =>
+        (
+          window as Window & { __gitploreTestTeleport?: (id: string) => boolean }
+        ).__gitploreTestTeleport?.('deslopify:bridge-south') ?? false,
+    );
+    expect(placedAtBridge).toBe(true);
+    await page.keyboard.down('KeyW');
+    await expect(page.locator('app-hud .status')).toHaveText(/Deslopify an · Entslopt \d+\/8/, {
+      timeout: 10_000,
+    });
+    await page.keyboard.up('KeyW');
 
     // The existing panel hook is the deterministic browser path to the north-bank wall.
     await page.goto('/p/deslopify/info');

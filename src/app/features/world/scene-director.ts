@@ -14,6 +14,7 @@ import { WorldStore } from '@ui/store/world.store';
 import { HubScene } from '@world/hub/hub.scene';
 import { createEnvironment } from '@world/environments/create-environment';
 import type { Environment } from '@world/environments/environment';
+import { BRIDGE, BRIDGE_SOUTH } from '@world/environments/jungle-layout';
 import { createProjectScene } from '@world/project/create-project-scene';
 import { InWorldDemo, ProjectScene } from '@world/project/project.scene';
 
@@ -160,13 +161,25 @@ export class SceneDirector {
 
   /** Places a browser test visitor in front of a current-world interactable. */
   teleportToInteractableForTest(id: string): boolean {
+    if (id === 'deslopify:bridge-south' && this.current?.id === 'project:deslopify') {
+      this.engine.player.teleport(
+        new Vector3(BRIDGE_SOUTH.x, BRIDGE.deckHeight + PLAYER_EYE_HEIGHT, BRIDGE_SOUTH.z),
+        0,
+      );
+      return true;
+    }
+
     const target = this.current?.interactables.find((interactable) => interactable.id === id);
     if (!target) {
       return false;
     }
 
     this.engine.player.teleport(
-      new Vector3(target.position.x, target.position.y + PLAYER_EYE_HEIGHT, target.position.z + 1.5),
+      new Vector3(
+        target.position.x,
+        target.position.y + PLAYER_EYE_HEIGHT,
+        target.position.z + 1.5,
+      ),
       0,
     );
     return true;

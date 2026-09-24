@@ -146,6 +146,7 @@ export const PROMPTS = {
  */
 export const POSTER = {
   kicker: 'Projekt · Browser-Erweiterung',
+  prompt: PROMPTS.exhibit,
   englishSummary:
     'Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube.',
   comparison: { without: FEED_CARDS[1].slop, with: FEED_CARDS[1].original },

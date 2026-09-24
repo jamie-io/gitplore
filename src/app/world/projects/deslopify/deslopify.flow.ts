@@ -79,14 +79,19 @@ export class DeslopifyFlow {
   private wallFlag = true;
   private ringOrigin: FlowPoint;
   private ringRadius = 0;
+  private readonly ringState: { origin: FlowPoint; radius: number };
   private hazeValue = 1;
   private light: FlowLight | null = null;
+  private cachedStatusState: DeslopifyState | null = null;
+  private cachedStatusCleared = -1;
+  private cachedStatusLine = '';
 
   constructor(options: DeslopifyFlowOptions) {
     this.options = options;
     this.reducedMotion = options.reducedMotion ?? (() => false);
     this.wipes = options.cards.map(() => 0);
     this.ringOrigin = options.arch;
+    this.ringState = { origin: this.ringOrigin, radius: 0 };
   }
 
   get lantern(): LanternPhase {
@@ -122,7 +127,9 @@ export class DeslopifyFlow {
 
   /** The current ring: where it started and how far it has spread, in metres. */
   get ring(): { readonly origin: FlowPoint; readonly radius: number } {
-    return { origin: this.ringOrigin, radius: this.ringRadius };
+    this.ringState.origin = this.ringOrigin;
+    this.ringState.radius = this.ringRadius;
+    return this.ringState;
   }
 
   /** The ring clears only while Deslopify is installed and switched on. */
@@ -144,12 +151,25 @@ export class DeslopifyFlow {
   }
 
   get clearedCards(): number {
-    return this.wipes.filter((wipe) => wipe > 0.5).length;
+    let count = 0;
+    for (const wipe of this.wipes) {
+      if (wipe > 0.5) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /** The HUD's state line, e.g. `Deslopify an · Entslopt 8/8`. */
   get statusLine(): string {
-    return `Deslopify ${this.state} · Entslopt ${this.clearedCards}/${this.wipes.length}`;
+    const state = this.state;
+    const cleared = this.clearedCards;
+    if (state !== this.cachedStatusState || cleared !== this.cachedStatusCleared) {
+      this.cachedStatusState = state;
+      this.cachedStatusCleared = cleared;
+      this.cachedStatusLine = `Deslopify ${state} · Entslopt ${cleared}/${this.wipes.length}`;
+    }
+    return this.cachedStatusLine;
   }
 
   cardWipe(index: number): number {
@@ -206,14 +226,15 @@ export class DeslopifyFlow {
       ? haze
       : this.hazeValue + (haze - this.hazeValue) * Math.min(1, seconds * FLOW.hazeEase);
 
-    this.options.cards.forEach((card, index) => {
+    for (let index = 0; index < this.options.cards.length; index++) {
+      const card = this.options.cards[index]!;
       const cleared = this.isCleared(card.x, card.z);
       this.wipes[index] = reduced
         ? cleared
           ? 1
           : 0
         : clamp01(this.wipes[index] + (cleared ? FLOW.cardOn : -FLOW.cardOff) * seconds);
-    });
+    }
   }
 
   /** Lights the lantern on its hook. `false` if it was lit already. */
