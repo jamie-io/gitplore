@@ -37,7 +37,7 @@ import { withWind } from '../environments/shaders/wind';
  * the fire, the pinboard and the workbench; right of it the contact obelisk and the controls board.
  */
 export const CAMP = {
-  fire: { x: -4.4, z: -0.6 },
+  fire: { x: -4.6, z: 0.2 },
   pinboard: { x: -7.0, z: -1.5 },
   workbench: { x: -6.4, z: 1.8 },
   obelisk: { x: 5.6, z: -1.6 },
