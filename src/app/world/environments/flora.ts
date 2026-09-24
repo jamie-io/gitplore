@@ -343,42 +343,6 @@ export function treeFern(seed: number): BufferGeometry {
   return assemble(parts);
 }
 
-/** Banana-like broad leaves on short stalks: the jungle's mid-height undergrowth. */
-export function bigLeafPlant(seed: number): BufferGeometry {
-  const random = seededRandom(seed);
-  const parts: BufferGeometry[] = [];
-  for (let i = 0; i < 6; i++) {
-    const stalk = between(random, 0.9, 1.3);
-    const yaw = (i / 6) * Math.PI * 2 + random() * 0.5;
-    parts.push(
-      paint(new CylinderGeometry(0.035, 0.05, stalk, 5).translate(0, stalk / 2, 0), 0x4f7f35),
-    );
-    const leaf = new IcosahedronGeometry(0.5, 0)
-      .scale(1.6, 0.12, 0.7)
-      .translate(0.8, 0, 0)
-      .rotateZ(0.35)
-      .rotateY(yaw)
-      .translate(0, stalk, 0);
-    parts.push(paint(leaf, i % 2 ? 0x2f7a3a : 0x3c8c44));
-  }
-  return assemble(parts);
-}
-
-/** A low fern for the forest floor. */
-export function groundFern(seed: number): BufferGeometry {
-  const random = seededRandom(seed);
-  const parts: BufferGeometry[] = [];
-  for (let i = 0; i < 7; i++) {
-    parts.push(
-      paint(
-        blade(0.9, 0.12, 0.6 - random() * 0.2, (i / 7) * Math.PI * 2 + random() * 0.4),
-        i % 2 ? 0x4c8f3f : 0x3f7a35,
-      ),
-    );
-  }
-  return assemble(parts);
-}
-
 /** Leaves in one cluster, spread evenly around the root. */
 const CLUSTER_LEAVES = 7;
 /** One leaf's width and length, metres at scale 1. */

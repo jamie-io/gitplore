@@ -201,7 +201,7 @@ export class FeedCard {
           float showOriginal = step(vMapUv.x, e);
           diffuseColor = mix(slopColor, originalColor, showOriginal);
           // The amber seam exists only while the wipe runs, not as a glowing edge at rest.
-          float seam = exp(-abs(vMapUv.x - e) * 70.0) * smoothstep(0.0, 0.04, uWipe) * smoothstep(1.0, 0.96, uWipe);
+          float seam = exp(-abs(vMapUv.x - e) * 70.0) * smoothstep(0.0, 0.04, uWipe) * (1.0 - smoothstep(0.96, 1.0, uWipe));
           diffuseColor.rgb += seam * vec3(1.0, 0.6, 0.22) * 4.0;
         `,
       );

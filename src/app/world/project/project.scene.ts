@@ -53,7 +53,10 @@ export interface ToyPlacement {
 }
 
 /** What the exhibit poster adds to the project's own copy, for a world that has more to say. */
-export type PosterCopy = Pick<ScreenLandmarkOptions, 'kicker' | 'englishSummary' | 'comparison'>;
+export type PosterCopy = Pick<
+  ScreenLandmarkOptions,
+  'kicker' | 'englishSummary' | 'comparison' | 'prompt'
+>;
 
 /**
  * Where the terminal and the seed lever stand: beside the walk from the arrival point to the

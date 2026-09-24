@@ -23,6 +23,7 @@ export interface ScreenLandmarkOptions extends LandmarkOptions {
   readonly comparison?: PosterComparison;
   readonly englishSummary?: string;
   readonly kicker?: string;
+  readonly prompt?: string;
 }
 
 /**
@@ -34,12 +35,14 @@ export class ScreenLandmark extends Landmark {
   private readonly comparison?: PosterComparison;
   private readonly englishSummary?: string;
   private readonly kicker?: string;
+  private readonly prompt?: string;
 
   constructor(options: ScreenLandmarkOptions) {
     super(options);
     this.comparison = options.comparison;
     this.englishSummary = options.englishSummary;
     this.kicker = options.kicker;
+    this.prompt = options.prompt;
   }
 
   protected describe(): LandmarkShape {
@@ -50,7 +53,7 @@ export class ScreenLandmark extends Landmark {
           id: this.id,
           position: this.position.clone(),
           radius: INTERACT_RADIUS,
-          prompt: `${this.project.title} ansehen`,
+          prompt: this.prompt ?? `${this.project.title} ansehen`,
           onInteract: () => this.onEnter(this.project),
         },
       ],

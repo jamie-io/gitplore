@@ -144,6 +144,16 @@ export class SlopVines {
     this.applyVisuals();
   }
 
+  /** Restore every vine to its full slop state. */
+  reset(): void {
+    for (const vine of this.vines) {
+      vine.grow = 1;
+      vine.group.userData['grow'] = 1;
+    }
+    this.time = 0;
+    this.applyVisuals();
+  }
+
   dispose(): void {
     disposeObject3D(this.object);
     this.object.clear();

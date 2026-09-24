@@ -125,6 +125,16 @@ describe('SlopTags', () => {
     expect(tags.object.getObjectByName('slop-tag-face:0')?.scale.x).toBe(1);
   });
 
+  it('resets every tag to its slop face', () => {
+    const tags = new SlopTags({ anchors: ANCHORS });
+
+    tags.update(1, () => true);
+    tags.reset();
+
+    expect(tags.flipped(0)).toBe(false);
+    expect(tags.object.getObjectByName('slop-tag-face:0')?.scale.x).toBe(1);
+  });
+
   it('disposes face textures and object graph', () => {
     const tags = new SlopTags({ anchors: ANCHORS.slice(0, 2) });
     const textures: CanvasTexture[] = [];

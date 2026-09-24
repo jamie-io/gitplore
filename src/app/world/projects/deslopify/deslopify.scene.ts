@@ -98,9 +98,15 @@ export class DeslopifyScene extends ProjectScene {
   private readonly air: SlopAir | null;
   /** Every card, the trail's four then the wall's four, in the flow's order. */
   private readonly allCards: readonly FeedCard[];
-  private readonly shownOriginal: boolean[];
+  private readonly cardAnchors: readonly FlowPoint[];
+  private readonly cardGroups: readonly (readonly FeedCard[])[];
+  private readonly shownCleared: boolean[];
   private readonly wallCentre: Vector3;
   private readonly lightAt = new Vector3();
+  private readonly lightValue = { x: 0, z: 0, radius: 0 };
+  private readonly flowFrame = { player: new Vector3(), light: null as FlowLight | null };
+  private readonly cleared = (_index: number, anchor: Vector3): boolean =>
+    this.flow.isCleared(anchor.x, anchor.z);
 
   private readonly igniteOffer: Interactable;
   private readonly lanternOffOffer: Interactable;
@@ -108,6 +114,7 @@ export class DeslopifyScene extends ProjectScene {
   private readonly wallOffOffer: Interactable;
   private readonly wallOnOffer: Interactable;
   private offers: readonly Interactable[] = [];
+  private readonly offerScratch: Interactable[] = [];
   private offersBase: readonly Interactable[] | null = null;
   private merged: readonly Interactable[] = [];
   private lanternIgnited = false;
@@ -155,7 +162,9 @@ export class DeslopifyScene extends ProjectScene {
     this.wallCentre = this.wall.object.position.clone();
 
     this.allCards = [...this.cards, ...this.wall.cards];
-    this.shownOriginal = this.allCards.map(() => false);
+    this.cardAnchors = this.allCards.map((card) => card.object.getWorldPosition(new Vector3()));
+    this.cardGroups = [this.cards, this.wall.cards];
+    this.shownCleared = this.allCards.map(() => false);
 
     this.vines = new SlopVines({
       anchors: VINE_SLOTS.map(({ position }) => position),
@@ -174,7 +183,7 @@ export class DeslopifyScene extends ProjectScene {
       lanternPost: LANTERN_POST,
       arch: ARCH,
       wall: this.wallCentre,
-      cards: this.allCards.map((card) => card.object.getWorldPosition(new Vector3())),
+      cards: this.cardAnchors,
       underArch,
       reducedMotion,
     });
@@ -234,7 +243,9 @@ export class DeslopifyScene extends ProjectScene {
     super.init(ctx);
     this.lantern.init(ctx);
     this.lantern.attachTo(this.explorer.hand, this.explorer.handLight);
-    this.cards.forEach((card) => ctx.scene.add(card.object));
+    for (const card of this.cards) {
+      ctx.scene.add(card.object);
+    }
     ctx.scene.add(this.wall.object, this.vines.object, this.tags.object, this.ring);
     this.air?.setSlop(this.flow.haze);
     this.publishStatus();
@@ -242,7 +253,9 @@ export class DeslopifyScene extends ProjectScene {
 
   override update(dt: number, ctx: WorldContext): void {
     const player = ctx.player;
-    this.flow.update(dt, { player: player.position, light: this.light() });
+    this.flowFrame.player = player.position;
+    this.flowFrame.light = this.light();
+    this.flow.update(dt, this.flowFrame);
     if (this.flow.lantern !== 'unlit' && !this.lanternIgnited) {
       this.lanternIgnited = true;
       this.lantern.ignite();
@@ -250,11 +263,12 @@ export class DeslopifyScene extends ProjectScene {
     this.lantern.update(dt);
 
     this.syncCards();
-    this.cards.forEach((card) => card.update(dt));
+    for (const card of this.cards) {
+      card.update(dt);
+    }
     this.wall.update(dt);
-    const cleared = (_index: number, anchor: Vector3) => this.flow.isCleared(anchor.x, anchor.z);
-    this.vines.update(dt, cleared);
-    this.tags.update(dt, cleared);
+    this.vines.update(dt, this.cleared);
+    this.tags.update(dt, this.cleared);
 
     if (this.air) {
       this.air.setSlop(this.flow.haze);
@@ -317,9 +331,11 @@ export class DeslopifyScene extends ProjectScene {
     this.flow.reset();
     this.lantern.reset();
     this.lanternIgnited = false;
-    this.shownOriginal.fill(false);
+    this.shownCleared.fill(false);
     this.cards.forEach((card) => card.setOriginal(false));
     this.wall.setOriginal(false);
+    this.vines.reset();
+    this.tags.reset();
     this.ringFrom = null;
     this.ring.visible = false;
     this.air?.setSlop(1);
@@ -361,7 +377,10 @@ export class DeslopifyScene extends ProjectScene {
       return null;
     }
     this.lantern.worldPosition(this.lightAt);
-    return { x: this.lightAt.x, z: this.lightAt.z, radius };
+    this.lightValue.x = this.lightAt.x;
+    this.lightValue.z = this.lightAt.z;
+    this.lightValue.radius = radius;
+    return this.lightValue;
   }
 
   /**
@@ -370,13 +389,14 @@ export class DeslopifyScene extends ProjectScene {
    */
   private syncCards(): void {
     let index = 0;
-    for (const group of [this.cards, this.wall.cards]) {
+    for (const group of this.cardGroups) {
       let rank = 0;
       for (const card of group) {
-        const original = this.flow.cardOriginal(index);
-        if (original !== this.shownOriginal[index]) {
-          this.shownOriginal[index] = original;
-          card.setOriginal(original, rank++ * CARD_STAGGER);
+        const anchor = this.cardAnchors[index]!;
+        const cleared = this.flow.isCleared(anchor.x, anchor.z);
+        if (cleared !== this.shownCleared[index]) {
+          this.shownCleared[index] = cleared;
+          card.setOriginal(cleared, rank++ * CARD_STAGGER);
         }
         index++;
       }
@@ -405,7 +425,8 @@ export class DeslopifyScene extends ProjectScene {
    * ahead of the visitor, so it would otherwise always be the nearest and hide everything else.
    */
   private refreshOffers(player: PlayerController): void {
-    const next: Interactable[] = [];
+    const next = this.offerScratch;
+    next.length = 0;
     if (this.flow.lantern === 'unlit') {
       next.push(this.igniteOffer);
     }
@@ -413,7 +434,21 @@ export class DeslopifyScene extends ProjectScene {
       next.push(this.flow.wallOn ? this.wallOffOffer : this.wallOnOffer);
     }
     if (this.flow.lantern === 'carried') {
-      const busy = [...super.interactables, ...next].some((other) => inReach(player, other));
+      let busy = false;
+      for (const other of super.interactables) {
+        if (inReach(player, other)) {
+          busy = true;
+          break;
+        }
+      }
+      if (!busy) {
+        for (const other of next) {
+          if (inReach(player, other)) {
+            busy = true;
+            break;
+          }
+        }
+      }
       if (!busy) {
         this.lanternOffOffer.position.set(
           player.position.x - Math.sin(player.yaw) * CARRIED_AHEAD,
@@ -423,8 +458,17 @@ export class DeslopifyScene extends ProjectScene {
         next.push(this.flow.lanternOn ? this.lanternOffOffer : this.lanternOnOffer);
       }
     }
-    if (next.length !== this.offers.length || next.some((entry, i) => entry !== this.offers[i])) {
-      this.offers = next;
+    let changed = next.length !== this.offers.length;
+    if (!changed) {
+      for (let index = 0; index < next.length; index++) {
+        if (next[index] !== this.offers[index]) {
+          changed = true;
+          break;
+        }
+      }
+    }
+    if (changed) {
+      this.offers = next.slice();
       this.offersBase = null;
     }
   }

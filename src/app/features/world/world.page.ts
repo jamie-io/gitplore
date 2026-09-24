@@ -362,7 +362,7 @@ export class WorldPage {
     }
   }
 
-  /** Exposes deterministic prop placement only on the stats/debug browser surface. */
+  /** Exposes deterministic prop and named-anchor placement only on the stats/debug surface. */
   private installTestTeleport(): void {
     if (this.route.snapshot.queryParamMap.get('stats') !== '1') {
       return;

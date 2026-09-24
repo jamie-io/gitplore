@@ -199,6 +199,9 @@ describe('DeslopifyScene', () => {
         with: 'I built a keyboard from scratch',
       });
       expect(exhibit['comparison']).toEqual(POSTER.comparison);
+      expect(target.interactables.find((entry) => entry.id === 'landmark:deslopify')?.prompt).toBe(
+        PROMPTS.exhibit,
+      );
     });
   });
 
@@ -252,6 +255,21 @@ describe('DeslopifyScene', () => {
       expect(built.target.cards[0].original).toBe(true);
       expect(built.target.cards[3].original).toBe(false);
       expect(built.statuses.at(-1)).toBe('Deslopify noch nicht · Entslopt 1/8');
+    });
+
+    it('starts a card wipe on the frame its card becomes cleared', () => {
+      const built = build();
+      stand(built.ctx, LANTERN_POST);
+      run(built, 1.5);
+
+      const slot = CARD_SLOTS[0];
+      const front = new Vector3(Math.sin(slot.yaw), 0, Math.cos(slot.yaw));
+      stand(built.ctx, slot.position.clone().addScaledVector(front, 2));
+      run(built, 1 / 60, 1 / 60);
+
+      expect(built.target.flow.isCleared(slot.position.x, slot.position.z)).toBe(true);
+      expect(built.target.flow.cardOriginal(0)).toBe(false);
+      expect(built.target.cards[0].wipe).toBeGreaterThan(0);
     });
 
     it('offers E to put the carried lantern out and light it again, when nothing else is near', () => {
@@ -375,9 +393,7 @@ describe('DeslopifyScene', () => {
 
       built.target.toggleWall();
       // Every card leaves the originals in the same frame; each starts 120 ms after the last.
-      for (let frame = 0; frame < 120 && built.target.flow.cardOriginal(4); frame++) {
-        run(built, 1 / 60, 1 / 60);
-      }
+      run(built, 1 / 60, 1 / 60);
       const before = built.target.wall.cards.map((card) => card.wipe);
       run(built, CARD_STAGGER, 1 / 60);
       const after = built.target.wall.cards.map((card) => card.wipe);
@@ -459,6 +475,8 @@ describe('DeslopifyScene', () => {
       expect(built.target.flow.clearedCards).toBe(0);
       expect(built.target.lantern.lightRadius).toBe(0);
       expect(built.environment.slop).toBe(1);
+      expect(built.target.vines.object.children.every((child) => child.scale.y === 1)).toBe(true);
+      expect(built.target.tags.flipped(0)).toBe(false);
       expect(built.statuses.at(-1)).toBe('Deslopify noch nicht · Entslopt 0/8');
       expect(prompts(built.target)).toContain(PROMPTS.lanternOn);
     });
@@ -474,6 +492,14 @@ describe('DeslopifyScene', () => {
 
       built.target.dispose();
       expect(built.statuses.at(-1)).toBeNull();
+    });
+
+    it('does not republish unchanged HUD status text', () => {
+      const built = build({ reduced: true });
+
+      run(built, 1);
+
+      expect(built.statuses).toEqual(['Deslopify noch nicht · Entslopt 0/8']);
     });
 
     it('disposes every card, tag, vine, lantern and ring resource and empties the scene', () => {
