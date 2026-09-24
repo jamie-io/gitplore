@@ -8,6 +8,7 @@ import {
   DodecahedronGeometry,
   IcosahedronGeometry,
   OctahedronGeometry,
+  PlaneGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Random, between, seededRandom } from './random';
@@ -376,6 +377,48 @@ export function groundFern(seed: number): BufferGeometry {
     );
   }
   return assemble(parts);
+}
+
+/** Leaves in one cluster, spread evenly around the root. */
+const CLUSTER_LEAVES = 7;
+/** One leaf's width and length, metres at scale 1. */
+const LEAF_WIDTH = 0.34;
+const LEAF_LENGTH = 1.25;
+
+/**
+ * Seven long leaves arching out of one root: the jungle's instanced undergrowth and, hung upside
+ * down, its canopy. Unlike the props above it is smooth-shaded and uncoloured: indexed, with one
+ * normal per corner so light rolls across each curved blade, and tinted per instance. It is the
+ * same every time; the variety comes from each instance's scale, tilt and colour.
+ */
+export function leafCluster(): BufferGeometry {
+  const leaves: BufferGeometry[] = [];
+  for (let i = 0; i < CLUSTER_LEAVES; i++) {
+    const leaf = new PlaneGeometry(LEAF_WIDTH, LEAF_LENGTH, 2, 8);
+    leaf.deleteAttribute('uv');
+    const position = leaf.getAttribute('position');
+    for (let k = 0; k < position.count; k++) {
+      // From the root (t = 0) to the tip (t = 1): widest a little past the middle, pointed at both
+      // ends, curling forwards along its length and cupped across it.
+      const y = position.getY(k) + LEAF_LENGTH / 2;
+      const t = y / LEAF_LENGTH;
+      const x = position.getX(k) * Math.sin(Math.PI * Math.min(t * 1.1, 1)) * (1 - t * 0.2);
+      position.setXYZ(k, x, y, t * t * 0.45 - Math.abs(x) * 0.35);
+    }
+    leaf.rotateX(-0.55 - (i % 3) * 0.18);
+    leaf.rotateY((i / CLUSTER_LEAVES) * Math.PI * 2 + (i % 2) * 0.3);
+    leaves.push(leaf);
+  }
+
+  const cluster = mergeGeometries(leaves, false);
+  if (!cluster) {
+    throw new Error('leaf parts do not share the same attributes');
+  }
+  leaves.forEach((leaf) => leaf.dispose());
+  cluster.computeVertexNormals();
+  cluster.computeBoundingBox();
+  cluster.computeBoundingSphere();
+  return cluster;
 }
 
 /** A boulder with a cushion of moss on top. */
