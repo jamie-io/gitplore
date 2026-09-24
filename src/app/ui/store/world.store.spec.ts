@@ -171,6 +171,7 @@ describe('WorldStore', () => {
     store.requestDemo('deslopify');
     store.setNearby(PORTAL);
     store.setArea('Deslopify');
+    store.setWorldStatus('Deslopify an · Entslopt 8/8');
 
     store.resetTransient();
 
@@ -183,6 +184,7 @@ describe('WorldStore', () => {
     expect(store.demoRequest()).toBeNull();
     expect(store.nearby()).toBeNull();
     expect(store.area()).toBe('');
+    expect(store.worldStatus()).toBeNull();
     // Not transient: the visitor has already been through the gate this session.
     expect(store.started()).toBe(true);
   });
@@ -216,6 +218,16 @@ describe('WorldStore', () => {
 
     expect(store.currentProject()).toBeNull();
     expect(store.travelDistances().size).toBe(0);
+  });
+
+  it('holds the current world’s state line until it is cleared', () => {
+    expect(store.worldStatus()).toBeNull();
+
+    store.setWorldStatus('Deslopify noch nicht · Entslopt 0/8');
+    expect(store.worldStatus()).toBe('Deslopify noch nicht · Entslopt 0/8');
+
+    store.setWorldStatus(null);
+    expect(store.worldStatus()).toBeNull();
   });
 
   it('names the area the player is standing in', () => {

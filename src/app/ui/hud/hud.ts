@@ -26,6 +26,9 @@ const STATS_INTERVAL_MS = 500;
         }
         <!-- Also the arrival announcement for a scene change (spec §7); the director writes it. -->
         <p class="area" aria-live="polite">{{ store.area() }}</p>
+        @if (store.worldStatus(); as status) {
+          <p class="status" data-role="world-status">{{ status }}</p>
+        }
         <p class="prompt" aria-live="polite">
           @if (store.capturePrompt(); as prompt) {
             <kbd>E</kbd> / <kbd>Esc</kbd> {{ prompt }}
@@ -87,6 +90,14 @@ const STATS_INTERVAL_MS = 500;
       inset-block-start: 1rem;
       inset-inline-start: 1rem;
       margin: 0;
+    }
+    .status {
+      position: absolute;
+      inset-block-start: 2.5rem;
+      inset-inline-start: 1rem;
+      margin: 0;
+      font-size: 0.8rem;
+      opacity: 0.85;
     }
     .prompt {
       position: absolute;

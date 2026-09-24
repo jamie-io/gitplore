@@ -31,6 +31,9 @@ export class WorldStore {
   /** What the player is close to and facing; written by the engine only on change (§2). */
   readonly nearby = signal<Interactable | null>(null);
 
+  /** A short line of the current world's own state, e.g. `Deslopify an · Entslopt 8/8`. */
+  readonly worldStatus = signal<string | null>(null);
+
   /** An in-world demo has taken over the controls (§5), and what it tells the visitor to do. */
   readonly demoActive = signal(false);
   readonly demoHint = signal<string | null>(null);
@@ -134,6 +137,10 @@ export class WorldStore {
     this.nearby.set(nearby);
   }
 
+  setWorldStatus(status: string | null): void {
+    this.worldStatus.set(status);
+  }
+
   setDemoActive(active: boolean, hint: string | null = null): void {
     this.demoActive.set(active);
     this.demoHint.set(active ? hint : null);
@@ -170,6 +177,7 @@ export class WorldStore {
     this.requestDemo(null);
     this.setNearby(null);
     this.setArea('');
+    this.setWorldStatus(null);
     this.setPanelOpen(false);
     this.setContactOpen(false);
     this.setSwapping(false);

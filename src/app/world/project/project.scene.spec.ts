@@ -1,8 +1,9 @@
-import { Mesh, Texture } from 'three';
+import { Mesh, Texture, Vector3 } from 'three';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import { JungleEnvironment } from '../environments/jungle';
+import { BAMBOO, CAIRNS, LIANA, RIDGE, STELE } from '../environments/jungle-layout';
 import { PlazaEnvironment } from '../environments/plaza';
 import { ShowroomEnvironment } from '../environments/showroom';
 import { clearance } from '../environments/testing/clearance';
@@ -191,6 +192,59 @@ describe('ProjectScene', () => {
 
     target.dispose();
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('stands the toys where the jungle lays them out, off the straight walk', () => {
+    const project: Project = {
+      ...PROJECT,
+      environment: 'jungle',
+      languages: { TypeScript: 70, JavaScript: 30 },
+      commitBuckets: Array.from({ length: 52 }, (_, index) => 1 + (index % 5)),
+      releases: [
+        { name: 'v1.0.0', date: '2025-06-01T00:00:00Z' },
+        { name: 'v2.0.0', date: '2025-09-01T00:00:00Z' },
+      ],
+    };
+    const ctx = stubContext();
+    const target = scene({
+      project,
+      environment: new JungleEnvironment({ reducedMotion: () => true }),
+    });
+
+    expect(target.terminal.position.x).toBeCloseTo(STELE.position.x, 6);
+    expect(target.terminal.position.z).toBeCloseTo(STELE.position.z, 6);
+    expect(target.seedLever.position.x).toBeCloseTo(LIANA.position.x, 6);
+    expect(target.seedLever.position.z).toBeCloseTo(LIANA.position.z, 6);
+
+    target.init(ctx);
+    const centre = (name: string) => {
+      const mesh = ctx.scene.getObjectByName(name) as Mesh;
+      mesh.geometry.computeBoundingBox();
+      return mesh.geometry.boundingBox!.getCenter(new Vector3()).setY(0);
+    };
+    const ridge = RIDGE.from.clone().lerp(RIDGE.to, 0.5);
+    expect(centre('commit-ridge').distanceTo(ridge)).toBeLessThan(0.5);
+    expect(centre('language-pillars').distanceTo(BAMBOO.position)).toBeLessThan(1.5);
+    expect(centre('release-markers').distanceTo(CAIRNS.position)).toBeLessThan(2.5);
+
+    target.dispose();
+  });
+
+  it('passes poster copy through to the exhibit', () => {
+    const poster = {
+      kicker: 'Projekt · Test',
+      englishSummary: 'A test.',
+      comparison: { without: 'ohne', with: 'with' },
+    };
+    const target = scene({ poster });
+    const exhibit = (target as unknown as { exhibit: Record<string, unknown> }).exhibit;
+
+    expect(exhibit['kicker']).toBe(poster.kicker);
+    expect(exhibit['englishSummary']).toBe(poster.englishSummary);
+    expect(exhibit['comparison']).toEqual(poster.comparison);
+    expect(
+      (scene() as unknown as { exhibit: Record<string, unknown> }).exhibit['kicker'],
+    ).toBeUndefined();
   });
 
   // Not the jungle: Deslopify's walk from the arrival over the bridge is the demo itself, 15–20 s

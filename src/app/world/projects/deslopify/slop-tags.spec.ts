@@ -48,6 +48,34 @@ describe('SlopTags', () => {
     );
   });
 
+  it('hangs each tag its rope length below the anchor, with the cords reaching its top edge', () => {
+    const short = new SlopTags({ anchors: [ANCHORS[0]] });
+    expect(short.object.getObjectByName('slop-tag-face:0')?.position.y).toBe(-0.55);
+
+    const long = new SlopTags({
+      anchors: ANCHORS.slice(0, 2),
+      ropeLength: (index, anchor) => anchor.y - 2.5 - index * 0.2,
+      yaws: [0.4],
+    });
+
+    const first = long.object.getObjectByName('slop-tag:0')!;
+    const second = long.object.getObjectByName('slop-tag:1')!;
+    expect(first.getObjectByName('slop-tag-face:0')?.position.y).toBeCloseTo(-(6 - 2.5), 9);
+    expect(second.getObjectByName('slop-tag-face:1')?.position.y).toBeCloseTo(-(5.5 - 2.7), 9);
+    expect(first.rotation.y).toBe(0.4);
+    expect(second.rotation.y).toBe(0);
+
+    const cord = first.children.find((child): child is Line => child instanceof Line)!;
+    const end = cord.geometry.getAttribute('position').getY(1);
+    expect(end).toBeCloseTo(-(3.5 - 0.21), 5);
+  });
+
+  it('never hangs a tag above its own anchor', () => {
+    const tags = new SlopTags({ anchors: [ANCHORS[0]], ropeLength: -3 });
+
+    expect(tags.object.getObjectByName('slop-tag-face:0')?.position.y).toBeCloseTo(-0.21, 9);
+  });
+
   it('draws exact uppercase labels and detail strings on both faces', () => {
     const context = canvasContext();
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context);
