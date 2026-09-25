@@ -8,6 +8,7 @@ import {
   stepCentres,
   underArch,
 } from '../../environments/jungle-layout';
+import { hazeMask } from '../../environments/shaders/ground-haze';
 import { TOASTS } from './deslopify.data';
 import {
   DeslopifyFlow,
@@ -122,9 +123,24 @@ describe('DeslopifyFlow', () => {
     it('takes whichever of the two clears more, and nothing without either', () => {
       const ring = { origin: { x: 20, z: 0 }, radius: 5 };
       expect(clearance(6.8, 0, light, ring)).toBeCloseTo(0.5, 9);
-      expect(clearance(14, 0, light, ring)).toBeCloseTo(0.75, 9);
+      // 1 m into the ring's 4 m fade: smoothstep, as the ground haze fades.
+      expect(clearance(14, 0, light, ring)).toBeCloseTo(1 - 0.15625, 9);
       expect(clearance(0, 0, null, null)).toBe(0);
       expect(clearance(20, 0, null, { origin: { x: 20, z: 0 }, radius: 0 })).toBe(0);
+    });
+
+    it('is exactly the ground haze’s rule, so the haze clears with the cards, tags and vines', () => {
+      const ring = { origin: { x: 2, z: -3 }, radius: 6 };
+      const haze = {
+        light: { x: light.x, z: light.z, radius: light.radius },
+        ring: { x: ring.origin.x, z: ring.origin.z, radius: ring.radius },
+      };
+      // Near the bowl's middle, where its own soft edge leaves the haze whole.
+      for (let x = -9; x <= 9; x += 0.75) {
+        for (let z = -9; z <= 9; z += 0.75) {
+          expect(clearance(x, z, light, ring)).toBeCloseTo(1 - hazeMask(x, z, haze), 9);
+        }
+      }
     });
 
     it('is what the flow reads for what is cleared', () => {

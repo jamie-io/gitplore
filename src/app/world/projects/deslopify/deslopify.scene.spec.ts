@@ -363,8 +363,9 @@ describe('DeslopifyScene', () => {
       const at = built.target.lantern.worldPosition(new Vector3());
       expect(light.x).toBeCloseTo(at.x, 1);
       expect(light.y).toBeCloseTo(at.z, 1);
-      expect(light.z).toBeCloseTo(built.target.lantern.lightRadius, 5);
-      expect(light.z).toBeGreaterThan(0);
+      // The flow's own light, the one the cards, tags and vines clear by: 8 m once lit.
+      expect(light.z).toBeCloseTo(FLOW.lightRadius * built.target.lantern.glow, 5);
+      expect(light.z).toBe(FLOW.lightRadius);
 
       find(built.target, PROMPTS.lanternOff)!.onInteract();
       run(built, 0.1);

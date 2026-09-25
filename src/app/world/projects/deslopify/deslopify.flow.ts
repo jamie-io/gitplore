@@ -114,9 +114,10 @@ export interface DeslopifyFlowOptions {
 
 /**
  * How clear (x, z) is, 0 in the slop … 1 cleared: the lantern clears fully inside `lightCore` of
- * its reach and fades out to its edge, the ring clears fully inside itself and fades out over
- * `ringEdge` beyond it, and whichever clears more wins. The haze on the ground follows this rule,
- * and anything that is either slop or original (a card, a tag, a vine) turns where it is 1.
+ * its reach and fades out smoothly to its edge, the ring clears fully inside itself and fades out
+ * smoothly over `ringEdge` beyond it, and whichever clears more wins. The ground haze's `hazeMask`
+ * is this rule turned round (1 − clearance, inside the bowl), and anything that is either slop or
+ * original (a card, a tag, a vine) turns where it is 1, so all of them clear together.
  */
 export function clearance(
   x: number,
@@ -127,11 +128,11 @@ export function clearance(
   let clear = 0;
   if (light && light.radius > 0) {
     const distance = Math.hypot(x - light.x, z - light.z);
-    clear = clamp01((light.radius - distance) / (light.radius * (1 - FLOW.lightCore)));
+    clear = 1 - smoothstep(FLOW.lightCore * light.radius, light.radius, distance);
   }
   if (ring && ring.radius > 0 && clear < 1) {
     const distance = Math.hypot(x - ring.origin.x, z - ring.origin.z);
-    clear = Math.max(clear, clamp01((ring.radius + FLOW.ringEdge - distance) / FLOW.ringEdge));
+    clear = Math.max(clear, 1 - smoothstep(ring.radius, ring.radius + FLOW.ringEdge, distance));
   }
   return clear;
 }
@@ -452,4 +453,9 @@ export class DeslopifyFlow {
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+function smoothstep(edge0: number, edge1: number, value: number): number {
+  const t = clamp01((value - edge0) / (edge1 - edge0));
+  return t * t * (3 - 2 * t);
 }
