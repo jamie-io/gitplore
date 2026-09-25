@@ -3,7 +3,41 @@ import { MoveIntent } from './player/player-controller';
 
 export type InputMode = 'world' | 'ui' | 'demo' | 'captured';
 export type InputAction =
-  'interact' | 'menu' | 'exit' | 'view' | 'restart' | 'up' | 'down' | 'left' | 'right';
+  | 'interact'
+  | 'menu'
+  | 'exit'
+  | 'view'
+  | 'restart'
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | StationAction;
+
+/** The number keys: 0 glides back to the portal, 1–8 to that station (spec §2). */
+export type StationAction =
+  | 'portal'
+  | 'station1'
+  | 'station2'
+  | 'station3'
+  | 'station4'
+  | 'station5'
+  | 'station6'
+  | 'station7'
+  | 'station8';
+
+/** In number order, so a key's digit is its index here. */
+export const STATION_ACTIONS: readonly StationAction[] = [
+  'portal',
+  'station1',
+  'station2',
+  'station3',
+  'station4',
+  'station5',
+  'station6',
+  'station7',
+  'station8',
+];
 
 /** Radians of turn per pixel of pointer movement, before the user's sensitivity multiplier. */
 const POINTER_SENSITIVITY = 0.0022;
@@ -29,6 +63,14 @@ const ACTION_KEYS: Record<string, InputAction> = {
   KeyR: 'restart',
 };
 
+/** The top row and the keypad alike, `Digit3` and `Numpad3` both gliding to station 3. */
+const STATION_KEYS: Readonly<Record<string, StationAction>> = Object.fromEntries(
+  STATION_ACTIONS.flatMap((action, digit) => [
+    [`Digit${digit}`, action],
+    [`Numpad${digit}`, action],
+  ]),
+);
+
 const CAPTURED_ACTION_KEYS: Record<string, InputAction> = {
   ArrowUp: 'up',
   ArrowDown: 'down',
@@ -39,7 +81,8 @@ const CAPTURED_ACTION_KEYS: Record<string, InputAction> = {
 /** Actions that must work whatever has focus, otherwise an overlay could trap the visitor. */
 const GLOBAL_ACTIONS: readonly InputAction[] = ['menu', 'exit'];
 
-export type ActionListener = (action: InputAction) => void;
+/** `repeat` is set when the action came from a held key's auto-repeat rather than a new press. */
+export type ActionListener = (action: InputAction, repeat: boolean) => void;
 export type CaptureListener = (captured: boolean, prompt: string | null) => void;
 
 /** The narrow control surface an in-world prop needs to take and release player input. */
@@ -218,8 +261,24 @@ export class InputService implements InputActionSource {
         const capturedAction = CAPTURED_ACTION_KEYS[event.code];
         if (capturedAction) {
           this.actions.add(capturedAction);
-          this.listeners.forEach((listener) => listener(capturedAction));
+          this.listeners.forEach((listener) => listener(capturedAction, event.repeat));
         }
+      }
+      return;
+    }
+
+    // Only a visitor walking the world glides: a demo or a dialog has its own use for the digits,
+    // and Ctrl or Cmd with a number switches the browser's tab.
+    const station = STATION_KEYS[event.code];
+    if (station) {
+      if (
+        this.mode() === 'world' &&
+        !event.repeat &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey
+      ) {
+        this.emit(station, false);
       }
       return;
     }
@@ -242,14 +301,18 @@ export class InputService implements InputActionSource {
     }
 
     if (action && (this.mode() !== 'ui' || GLOBAL_ACTIONS.includes(action))) {
-      this.actions.add(action);
-      this.listeners.forEach((listener) => listener(action));
+      this.emit(action, event.repeat);
       return;
     }
 
     if (this.mode() === 'world') {
       this.pressed.add(event.code);
     }
+  }
+
+  private emit(action: InputAction, repeat: boolean): void {
+    this.actions.add(action);
+    this.listeners.forEach((listener) => listener(action, repeat));
   }
 
   private onMouseMove(event: MouseEvent): void {

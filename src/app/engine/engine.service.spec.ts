@@ -16,6 +16,8 @@ import { PlayerVisual } from './player/player-visual';
 import { BOOM_HEIGHT, BOOM_LENGTH } from './player/third-person-rig';
 import { WorldScene } from './world-object';
 import { CAPABLE } from './testing/world-context';
+import { arrivalShot, momentShot } from './camera/camera-shot';
+import { planGlide } from './stations/glide';
 
 class StubRenderer implements RendererLike {
   loop: ((time: number) => void) | null = null;
@@ -476,6 +478,392 @@ describe('EngineService', () => {
       tick(16);
 
       expect(engine.camera.position.z).toBeLessThan(2);
+    });
+  });
+
+  describe('camera shots', () => {
+    const overview = { position: { x: 0, y: 24, z: 36 }, target: { x: 0, y: 0, z: -6 }, fov: 50 };
+    const press = (code: string) => document.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    const release = (code: string) => document.dispatchEvent(new KeyboardEvent('keyup', { code }));
+
+    /** Ticks from `from` to `to` milliseconds in `step` ms frames, both ends included. */
+    const run = (from: number, to: number, step = 16) => {
+      for (let time = from; time <= to; time += step) {
+        tick(time);
+      }
+    };
+
+    it('reports an arrival as it starts', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+
+      engine.playShot(arrivalShot(overview, false));
+
+      expect(seen).toEqual(['arrival']);
+    });
+
+    it('places the camera on the shot after the rig has placed it', () => {
+      engine.playShot(arrivalShot(overview, false));
+
+      tick(0);
+      tick(16);
+
+      expect(engine.camera.position.toArray()).toEqual([0, 24, 36]);
+      expect(engine.camera.fov).toBe(50);
+    });
+
+    it('reports the end once, when the timeline runs out, and hands the camera back', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+
+      run(0, 3200);
+
+      expect(seen).toEqual(['arrival', null]);
+      expect(engine.camera.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT + BOOM_HEIGHT, 6);
+      expect(engine.camera.position.z).toBeCloseTo(BOOM_LENGTH, 6);
+    });
+
+    it('stays silent while the shot runs', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+
+      run(0, 2000);
+
+      expect(seen).toEqual(['arrival']);
+    });
+
+    it('restores the rig field of view and its projection after the shot', () => {
+      const fov = engine.camera.fov;
+      const projection = engine.camera.projectionMatrix.clone();
+      engine.playShot(arrivalShot(overview, false));
+
+      run(0, 2000);
+      expect(engine.camera.fov).not.toBe(fov);
+      run(2016, 3200);
+
+      expect(engine.camera.fov).toBe(fov);
+      expect(engine.camera.projectionMatrix.equals(projection)).toBe(true);
+    });
+
+    it('skips to the rig within 0.3 s when the player moves', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+      run(0, 320);
+      expect(engine.camera.position.y).toBe(24);
+
+      press('KeyW');
+      run(336, 336 + 300);
+      release('KeyW');
+
+      expect(seen).toEqual(['arrival', null]);
+      expect(engine.camera.fov).toBe(70);
+    });
+
+    it('eases a skip rather than cutting it', () => {
+      engine.playShot(arrivalShot(overview, false));
+      run(0, 320);
+
+      press('Space');
+      tick(336);
+      release('Space');
+
+      // Part of the way down from the overview, but nowhere near the shoulder yet.
+      expect(engine.camera.position.y).toBeLessThan(24);
+      expect(engine.camera.position.y).toBeGreaterThan(12);
+    });
+
+    it('skips at once under reduced motion', () => {
+      TestBed.inject(CapabilityService).overrideReducedMotion(true);
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(momentShot(overview, true));
+      run(0, 320);
+
+      engine.skipShot();
+
+      expect(seen).toEqual(['moment', null]);
+    });
+
+    it('a moment played while W is held keeps playing until a new input', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      press('KeyW');
+      run(0, 160);
+
+      // Walked through the arch: the moment starts with the key already down.
+      engine.playShot(momentShot(overview, false));
+      run(176, 176 + 2000);
+      expect(seen).toEqual(['moment']);
+
+      // Letting go and pressing again is a new input, and that one skips.
+      release('KeyW');
+      tick(2192);
+      press('KeyW');
+      run(2208, 2208 + 320);
+      release('KeyW');
+
+      expect(seen).toEqual(['moment', null]);
+    });
+
+    it('keeps a held-key moment for its whole hold under reduced motion', () => {
+      TestBed.inject(CapabilityService).overrideReducedMotion(true);
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      press('KeyW');
+      press('Space');
+      run(0, 160);
+
+      engine.playShot(momentShot(overview, true));
+      run(176, 176 + 2400);
+      release('KeyW');
+      release('Space');
+
+      expect(seen).toEqual(['moment']);
+    });
+
+    it('skips a shot on movement that starts after it began', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      press('KeyW');
+      run(0, 160);
+      engine.playShot(momentShot(overview, false));
+      tick(176);
+
+      press('KeyD');
+      run(192, 192 + 320);
+      release('KeyD');
+      release('KeyW');
+
+      expect(seen).toEqual(['moment', null]);
+    });
+
+    it('does not skip on looking around alone', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+
+      tick(0);
+      document.dispatchEvent(new MouseEvent('mousemove', { movementX: 40 }));
+      tick(16);
+
+      expect(seen).toEqual(['arrival']);
+    });
+
+    it('stops a shot at once on endShot', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+      run(0, 320);
+
+      engine.endShot();
+
+      expect(seen).toEqual(['arrival', null]);
+      expect(engine.camera.fov).toBe(70);
+      tick(336);
+      expect(engine.camera.position.z).toBeCloseTo(BOOM_LENGTH, 6);
+    });
+
+    it('lets a new shot replace a running one', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+      run(0, 320);
+
+      engine.playShot(momentShot({ ...overview, fov: 40 }, false));
+      run(336, 336 + 2700);
+
+      expect(seen).toEqual(['arrival', 'moment', null]);
+      // The rig's own field of view, not the arrival's, is what comes back.
+      expect(engine.camera.fov).toBe(70);
+    });
+
+    it('ignores skip and end when no shot runs', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+
+      engine.skipShot();
+      engine.endShot();
+
+      expect(seen).toEqual([]);
+    });
+
+    it('stops listening once a listener unsubscribes', () => {
+      const seen: (string | null)[] = [];
+      const off = engine.onShotChange((kind) => seen.push(kind));
+      off();
+
+      engine.playShot(arrivalShot(overview, false));
+
+      expect(seen).toEqual([]);
+    });
+
+    it('ends a running shot when the world is swapped', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+
+      engine.setScene(stubScene('other'));
+
+      expect(seen).toEqual(['arrival', null]);
+    });
+  });
+
+  describe('glides', () => {
+    const press = (code: string) => document.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    const release = (code: string) => document.dispatchEvent(new KeyboardEvent('keyup', { code }));
+    const run = (from: number, to: number, step = 16) => {
+      for (let time = from; time <= to; time += step) {
+        tick(time);
+      }
+    };
+    /** A wall across the way north, with no top to step onto. */
+    const WALL: Collider = { kind: 'aabb', minX: -5, maxX: 5, minZ: -5.5, maxZ: -4.5 };
+    const north = () =>
+      planGlide(
+        [
+          { x: 0, z: 0 },
+          { x: 0, z: -10 },
+        ],
+        Math.PI,
+      )!;
+
+    it('moves the player along the glide, straight through what it would bump into', () => {
+      engine.setScene(stubScene('hub', [], [WALL]));
+      tick(0);
+      tick(16);
+      engine.glide(north());
+
+      expect(engine.gliding()).toBe(true);
+      tick(32);
+      expect(engine.player.position.z).toBeLessThan(0);
+      run(48, 48 + 800);
+
+      expect(engine.gliding()).toBe(false);
+      expect(engine.player.position.x).toBeCloseTo(0, 6);
+      expect(engine.player.position.z).toBeCloseTo(-10, 6);
+      expect(engine.player.yaw).toBe(Math.PI);
+    });
+
+    it('stands the player on the ground and the walkable tops along the way', () => {
+      const deck: Collider = { kind: 'aabb', minX: -2, maxX: 2, minZ: -12, maxZ: -2, top: 0.3 };
+      engine.setScene(stubScene('hub', [], [deck]));
+      tick(0);
+      engine.glide(north());
+
+      run(16, 16 + 800);
+
+      expect(engine.player.position.y).toBeCloseTo(0.3 + PLAYER_EYE_HEIGHT, 6);
+    });
+
+    it('still runs the world, the avatar and the rig while gliding', () => {
+      const scene = stubSceneWithAvatar();
+      engine.setScene(scene);
+      tick(0);
+      engine.glide(north());
+      const updates = scene.updates.length;
+      const synced = scene.avatar.synced.length;
+
+      tick(16);
+      tick(32);
+
+      expect(scene.updates.length).toBe(updates + 2);
+      expect(scene.avatar.synced.length).toBe(synced + 2);
+      // The boom follows the player north.
+      expect(engine.camera.position.z).toBeLessThan(BOOM_LENGTH);
+    });
+
+    it('cancels in place on movement', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 320);
+      const z = engine.player.position.z;
+      expect(z).toBeLessThan(-0.5);
+      expect(z).toBeGreaterThan(-9.5);
+
+      press('KeyD');
+      tick(336);
+      release('KeyD');
+
+      expect(engine.gliding()).toBe(false);
+      run(352, 352 + 800);
+      // Walked a little to the side, never on to the stand.
+      expect(engine.player.position.z).toBeGreaterThan(-9.5);
+    });
+
+    it('cancels in place on cancelGlide', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 320);
+
+      engine.cancelGlide();
+      const z = engine.player.position.z;
+      run(336, 336 + 800);
+
+      expect(engine.gliding()).toBe(false);
+      expect(engine.player.position.z).toBeCloseTo(z, 6);
+    });
+
+    it('lets a new glide replace a running one', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 320);
+
+      const { x, z } = engine.player.position;
+      engine.glide(
+        planGlide(
+          [
+            { x, z },
+            { x: 6, z },
+          ],
+          0,
+        )!,
+      );
+      run(336, 336 + 800);
+
+      expect(engine.player.position.x).toBeCloseTo(6, 6);
+      expect(engine.player.position.z).toBeCloseTo(z, 6);
+    });
+
+    it('teleports straight to the stand under reduced motion', () => {
+      TestBed.inject(CapabilityService).overrideReducedMotion(true);
+      engine.setScene(stubScene('hub', [], [WALL]));
+      tick(0);
+
+      engine.glide(north());
+
+      expect(engine.gliding()).toBe(false);
+      expect(engine.player.position.x).toBeCloseTo(0, 6);
+      expect(engine.player.position.z).toBeCloseTo(-10, 6);
+      expect(engine.player.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 6);
+      expect(engine.player.yaw).toBe(Math.PI);
+    });
+
+    it('stops a glide when the world is swapped', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+
+      engine.setScene(stubScene('other'));
+
+      expect(engine.gliding()).toBe(false);
+    });
+
+    it('keeps the player where the glide left them once it is over', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 16 + 800);
+
+      run(832, 832 + 500);
+
+      expect(engine.player.position.z).toBeCloseTo(-10, 6);
+      expect(engine.player.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 6);
     });
   });
 

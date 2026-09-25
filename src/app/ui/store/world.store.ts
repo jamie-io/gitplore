@@ -1,6 +1,8 @@
 import { Service, computed, signal } from '@angular/core';
 import type { InputMode } from '@engine/input.service';
 import type { Interactable } from '@engine/interaction/interactable';
+import type { ShotKind } from '@engine/camera/camera-shot';
+import type { ScenePitch, StationChip, StationPlate } from '@engine/stations/station';
 
 export type WorldPhase = 'booting' | 'loading' | 'ready' | 'error';
 
@@ -37,6 +39,22 @@ export class WorldStore {
   /** An in-world demo has taken over the controls (§5), and what it tells the visitor to do. */
   readonly demoActive = signal(false);
   readonly demoHint = signal<string | null>(null);
+
+  /** The current world's station bar; empty in a world without stations. Written only on change. */
+  readonly stations = signal<readonly StationChip[]>([]);
+  /** The card for the station or find the visitor stands at, if any. */
+  readonly plate = signal<StationPlate | null>(null);
+  /** A passing line of the world's own, e.g. a lantern lit. The id tells a repeat from the last. */
+  readonly toast = signal<{ readonly text: string; readonly id: number } | null>(null);
+  /** The words over a world's key moment, shown for as long as its camera move runs. */
+  readonly banner = signal<string | null>(null);
+  /** The project's name and one line, shown over the arrival camera. */
+  readonly pitch = signal<ScenePitch | null>(null);
+  /** The scripted camera move running now, mirrored from the engine; `null` when the rig has it. */
+  readonly shot = signal<ShotKind | null>(null);
+  /** The glide a chip asked for: 0 the portal, 1…8 a station. The page fulfils and clears it. */
+  readonly glideRequest = signal<number | null>(null);
+  private toastId = 0;
 
   /** An interactable has captured movement and look, and the prompt for releasing it. */
   private readonly captureState = signal<{ readonly prompt: string } | null>(null);
@@ -154,6 +172,15 @@ export class WorldStore {
     this.demoRequest.set(slug);
   }
 
+  /** Shows `text` as a toast; the director clears it again after a moment. */
+  showToast(text: string): void {
+    this.toast.set({ text, id: ++this.toastId });
+  }
+
+  requestGlide(index: number): void {
+    this.glideRequest.set(index);
+  }
+
   toggleMenu(): void {
     this.menuOpen.update((open) => !open);
   }
@@ -181,6 +208,13 @@ export class WorldStore {
     this.setPanelOpen(false);
     this.setContactOpen(false);
     this.setSwapping(false);
+    this.stations.set([]);
+    this.plate.set(null);
+    this.toast.set(null);
+    this.banner.set(null);
+    this.pitch.set(null);
+    this.shot.set(null);
+    this.glideRequest.set(null);
   }
 
   setSettingsOpen(open: boolean): void {

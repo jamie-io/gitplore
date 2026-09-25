@@ -16,6 +16,26 @@
       "group": "jungle"
     },
     {
+      "url": "assets/models/cave-cliff.glb",
+      "bytes": 100940,
+      "group": "jungle"
+    },
+    {
+      "url": "assets/models/commit-steps.glb",
+      "bytes": 59808,
+      "group": "jungle"
+    },
+    {
+      "url": "assets/models/exhibit-easel.glb",
+      "bytes": 19944,
+      "group": "jungle"
+    },
+    {
+      "url": "assets/models/feed-wall.glb",
+      "bytes": 50440,
+      "group": "jungle"
+    },
+    {
       "url": "assets/models/jungle-arch.glb",
       "bytes": 41860,
       "group": "jungle"

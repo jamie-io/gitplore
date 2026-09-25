@@ -1,13 +1,15 @@
 import { InjectionToken, NgZone, Service, inject } from '@angular/core';
-import { BufferGeometry, PerspectiveCamera, Scene, Texture } from 'three';
+import { BufferGeometry, PerspectiveCamera, Scene, Texture, Vector3 } from 'three';
 import { AssetService } from './asset.service';
 import { CapabilityService } from './capability.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
 import { ViewMode } from '../shared/view-mode';
 import { CameraRig, FirstPersonRig } from './player/camera-rig';
-import { Collider, HeightField } from './player/collision';
-import { PlayerController } from './player/player-controller';
+import { Collider, HeightField, floorHeightAt } from './player/collision';
+import { MoveIntent, PlayerController } from './player/player-controller';
+import { CameraShot, SKIP_SECONDS, ShotKind, blendCamera, smoothstep } from './camera/camera-shot';
 import { ThirdPersonRig } from './player/third-person-rig';
+import { Glide, GlideSample, sampleGlide, turn } from './stations/glide';
 import { InputService } from './input.service';
 import { Interactable } from './interaction/interactable';
 import { InteractionSystem } from './interaction/interaction.system';
@@ -19,6 +21,30 @@ export const ENGINE_MAX_FRAME_SECONDS = 0.05;
 
 const FLAT_GROUND: HeightField = { heightAt: () => 0 };
 const NO_COLLIDERS: readonly Collider[] = [];
+
+/**
+ * Below this a skipped shot's weight is invisible, so the shot counts as over. Without it a skip
+ * summed from frame times could stop a hair short of `SKIP_SECONDS` and linger one frame more.
+ */
+const SKIP_DONE = 1e-6;
+
+/** The movement axes a shot watches for input that starts after it began. */
+const SHOT_AXES = ['forward', 'strafe', 'jump'] as const;
+
+/**
+ * Seconds over which a glide turns the player from where they were facing onto the way it travels,
+ * so pressing a number never swings the camera round in a single frame.
+ */
+const GLIDE_TURN_IN = 0.3;
+
+/**
+ * Metres between the points at which a reduced-motion glide feels for the floor on its way. It
+ * lands on the same deck or step a full glide would, because it climbs onto it the same way.
+ */
+const GLIDE_PROBE = 0.25;
+
+/** Scratch space for placing the player, so a glide frame does not allocate a vector. */
+const placement = new Vector3();
 
 export interface EngineStats {
   readonly fps: number;
@@ -67,6 +93,34 @@ export class EngineService {
   private readonly interaction = new InteractionSystem();
   private readonly tickables = new Set<Tickable>();
 
+  /** The scripted camera move blended over the rig, if one is running. */
+  private shot: CameraShot | null = null;
+  private shotTime = 0;
+  /** Seconds since the shot was skipped, or `null` while it plays out in full. */
+  private skipTime: number | null = null;
+  /**
+   * What the player was holding down when the shot began, per axis (the sign of each), so only
+   * input that starts after it skips it: a key held through the trigger that played the shot must
+   * not skip it on the very next frame. An axis let go is forgotten, so pressing it again skips.
+   */
+  private readonly heldAtShot = { forward: 0, strafe: 0, jump: 0 };
+  /** The same axes as read on the last frame, for a shot started between frames. */
+  private readonly heldNow = { forward: 0, strafe: 0, jump: 0 };
+  /** The rig's field of view when the shot began; each frame's blend starts from it again. */
+  private rigFov = 0;
+  /** The field of view the projection matrix was last built with during the shot. */
+  private projectedFov = 0;
+  private readonly shotListeners = new Set<(kind: ShotKind | null) => void>();
+
+  /** The glide carrying the player, how far into it they are, and where they faced at its start. */
+  private glideState: { glide: Glide; time: number; startYaw: number } | null = null;
+
+  /** Where the glide has the player this frame, written in place rather than allocated. */
+  private readonly glideSample: GlideSample = { x: 0, z: 0, yaw: 0 };
+
+  /** Whether a glide is carrying the player right now. */
+  readonly gliding = (): boolean => this.glideState !== null;
+
   /** Fires only when the interactable in front of the player changes (§2), never per frame. */
   onNearbyChange: ((nearby: Interactable | null) => void) | null = null;
 
@@ -104,6 +158,8 @@ export class EngineService {
 
   detach(): void {
     this.renderer?.setAnimationLoop(null);
+    this.endShot();
+    this.glideState = null;
     this.world?.dispose();
     this.world = null;
 
@@ -129,6 +185,10 @@ export class EngineService {
   }
 
   setScene(world: WorldScene): void {
+    // A shot frames the world it was made for; carried into the next one it would frame nothing.
+    this.endShot();
+    // A glide's path runs through the old world's ground, which the new one does not share.
+    this.glideState = null;
     this.world?.dispose();
     // Every WorldObject detaches itself on dispose; clearing is the safety net for one that forgets.
     this.scene.clear();
@@ -196,6 +256,103 @@ export class EngineService {
     this.rig.reset();
   }
 
+  /**
+   * Blends `shot` over the rig from the next frame on, replacing any shot already running. The
+   * rig keeps following the player underneath, so wherever the shot ends the camera is handed
+   * back without a jump.
+   */
+  playShot(shot: CameraShot): void {
+    // A replaced shot has bent the field of view; the rig's own is the one to remember.
+    this.restoreFov();
+    this.shot = shot;
+    this.shotTime = 0;
+    this.skipTime = null;
+    Object.assign(this.heldAtShot, this.heldNow);
+    this.rigFov = this.camera.fov;
+    this.projectedFov = this.camera.fov;
+    this.notifyShot(shot.kind);
+  }
+
+  /**
+   * Eases the running shot out over `SKIP_SECONDS`, or ends it at once under reduced motion. The
+   * engine skips on its own when the player starts to move or jump after the shot began; other
+   * keys are for the caller to map.
+   */
+  skipShot(): void {
+    if (!this.shot) {
+      return;
+    }
+    if (this.capability.reducedMotion()) {
+      this.endShot();
+      return;
+    }
+    this.skipTime ??= 0;
+  }
+
+  /** Stops the running shot at once, without easing — for a world swap or a restart. */
+  endShot(): void {
+    if (!this.shot) {
+      return;
+    }
+    this.restoreFov();
+    this.shot = null;
+    this.skipTime = null;
+    this.notifyShot(null);
+  }
+
+  /**
+   * Hears when a shot starts (with its kind) and when it ends (with `null`), never per frame, so
+   * the HUD can make way for it. Returns the unsubscribe function.
+   */
+  onShotChange(listener: (kind: ShotKind | null) => void): () => void {
+    this.shotListeners.add(listener);
+    return () => this.shotListeners.delete(listener);
+  }
+
+  /**
+   * Carries the player along `glide` from the next frame on, replacing any glide already running.
+   * Collisions are ignored on the way, but the world updates every frame as usual, so its triggers
+   * still fire. Under reduced motion the player is put straight down at the end instead.
+   */
+  glide(glide: Glide): void {
+    if (!this.capability.reducedMotion()) {
+      this.glideState = { glide, time: 0, startYaw: this.player.yaw };
+      return;
+    }
+
+    this.glideState = null;
+    const ground = this.world?.ground ?? FLAT_GROUND;
+    const colliders = this.world?.colliders ?? NO_COLLIDERS;
+    let feetY = this.player.position.y - this.player.eyeHeight;
+    const { points } = glide;
+    for (let index = 1; index < points.length; index++) {
+      const from = points[index - 1];
+      const to = points[index];
+      const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / GLIDE_PROBE));
+      for (let step = 1; step <= steps; step++) {
+        const share = step / steps;
+        const x = from.x + (to.x - from.x) * share;
+        const z = from.z + (to.z - from.z) * share;
+        feetY = floorHeightAt(x, z, feetY, ground, colliders);
+      }
+    }
+    const end = points[points.length - 1];
+    this.player.teleport(
+      placement.set(end.x, feetY + this.player.eyeHeight, end.z),
+      glide.endYaw,
+      this.player.pitch,
+    );
+  }
+
+  /** Stops a running glide where the player is now, e.g. for a restart or a keypress. */
+  cancelGlide(): void {
+    if (!this.glideState) {
+      return;
+    }
+    this.glideState = null;
+    this.settle();
+  }
+
   /** Re-applies the current quality settings to the renderer, e.g. after a tier change. */
   refreshQuality(): void {
     this.renderer?.setQuality(this.capability.settings());
@@ -259,7 +416,15 @@ export class EngineService {
     const ground = this.world?.ground ?? FLAT_GROUND;
     const colliders = this.world?.colliders ?? NO_COLLIDERS;
     const intent = this.input.consumeIntent(dt);
-    this.player.update(dt, intent, ground, colliders);
+    // Walking or jumping takes the player back; the glide stops where it is.
+    if (this.glideState && (intent.forward !== 0 || intent.strafe !== 0 || intent.jump)) {
+      this.cancelGlide();
+    }
+    if (this.glideState) {
+      this.advanceGlide(dt, ground, colliders);
+    } else {
+      this.player.update(dt, intent, ground, colliders);
+    }
     // A boom needs the same world the player walks through, or it would hang inside the scenery.
     this.rig.sync(this.player, {
       dt,
@@ -267,6 +432,8 @@ export class EngineService {
       colliders,
       reducedMotion: this.capability.reducedMotion(),
     });
+    // Over the pose the rig has just set, and before anything that reads the camera this frame.
+    this.updateShot(dt, intent);
     // After the camera, because the figure is a consequence of the player exactly as the camera is,
     // and both have to be reading the same frame's position.
     this.world?.avatar?.sync(this.player, dt);
@@ -276,6 +443,106 @@ export class EngineService {
     this.tickables.forEach((tickable) => tickable.update(dt));
 
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Moves the player one frame along the glide: across the ground and onto any walkable top along
+   * the way, facing the way it travels. Colliders are not asked, so nothing stops it.
+   */
+  private advanceGlide(dt: number, ground: HeightField, colliders: readonly Collider[]): void {
+    const state = this.glideState!;
+    state.time += dt;
+    const sample = sampleGlide(state.glide, state.time, this.glideSample);
+    const player = this.player;
+    // Last frame's footing, so a deck is climbed onto a step at a time just as it is walked onto.
+    const feetY = player.position.y - player.eyeHeight;
+    player.position.set(
+      sample.x,
+      floorHeightAt(sample.x, sample.z, feetY, ground, colliders) + player.eyeHeight,
+      sample.z,
+    );
+    player.yaw =
+      state.time < GLIDE_TURN_IN
+        ? turn(state.startYaw, sample.yaw, smoothstep(state.time / GLIDE_TURN_IN))
+        : sample.yaw;
+
+    if (state.time >= state.glide.duration) {
+      this.glideState = null;
+      this.settle();
+    }
+  }
+
+  /**
+   * Leaves the player standing where the glide has put them. The controller sat idle during the
+   * glide, still holding whatever momentum it had when the glide began, which must not carry on.
+   */
+  private settle(): void {
+    this.player.teleport(placement.copy(this.player.position), this.player.yaw, this.player.pitch);
+  }
+
+  private updateShot(dt: number, intent: MoveIntent): void {
+    const now = this.heldNow;
+    now.forward = Math.sign(intent.forward);
+    now.strafe = Math.sign(intent.strafe);
+    now.jump = intent.jump ? 1 : 0;
+    if (this.shot && this.startedInput()) {
+      this.skipShot();
+    }
+    const shot = this.shot;
+    if (!shot) {
+      return;
+    }
+
+    this.shotTime += dt;
+    let skip = 1;
+    if (this.skipTime !== null) {
+      this.skipTime += dt;
+      skip = 1 - smoothstep(this.skipTime / SKIP_SECONDS);
+    }
+    if (this.shotTime >= shot.duration || skip <= SKIP_DONE) {
+      this.endShot();
+      return;
+    }
+
+    this.camera.fov = this.rigFov;
+    blendCamera(this.camera, shot.pose, shot.weight(this.shotTime) * skip);
+    // A blend at weight 0 leaves the field of view where the rig has it but does not rebuild the
+    // projection, which may still hold the last frame's.
+    if (this.camera.fov === this.rigFov && this.projectedFov !== this.rigFov) {
+      this.camera.updateProjectionMatrix();
+    }
+    this.projectedFov = this.camera.fov;
+  }
+
+  /**
+   * Whether this frame's input holds anything that was not already held when the shot began. An
+   * axis let go since is cleared, so a release and a fresh press counts as new.
+   */
+  private startedInput(): boolean {
+    const held = this.heldAtShot;
+    const now = this.heldNow;
+    let started = false;
+    for (const axis of SHOT_AXES) {
+      if (now[axis] !== 0 && now[axis] !== held[axis]) {
+        started = true;
+      }
+      if (now[axis] === 0) {
+        held[axis] = 0;
+      }
+    }
+    return started;
+  }
+
+  /** Hands the rig its own field of view back, if a shot had bent it. */
+  private restoreFov(): void {
+    if (this.shot && this.camera.fov !== this.rigFov) {
+      this.camera.fov = this.rigFov;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  private notifyShot(kind: ShotKind | null): void {
+    this.shotListeners.forEach((listener) => listener(kind));
   }
 
   private context(): WorldContext {

@@ -16,7 +16,7 @@ const SCREEN_WIDTH = 3.2;
 const SCREEN_HEIGHT = 2;
 const SCREEN_DEPTH = 0.16;
 /** Height of the screen's centre above the ground. */
-const SCREEN_CENTRE = 1.9;
+export const SCREEN_CENTRE = 1.9;
 const INTERACT_RADIUS = 4;
 /** Half the footprint's width when an environment's frame stands around the screen. */
 const FRAMED_HALF_WIDTH = 2;

@@ -18,8 +18,9 @@ export const OPTIMIZE_FLAGS = [
   'false',
   '--simplify',
   'false',
-  // Empty nodes mark where the game draws something itself (the Plaza terminal's `screen`, the
-  // notice board's `face`), so they must survive: pruning, flattening and joining would each
+  // Empty nodes mark where the game draws or places something itself (the Plaza terminal's
+  // `screen`, the notice board's `face`, the feed wall's card slots, the easel's screen anchor),
+  // so they must survive: pruning, flattening and joining would each
   // drop them as unused leaves. The models are exported flat and clean from Blender, so none of
   // the three changes anything else (every model before these options compressed byte-identical).
   '--prune',

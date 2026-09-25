@@ -1,10 +1,12 @@
-import { BufferAttribute, Mesh, PerspectiveCamera, Scene, ShaderMaterial } from 'three';
+import { BufferAttribute, Mesh, PerspectiveCamera, Scene, ShaderMaterial, Vector3 } from 'three';
 import { qualitySettings } from '@engine/capability.service';
 import { PlayerController } from '@engine/player/player-controller';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
 import { LICHTUNG } from './mood';
+import { jungleHeightAt } from './jungle-layout';
 import { ATMOSPHERE_FOG_GLSL } from './shaders/atmosphere';
+import { GroundHaze } from './shaders/ground-haze';
 import { SharedUniforms } from './shaders/shared-uniforms';
 import { Water, WaterOptions } from './water';
 
@@ -201,6 +203,31 @@ describe('Water', () => {
     expect(before.fragmentShader).toContain(
       'colour = atmosphereFog(colour, vWorld, sunDirection, sunColor, heightFog);',
     );
+  });
+
+  it('lies under the ground haze where the world has one, in the space it fogs in', () => {
+    const haze = new GroundHaze({
+      heightAt: jungleHeightAt,
+      clearing: { origin: { value: new Vector3() }, radius: { value: 0 } },
+    });
+    const hazed = new SharedUniforms(LICHTUNG, { groundHaze: haze });
+    const plain = stubContext();
+    const bank = stubContext();
+    const open = stubContext();
+    new Water(options()).init(plain);
+    new Water({ ...options(hazed), bankFog: true }).init(bank);
+    new Water(options(hazed)).init(open);
+
+    const none = surface(plain).material as ShaderMaterial;
+    expect(none.defines?.['GROUND_HAZE']).toBeUndefined();
+    expect(none.uniforms['uHazeLight']).toBeUndefined();
+    const banked = surface(bank).material as ShaderMaterial;
+    expect(banked.defines?.['GROUND_HAZE']).toBe('');
+    expect(banked.defines?.['HAZE_LINEAR']).toBeUndefined();
+    expect(banked.uniforms['uHazeLight']).toBe(haze.uniforms.uHazeLight);
+    // Fogged before its tone mapping, the pond takes the violet in linear light.
+    expect((surface(open).material as ShaderMaterial).defines?.['HAZE_LINEAR']).toBe('');
+    haze.dispose();
   });
 
   it('spends fewer vertices and ripple layers on the lower tiers', () => {

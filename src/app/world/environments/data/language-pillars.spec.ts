@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { Box3, Color, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { qualitySettings } from '@engine/capability.service';
 import { stubContext } from '@engine/testing/world-context';
-import { PLAZA } from '../mood';
+import { LICHTUNG, PLAZA } from '../mood';
 import { HazedCopies } from '../shaders/hazed-copies';
 import { SharedUniforms } from '../shaders/shared-uniforms';
 import { bakeGeometry } from '../model-geometry';
@@ -155,6 +155,18 @@ describe('LanguagePillars', () => {
 
     pillars.dispose();
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('draws the jungle bamboo through the atmosphere, as the release cairns are', () => {
+    const ctx = stubContext();
+    const haze = new HazedCopies(new SharedUniforms(LICHTUNG));
+    const project: Project = { ...PROJECT, languages: { TypeScript: 1 } };
+    const pillars = new LanguagePillars({ ...options(project, 'jungle'), haze });
+    pillars.init(ctx);
+
+    const mesh = ctx.scene.getObjectByName('language-pillars') as Mesh;
+    expect((mesh.material as MeshStandardMaterial).customProgramCacheKey()).toContain('atmosphere');
+    pillars.dispose();
   });
 
   it('builds the Plaza row from the column model, each column as high as its pillar', async () => {

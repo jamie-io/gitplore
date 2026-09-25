@@ -1,4 +1,5 @@
 import { MeshStandardMaterial } from 'three';
+import { GROUND_HAZE_GLSL } from './ground-haze';
 import { patchMaterial } from './patch';
 import { SharedUniforms } from './shared-uniforms';
 
@@ -33,8 +34,12 @@ const VERTEX_WORLD_POSITION = /* glsl */ `
  * declarations and calls it, so its haze can never drift from the bank beside it. It reads Three's
  * `fogColor`, `fogNear`, `fogFar` and `fogDensity`, which the caller declares, and does nothing
  * without `USE_FOG`.
+ *
+ * Where `GROUND_HAZE` is defined (the jungle, through `SharedUniforms.groundHaze`), the slop's
+ * ground haze lies over the result, nearer the eye than the fog: see `ground-haze.ts`.
  */
 export const ATMOSPHERE_FOG_GLSL = /* glsl */ `
+${GROUND_HAZE_GLSL}
 vec3 atmosphereFog(vec3 colour, vec3 worldPosition, vec3 sunDirection, vec3 sunColor, vec3 heightFog) {
   #ifdef USE_FOG
     vec3 toFrag = worldPosition - cameraPosition;
@@ -55,10 +60,12 @@ vec3 atmosphereFog(vec3 colour, vec3 worldPosition, vec3 sunDirection, vec3 sunC
     float amount = clamp(max(linearFog, heightAmount), 0.0, 1.0);
     float toward = pow(max(dot(dir, sunDirection), 0.0), 8.0);
     vec3 tint = mix(fogColor, sunColor, toward * heightFog.z);
-    return mix(colour, tint, amount);
-  #else
-    return colour;
+    colour = mix(colour, tint, amount);
   #endif
+  #ifdef GROUND_HAZE
+    colour = groundHaze(colour, worldPosition);
+  #endif
+  return colour;
 }`;
 
 // `fog_pars_fragment` stays, so Three's fog uniforms are declared the way every other chunk expects.
@@ -75,24 +82,33 @@ gl_FragColor.rgb = atmosphereFog(gl_FragColor.rgb, vAtmosWorld, atmosSunDirectio
 
 /**
  * Replaces Three's distance fog on `material` with the world's atmosphere: the same distance fog
- * plus height fog that pools in the low ground, both warmed towards the sun. The uniforms are the
- * `SharedUniforms` objects themselves, so the world updates them once and every fogged material
- * follows.
+ * plus height fog that pools in the low ground, both warmed towards the sun, and the slop's ground
+ * haze where the world has one. The uniforms are the `SharedUniforms` objects themselves, so the
+ * world updates them once and every fogged material follows.
+ *
+ * The haze's step count comes from the tier, which the world learns after its materials are made,
+ * so it is read when Three compiles, and the program key carries it.
  */
 export function withAtmosphere<T extends MeshStandardMaterial>(
   material: T,
   shared: SharedUniforms,
 ): T {
-  return patchMaterial(material, 'atmosphere', (shader) => {
+  const haze = shared.groundHaze;
+  const key = haze ? () => `atmosphere+haze${haze.steps}` : 'atmosphere';
+  return patchMaterial(material, key, (shader) => {
     shader.uniforms['atmosSunDirection'] = shared.sunDirection;
     shader.uniforms['atmosSunColor'] = shared.sunColor;
     shader.uniforms['atmosHeightFog'] = shared.heightFog;
+    const defines = haze ? `#define GROUND_HAZE\n#define HAZE_STEPS ${haze.steps}\n` : '';
+    if (haze) {
+      Object.assign(shader.uniforms, haze.uniforms);
+    }
 
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', VERTEX_DECLARATIONS)
       .replace('#include <project_vertex>', VERTEX_WORLD_POSITION);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <fog_pars_fragment>', FRAGMENT_DECLARATIONS)
+      .replace('#include <fog_pars_fragment>', defines + FRAGMENT_DECLARATIONS)
       .replace('#include <fog_fragment>', FRAGMENT_FOG);
   });
 }

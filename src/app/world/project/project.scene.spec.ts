@@ -1,14 +1,18 @@
-import { Mesh, Texture, Vector3 } from 'three';
-import { stubContext } from '@engine/testing/world-context';
+import { Mesh, Points, Texture, Vector3 } from 'three';
+import type { GroundPoint, StationPlate } from '@engine/stations/station';
+import { StubAssets, stubContext } from '@engine/testing/world-context';
+import type { WorldScene } from '@engine/world-object';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import type { ToyLayout } from '../environments/environment';
 import { JungleEnvironment } from '../environments/jungle';
-import { BAMBOO, CAIRNS, LIANA, RIDGE, STELE } from '../environments/jungle-layout';
+import { BAMBOO, CAIRN, LIANA, STELE } from '../environments/jungle-layout';
 import { PlazaEnvironment } from '../environments/plaza';
+import { EASEL_WIDEN, EXHIBIT_EASEL_MODEL } from '../environments/props/exhibit-easel';
 import { ShowroomEnvironment } from '../environments/showroom';
 import { clearance } from '../environments/testing/clearance';
 import { ProjectScene, ProjectSceneOptions } from './project.scene';
+import { ReturnPortal } from './return.landmark';
 
 /**
  * A fake environment whose `toyLayout()` lays out every toy but the lever — everything the jungle
@@ -65,6 +69,20 @@ describe('ProjectScene', () => {
     const toPlayer = target.arrival.position.clone().sub(environment.spawn);
     expect(toPlayer.length()).toBeGreaterThan(0);
     expect(toPlayer.length()).toBeLessThan(6);
+  });
+
+  it('stands the way back where the environment places it, the visitor on its spawn in front', () => {
+    const environment = new JungleEnvironment({ reducedMotion: () => true });
+    const target = scene({ environment });
+    const way = target.landmarks.find((landmark) => landmark instanceof ReturnPortal);
+
+    expect(way?.position.x).toBeCloseTo(environment.returnPortal.position[0], 10);
+    expect(way?.position.z).toBeCloseTo(environment.returnPortal.position[2], 10);
+    expect(way?.rotationY).toBe(environment.returnPortal.rotationY);
+    // The visitor stands on the environment's spawn, the portal at their back.
+    expect(target.arrival.position.x).toBeCloseTo(environment.spawn.x, 10);
+    expect(target.arrival.position.z).toBeCloseTo(environment.spawn.z, 10);
+    expect(target.arrival.yaw).toBeCloseTo(environment.spawnYaw, 10);
   });
 
   it('reports the project when the exhibit is used, so the panel can open', () => {
@@ -230,7 +248,7 @@ describe('ProjectScene', () => {
     expect(ctx.scene.children).toHaveLength(0);
   });
 
-  it('stands the toys where the jungle lays them out, off the straight walk', () => {
+  it('stands the toys where the jungle lays them out, the steps in place of the ridge', () => {
     const project: Project = {
       ...PROJECT,
       environment: 'jungle',
@@ -247,12 +265,12 @@ describe('ProjectScene', () => {
       environment: new JungleEnvironment({ reducedMotion: () => true }),
     });
 
-    expect(target.terminal.position.x).toBeCloseTo(STELE.position.x, 6);
-    expect(target.terminal.position.z).toBeCloseTo(STELE.position.z, 6);
+    expect(target.terminal.position.x).toBeCloseTo(STELE.x, 6);
+    expect(target.terminal.position.z).toBeCloseTo(STELE.z, 6);
     // The jungle's own `toyLayout()` still lays out a lever, at the liana.
     expect(target.seedLever).not.toBeNull();
-    expect(target.seedLever!.position.x).toBeCloseTo(LIANA.position.x, 6);
-    expect(target.seedLever!.position.z).toBeCloseTo(LIANA.position.z, 6);
+    expect(target.seedLever!.position.x).toBeCloseTo(LIANA.x, 6);
+    expect(target.seedLever!.position.z).toBeCloseTo(LIANA.z, 6);
 
     target.init(ctx);
     const centre = (name: string) => {
@@ -260,11 +278,101 @@ describe('ProjectScene', () => {
       mesh.geometry.computeBoundingBox();
       return mesh.geometry.boundingBox!.getCenter(new Vector3()).setY(0);
     };
-    const ridge = RIDGE.from.clone().lerp(RIDGE.to, 0.5);
-    expect(centre('commit-ridge').distanceTo(ridge)).toBeLessThan(0.5);
-    expect(centre('language-pillars').distanceTo(BAMBOO.position)).toBeLessThan(1.5);
-    expect(centre('release-markers').distanceTo(CAIRNS.position)).toBeLessThan(2.5);
+    expect(ctx.scene.getObjectByName('commit-ridge')).toBeUndefined();
+    // Two languages: the two largest shares' stalks, at the deck's two north corners.
+    const stalks = new Vector3((BAMBOO[0].x + BAMBOO[1].x) / 2, 0, (BAMBOO[0].z + BAMBOO[1].z) / 2);
+    expect(centre('language-pillars').distanceTo(stalks)).toBeLessThan(0.5);
+    expect(ctx.scene.getObjectByName('language-pillars-sign')).toBeUndefined();
+    expect(centre('release-markers').distanceTo(new Vector3(CAIRN.x, 0, CAIRN.z))).toBeLessThan(
+      2.5,
+    );
 
+    target.dispose();
+  });
+
+  it('has no stations, portal stand, overview, pitch, glide path or plates of its own', () => {
+    const target: WorldScene = scene();
+
+    expect(target.stations).toBeUndefined();
+    expect(target.portalStand).toBeUndefined();
+    expect(target.overview).toBeUndefined();
+    expect(target.pitch).toBeUndefined();
+    expect(target.glidePath).toBeUndefined();
+    expect(target.plateAt).toBeUndefined();
+  });
+
+  it('hands a bespoke scene’s stations, stands, shots and plates to the director', () => {
+    const plate = { kicker: 'Fund', title: 'Test', text: 'Text', en: 'Text' };
+    const stations = [
+      { id: 'a', name: 'A', stand: { x: 1, z: 2, yaw: 0 }, trigger: 3, plate: () => plate },
+    ];
+    class Bespoke extends ProjectScene {
+      override get stations() {
+        return stations;
+      }
+      override get portalStand() {
+        return { x: 0, z: 5, yaw: 0 };
+      }
+      override get overview() {
+        return { position: { x: 0, y: 20, z: 30 }, target: { x: 0, y: 0, z: 0 } };
+      }
+      override get pitch() {
+        return { title: 'T', line: 'L' };
+      }
+      override glidePath(from: GroundPoint, to: GroundPoint): readonly GroundPoint[] {
+        return [from, { x: 9, z: 9 }, to];
+      }
+      override plateAt(): StationPlate | null {
+        return plate;
+      }
+    }
+    const target: WorldScene = new Bespoke({
+      environment: new ShowroomEnvironment({ reducedMotion: () => true }),
+      project: PROJECT,
+      reducedMotion: () => true,
+      onOpenInfo: () => undefined,
+      onLeave: () => undefined,
+    });
+
+    expect(target.stations).toBe(stations);
+    expect(target.portalStand).toEqual({ x: 0, z: 5, yaw: 0 });
+    expect(target.overview?.position.y).toBe(20);
+    expect(target.pitch?.title).toBe('T');
+    expect(target.glidePath?.({ x: 0, z: 0 }, { x: 1, z: 1 })).toHaveLength(3);
+    expect(target.plateAt?.(0, 0)).toBe(plate);
+  });
+
+  it('stands the jungle’s exhibit inside its easel, and no easel anywhere else', () => {
+    const environment = new JungleEnvironment({ reducedMotion: () => true });
+    const target = scene({ project: { ...PROJECT, environment: 'jungle' }, environment });
+    const ctx = stubContext();
+    target.init(ctx);
+
+    const easel = ctx.scene.getObjectByName('exhibit-easel')!;
+    const exhibit = target.landmarks[0];
+    expect(easel).toBeDefined();
+    expect(easel.position.x).toBeCloseTo(exhibit.position.x, 6);
+    expect(easel.position.z).toBeCloseTo(exhibit.position.z, 6);
+    expect(easel.rotation.y).toBeCloseTo(exhibit.rotationY, 6);
+    expect(easel.scale.x).toBeCloseTo(EASEL_WIDEN, 6);
+    expect((ctx.assets as StubAssets).requested).toContain(EXHIBIT_EASEL_MODEL);
+    target.dispose();
+
+    const plain = scene();
+    const plainCtx = stubContext();
+    plain.init(plainCtx);
+    expect(plainCtx.scene.getObjectByName('exhibit-easel')).toBeUndefined();
+    plain.dispose();
+  });
+
+  it('flies the jungle’s fireflies over the exhibit glade whatever the stars', () => {
+    const environment = new JungleEnvironment({ reducedMotion: () => true });
+    const target = scene({ project: { ...PROJECT, stars: 0, environment: 'jungle' }, environment });
+    const ctx = stubContext();
+    target.init(ctx);
+
+    const swarm = ctx.scene.getObjectByName('star-lanterns') as Points;
+    expect(swarm.geometry.getAttribute('position').count).toBe(14);
     target.dispose();
   });
 
@@ -285,8 +393,8 @@ describe('ProjectScene', () => {
     ).toBeUndefined();
   });
 
-  // Not the jungle: Deslopify's walk from the arrival over the bridge is the demo itself, 15–20 s
-  // long by design (jungle-layout.spec.ts holds it to that).
+  // Not the jungle: Deslopify's tour from the portal is the demo itself, at most 60 m by design
+  // (jungle-layout.spec.ts holds it to that).
   it.each([
     ['Showroom', () => new ShowroomEnvironment({ reducedMotion: () => true })],
     ['Plaza', () => new PlazaEnvironment({ reducedMotion: () => true })],

@@ -1,6 +1,9 @@
+import type { StationPlate } from '@engine/stations/station';
+
 /**
  * The canonical Deslopify content: the four feed cards, the four metadata tags, the badges,
- * the captions, the in-world prompts and the shared palette. Both string variants of every
+ * the captions, the in-world prompts, the shared palette, and the Lichtung's plates, station
+ * names, toasts, pitch and moment banner. Both string variants of every
  * card and tag live here so no consumer reconstructs copy by parsing display strings
  * (spec §"Four canonical feed cards", §"Four canonical tags").
  */
@@ -165,3 +168,134 @@ export const PALETTE = {
   ink: '#f4efe4',
   engrave: '#f4e6c8',
 } as const;
+
+/**
+ * The plate copy for the portal, the seven stations and the three finds, verbatim from
+ * spec §"Plates (Deslopify)". The steps, language and release plates take their numbers from
+ * the project data, so they are functions of that value.
+ */
+export const PLATES: {
+  readonly portal: StationPlate;
+  readonly laterne: StationPlate;
+  readonly pfad: StationPlate;
+  readonly stufen: (commits: number) => StationPlate;
+  readonly bogen: StationPlate;
+  readonly exponat: StationPlate;
+  readonly wandOn: StationPlate;
+  readonly wandOff: StationPlate;
+  readonly hoehle: StationPlate;
+  readonly langs: (line: string) => StationPlate;
+  /** The newest release, named with its date in German and in English; `null` for none. */
+  readonly cairn: (release: { readonly de: string; readonly en: string } | null) => StationPlate;
+  readonly liana: StationPlate;
+} = {
+  portal: {
+    kicker: 'Ankunft',
+    title: 'Deslopify',
+    text: 'Browser-Erweiterung für YouTube. Ersetzt automatisch übersetzte Titel, Thumbnails und KI-Tonspuren durch die Originale.',
+    en: 'A browser extension that brings back original YouTube titles, thumbnails and audio. Follow the lantern.',
+  },
+  laterne: {
+    kicker: 'Station 1',
+    title: 'Die Laterne',
+    text: 'Ihr Licht zeigt unter dem Slop kurz das Original. Sobald du weitergehst, wächst er nach.',
+    en: 'Its light shows the original for a moment. The slop grows back behind you.',
+  },
+  pfad: {
+    kicker: 'Station 2',
+    title: 'Feed-Pfad',
+    text: 'Vier Karten aus einem Feed, dazu Kapitel, Tonspur, Kanalname und Beschreibung an den Ranken.',
+    en: 'Four cards from a feed, plus chapters, audio, channel name and description on the vines.',
+  },
+  stufen: (commits: number) => ({
+    kicker: 'Station 3',
+    title: 'Commit-Stufen',
+    text: `Elf Stufen hinauf zum Bogen, eine pro Zeitabschnitt. Stufen mit Commits leuchten. Bisher ${commits} Commit${commits === 1 ? '' : 's'}.`,
+    en: 'Eleven steps up to the arch, one per period. Lit steps had commits.',
+  }),
+  bogen: {
+    kicker: 'Station 4',
+    title: 'Der Bogen',
+    text: 'Unter dem Bogen wird Deslopify installiert. Ab hier bleibt der Dschungel entslopt.',
+    en: 'Walking under the arch installs the extension. The whole clearing is cleaned.',
+  },
+  exponat: {
+    kicker: 'Station 5',
+    title: 'Exponat',
+    text: 'Das Projekt als Poster. E öffnet Details, README und Code.',
+    en: 'The project poster.',
+  },
+  wandOn: {
+    kicker: 'Station 6',
+    title: 'Feed-Wand',
+    text: 'E schaltet Deslopify aus und wieder an. So siehst du beide Versionen direkt hintereinander.',
+    en: 'E toggles the extension for a direct comparison.',
+  },
+  wandOff: {
+    kicker: 'Station 6',
+    title: 'Feed-Wand',
+    text: 'Noch voller Slop. Erst unter dem Bogen installieren.',
+    en: 'Still full of slop. Install under the arch first.',
+  },
+  hoehle: {
+    kicker: 'Station 7',
+    title: 'Die Höhle',
+    text: 'Hinter dem Wasserfall steht die Stele. E öffnet das Terminal mit README und Zahlen.',
+    en: 'Behind the waterfall: the stele with the README and the numbers.',
+  },
+  langs: (line: string) => ({
+    kicker: 'Fund',
+    title: 'Sprachsäulen',
+    text: line,
+    en: 'One bamboo stalk per language at the bridge ends, height = share.',
+  }),
+  cairn: (release) =>
+    release === null
+      ? {
+          kicker: 'Fund',
+          title: 'Release-Steinmann',
+          text: 'Noch kein Release.',
+          en: 'No release yet.',
+        }
+      : {
+          kicker: 'Fund',
+          title: 'Release-Steinmann',
+          text: `Letztes Release: ${release.de}`,
+          en: `Latest release: ${release.en}`,
+        },
+  liana: {
+    kicker: 'Fund',
+    title: 'Liane',
+    text: 'E zieht an der Liane und schüttelt die Glühwürmchen los.',
+    en: 'Pull it to shake the fireflies loose.',
+  },
+} as const;
+
+/** The station bar's chip labels, in the order the player walks them (spec §"Station bar"). */
+export const STATION_NAMES: readonly [
+  'Laterne',
+  'Feed-Pfad',
+  'Commit-Stufen',
+  'Bogen',
+  'Exponat',
+  'Feed-Wand',
+  'Höhle',
+] = ['Laterne', 'Feed-Pfad', 'Commit-Stufen', 'Bogen', 'Exponat', 'Feed-Wand', 'Höhle'];
+
+/** The short top-centre toasts, one per world event (spec §"Toasts"). */
+export const TOASTS = {
+  lantern: 'Die Laterne leuchtet auf',
+  falls: 'Hinter dem Wasserfall',
+  wallOff: 'Deslopify aus: der Slop wächst zurück',
+  wallOn: 'Deslopify an: neuer Ring von der Wand',
+  liana: 'Die Glühwürmchen stieben auf',
+} as const;
+
+/** The arrival pitch over the opening camera shot (spec §"Arrival camera (K2)"). */
+export const PITCH = {
+  title: 'Deslopify',
+  line: 'YouTube ohne KI-Übersetzung · YouTube without AI translation',
+} as const;
+
+/** The banner over the install moment (spec §"Moment camera (K3)"). */
+export const MOMENT_BANNER = 'Deslopify installiert · der Dschungel wird entslopt' as const;

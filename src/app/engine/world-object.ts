@@ -1,10 +1,18 @@
 import { PerspectiveCamera, Scene } from 'three';
 import { AssetLike } from './asset.service';
+import { ShotPose } from './camera/camera-shot';
 import { QualitySettings } from './capability.service';
 import { Interactable } from './interaction/interactable';
 import { Collider, HeightField } from './player/collision';
 import { PlayerController } from './player/player-controller';
 import { PlayerVisual } from './player/player-visual';
+import {
+  GroundPoint,
+  ScenePitch,
+  StationPlate,
+  StationSpec,
+  StationStand,
+} from './stations/station';
 
 /** What a scene gets handed on `init`/`update` (IMPLEMENTATION_PLAN.md §2). */
 export interface WorldContext {
@@ -27,6 +35,14 @@ export interface Tickable {
   update(dt: number): void;
 }
 
+/** A spot a browser test can put the visitor on: the ground under their feet, and their facing. */
+export interface TestSpot {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+}
+
 /**
  * A scene the player can walk around in: it owns the ground, the things to bump into and the
  * things to use.
@@ -43,4 +59,25 @@ export interface WorldScene extends WorldObject {
    * it. Optional so a test scene need not carry one.
    */
   readonly avatar?: PlayerVisual;
+
+  /**
+   * The stops the visitor can glide between with the number keys and the station bar (spec §2), in
+   * order. A world without them has no bar, no plates, and the number keys do nothing in it.
+   */
+  readonly stations?: readonly StationSpec[];
+  /** Where the 0 key glides to: in front of the portal the visitor arrived through. */
+  readonly portalStand?: StationStand;
+  /** The pose that frames the whole world, for the arrival camera and the key moment. */
+  readonly overview?: ShotPose;
+  /** The project's name and one line, shown over the arrival camera. */
+  readonly pitch?: ScenePitch;
+  /** The way a glide takes between two spots, e.g. along the paths; a straight line by default. */
+  glidePath?(from: GroundPoint, to: GroundPoint): readonly GroundPoint[];
+  /** The plate for a find at (x, z) that is not a station, e.g. the portal; `null` for none. */
+  plateAt?(x: number, z: number): StationPlate | null;
+  /**
+   * Named spots a browser test can start a walk from, when it has to start short of a trigger
+   * rather than in front of an interactable. Only the `?stats=1` test hook reads them.
+   */
+  readonly testSpots?: Readonly<Record<string, TestSpot>>;
 }

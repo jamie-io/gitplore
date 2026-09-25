@@ -1,22 +1,30 @@
-import { Service, effect, inject } from '@angular/core';
+import { Service, effect, inject, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 import { Vector3 } from 'three';
 import { AssetService } from '@engine/asset.service';
 import { AudioService } from '@engine/audio/audio.service';
+import { MOMENT, arrivalShot, momentShot } from '@engine/camera/camera-shot';
 import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
 import { InputService } from '@engine/input.service';
 import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
-import { WorldScene } from '@engine/world-object';
+import { planGlide } from '@engine/stations/glide';
+import { Tickable, WorldScene } from '@engine/world-object';
 import { ContentService } from '@content/content.service';
 import type { Project } from '@content/project.model';
 import { WorldStore } from '@ui/store/world.store';
 import { HubScene } from '@world/hub/hub.scene';
 import { createEnvironment } from '@world/environments/create-environment';
 import type { Environment } from '@world/environments/environment';
-import { ARCH, BRIDGE, BRIDGE_SOUTH } from '@world/environments/jungle-layout';
 import { createProjectScene } from '@world/project/create-project-scene';
 import { InWorldDemo, ProjectScene } from '@world/project/project.scene';
+import { StationDirector } from './station-director';
+
+/** How long a toast stays up after the last one was shown. */
+const TOAST_MS = 2200;
+
+/** The session key that remembers a world's arrival camera has played. */
+const arrivalKey = (sceneId: string) => `gitplore.arrival.${sceneId}`;
 
 /**
  * Turns the open route into the world on screen (spec §6).
@@ -44,6 +52,37 @@ export class SceneDirector {
   /** The project the visitor last stood in, so returning puts them back at its portal. */
   private previousSlug: string | null = null;
   private demo: InWorldDemo | null = null;
+
+  /** Tracks the current world's stations; `null` in a world without any. */
+  private stations: StationDirector | null = null;
+  /** A world placed before the visitor clicked through the start gate, whose arrival is owed. */
+  private pendingArrival: WorldScene | null = null;
+  private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  private bannerTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Rides the render loop: the station bar and the plate follow the player, written on change. */
+  private readonly stationTicker: Tickable = { update: () => this.updateStations() };
+
+  /**
+   * The HUD makes way for a shot, so the store mirrors the engine's. A shot's end also ends the
+   * banner raised over it, however the shot ended: run out, skipped or cut short.
+   */
+  private readonly offShotChange = this.engine.onShotChange((kind) => {
+    this.store.shot.set(kind);
+    if (kind === null) {
+      this.store.banner.set(null);
+    }
+  });
+
+  /**
+   * Behind the start gate the world is already running, and an arrival played there would be over
+   * before anyone saw it; it waits for the click instead.
+   */
+  private readonly arrivalEffect = effect(() => {
+    if (this.store.started()) {
+      untracked(() => this.flushArrival());
+    }
+  });
 
   private readonly menuDistanceEffect = effect(() => {
     const menuOpen = this.store.menuOpen();
@@ -98,6 +137,7 @@ export class SceneDirector {
       this.endDemo();
       // Cleared before the swap: the incoming world writes its own state when it starts.
       this.store.setWorldStatus(null);
+      this.clearStations();
       // `setScene` disposes the previous world; only a scene that reaches here was ever built.
       this.engine.setScene(scene);
       // After the scene, so the interaction reset it fires has already cleared what was nearby.
@@ -154,19 +194,76 @@ export class SceneDirector {
     return true;
   }
 
-  /** Restarts current world's local flow, if it exposes one. */
+  /**
+   * Restarts current world's local flow, if it exposes one. The stations start over with it: no
+   * shot, no glide, nothing visited. The arrival does not play again.
+   */
   restart(): void {
+    this.clearStations();
     this.current?.restart?.(this.engine.player);
   }
 
-  /** Places a browser test visitor in front of a current-world interactable. */
+  /**
+   * Glides the player to station `index` (1…8), or to the portal for 0, along the world's own
+   * path. Does nothing in a world without stations or for a station it does not have.
+   */
+  glideTo(index: number): void {
+    // Any station key skips a running shot, whether or not there is anywhere to glide to.
+    this.engine.skipShot();
+    const scene = this.current;
+    if (!scene?.stations) {
+      return;
+    }
+    const stand = index === 0 ? scene.portalStand : scene.stations[index - 1]?.stand;
+    if (!stand) {
+      return;
+    }
+
+    const from = { x: this.engine.player.position.x, z: this.engine.player.position.z };
+    const to = { x: stand.x, z: stand.z };
+    const glide = planGlide(scene.glidePath?.(from, to) ?? [from, to], stand.yaw);
+    // `null` means the player already stands there.
+    if (glide) {
+      this.engine.glide(glide);
+    }
+  }
+
+  /**
+   * The world's key moment (spec §3): the camera rises to the overview and back while `banner`
+   * shows. The banner goes when the shot ends; a world without an overview holds it up for the
+   * moment's length instead.
+   */
+  playMoment(banner: string): void {
+    this.clearTimer('bannerTimer');
+    this.store.banner.set(banner);
+    const overview = this.current?.overview;
+    if (overview) {
+      this.engine.playShot(momentShot(overview, this.capability.reducedMotion()));
+      return;
+    }
+    this.bannerTimer = setTimeout(() => {
+      this.bannerTimer = null;
+      this.store.banner.set(null);
+    }, MOMENT.total * 1000);
+  }
+
+  /** Shows a passing line of the world's for 2.2 s after the last one. */
+  showToast(text: string): void {
+    this.clearTimer('toastTimer');
+    this.store.showToast(text);
+    this.toastTimer = setTimeout(() => {
+      this.toastTimer = null;
+      this.store.toast.set(null);
+    }, TOAST_MS);
+  }
+
+  /** Places a browser test visitor on a spot the world names, or in front of an interactable. */
   teleportToInteractableForTest(id: string): boolean {
-    if (id === 'deslopify:bridge-south' && this.current?.id === 'project:deslopify') {
-      // On the deck, 3 m short of the arch: a few steps from the trigger even at SwiftShader's
-      // frame rate in CI, where every frame advances at most `ENGINE_MAX_FRAME_SECONDS`.
+    const spot = this.current?.testSpots?.[id];
+    if (spot) {
       this.engine.player.teleport(
-        new Vector3(BRIDGE_SOUTH.x, BRIDGE.deckHeight + PLAYER_EYE_HEIGHT, ARCH.z + 3),
-        0,
+        new Vector3(spot.x, spot.y + PLAYER_EYE_HEIGHT, spot.z),
+        spot.yaw,
       );
       return true;
     }
@@ -214,6 +311,10 @@ export class SceneDirector {
   /** Page teardown: the store is a root singleton, so the remembered state has to go with it. */
   reset(): void {
     this.endDemo();
+    this.clearStations();
+    this.stations = null;
+    this.store.stations.set([]);
+    this.engine.removeTickable(this.stationTicker);
     this.sequence++;
     this.current = null;
     this.previousSlug = null;
@@ -245,6 +346,8 @@ export class SceneDirector {
       onLeave: () => void this.router.navigate(['/']),
       onDemo: () => this.startDemo(),
       onStatus: (status) => this.store.setWorldStatus(status),
+      onToast: (text) => this.showToast(text),
+      onMoment: (banner) => this.playMoment(banner),
       input: this.input,
       textures: this.assets,
     });
@@ -267,8 +370,83 @@ export class SceneDirector {
     this.store.setTravelDistances(distances);
   }
 
-  /** Where the arriving player stands (spec §6, "Placement and re-entrancy"). */
+  /**
+   * Sets the arriving player down, then the world's stations and, on a first visit, its arrival
+   * camera. After `setScene`, which would end a shot played any earlier.
+   */
   private place(scene: WorldScene): void {
+    this.placePlayer(scene);
+
+    this.stations = scene.stations
+      ? new StationDirector(scene.stations, scene.plateAt?.bind(scene))
+      : null;
+    this.store.stations.set(this.stations?.chips() ?? []);
+    this.store.plate.set(null);
+    // Idempotent, and needed again after a page teardown, which empties the engine's tickables.
+    this.engine.addTickable(this.stationTicker);
+
+    if (scene.overview) {
+      this.pendingArrival = scene;
+      this.flushArrival();
+    }
+  }
+
+  /** Plays the arrival owed to the current world, once the visitor is past the start gate. */
+  private flushArrival(): void {
+    const scene = this.pendingArrival;
+    if (!scene?.overview || !this.store.started()) {
+      return;
+    }
+    this.pendingArrival = null;
+    if (!firstVisit(scene.id)) {
+      return;
+    }
+    this.engine.playShot(arrivalShot(scene.overview, this.capability.reducedMotion()));
+    this.store.pitch.set(scene.pitch ?? null);
+  }
+
+  private updateStations(): void {
+    const stations = this.stations;
+    if (!stations) {
+      return;
+    }
+    const { x, z } = this.engine.player.position;
+    if (stations.update(x, z)) {
+      this.store.stations.set(stations.chips());
+      this.store.plate.set(stations.plate());
+    }
+  }
+
+  /**
+   * Everything that belongs to the moment rather than to the world: the shot, the glide, the
+   * visits, the plate, a toast, the banner and the pitch. For a swap, a restart and a teardown.
+   */
+  private clearStations(): void {
+    this.engine.endShot();
+    this.engine.cancelGlide();
+    this.pendingArrival = null;
+    this.stations?.reset();
+    if (this.stations) {
+      this.store.stations.set(this.stations.chips());
+    }
+    this.clearTimer('toastTimer');
+    this.clearTimer('bannerTimer');
+    this.store.plate.set(null);
+    this.store.toast.set(null);
+    this.store.banner.set(null);
+    this.store.pitch.set(null);
+  }
+
+  private clearTimer(which: 'toastTimer' | 'bannerTimer'): void {
+    const timer = this[which];
+    if (timer !== null) {
+      clearTimeout(timer);
+      this[which] = null;
+    }
+  }
+
+  /** Where the arriving player stands (spec §6, "Placement and re-entrancy"). */
+  private placePlayer(scene: WorldScene): void {
     if (scene instanceof ProjectScene) {
       const { position, yaw } = scene.arrival;
       this.engine.player.teleport(position.clone().setY(position.y + PLAYER_EYE_HEIGHT), yaw);
@@ -290,4 +468,26 @@ export class SceneDirector {
       hub.spawnYaw,
     );
   }
+}
+
+/**
+ * Whether this is the first visit to `sceneId` in this browser session, marking it as seen. Storage
+ * that throws — disabled, full, sandboxed — counts as a first visit: better an arrival twice than
+ * never.
+ */
+function firstVisit(sceneId: string): boolean {
+  const key = arrivalKey(sceneId);
+  try {
+    if (sessionStorage.getItem(key) !== null) {
+      return false;
+    }
+  } catch {
+    return true;
+  }
+  try {
+    sessionStorage.setItem(key, '1');
+  } catch {
+    // Not remembered, so the next visit plays it again.
+  }
+  return true;
 }

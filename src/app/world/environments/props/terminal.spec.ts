@@ -50,7 +50,7 @@ const PROJECT: Project = {
 class FakeInput implements InputActionSource {
   capturedPrompt: string | undefined;
   private readonly captureListeners = new Set<(captured: boolean, prompt: string | null) => void>();
-  private readonly actionListeners = new Set<(action: InputAction) => void>();
+  private readonly actionListeners = new Set<(action: InputAction, repeat: boolean) => void>();
 
   capture(prompt?: string): void {
     this.capturedPrompt = prompt;
@@ -67,13 +67,13 @@ class FakeInput implements InputActionSource {
     return () => this.captureListeners.delete(listener);
   }
 
-  addActionListener(listener: (action: InputAction) => void): () => void {
+  addActionListener(listener: (action: InputAction, repeat: boolean) => void): () => void {
     this.actionListeners.add(listener);
     return () => this.actionListeners.delete(listener);
   }
 
   emit(action: InputAction): void {
-    this.actionListeners.forEach((listener) => listener(action));
+    this.actionListeners.forEach((listener) => listener(action, false));
   }
 }
 

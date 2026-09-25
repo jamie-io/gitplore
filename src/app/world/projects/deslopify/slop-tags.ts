@@ -32,6 +32,8 @@ export interface SlopTagsOptions {
   /** Each tag's `rotationY`, in anchor order; missing entries face +Z. */
   readonly yaws?: readonly number[];
   readonly reducedMotion?: boolean | (() => boolean);
+  /** Flips per second to the original in the clear and back in the slop; the scene passes the flow's. */
+  readonly rates?: { readonly on: number; readonly off: number };
 }
 
 interface TagState {
@@ -49,10 +51,12 @@ export class SlopTags {
   private readonly tags: TagState[] = [];
   private readonly textures: CanvasTexture[] = [];
   private readonly reducedMotion: () => boolean;
+  private readonly rates: { readonly on: number; readonly off: number };
   private time = 0;
 
   constructor(options: SlopTagsOptions) {
     this.reducedMotion = motionFlag(options.reducedMotion);
+    this.rates = options.rates ?? { on: FLIP_FORWARD_RATE, off: FLIP_BACK_RATE };
     this.object.name = 'slop-tags';
     this.object.userData['tagCount'] = options.anchors.length;
 
@@ -113,7 +117,7 @@ export class SlopTags {
         ? cleared
           ? 1
           : 0
-        : clamp(tag.w + (cleared ? FLIP_FORWARD_RATE : -FLIP_BACK_RATE) * seconds, 0, 1);
+        : clamp(tag.w + (cleared ? this.rates.on : -this.rates.off) * seconds, 0, 1);
       tag.tag.userData['w'] = tag.w;
     }
     this.applyVisuals();

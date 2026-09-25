@@ -7,6 +7,10 @@
 export const ENVIRONMENT_MODELS = {
   'cairn.glb': 'jungle',
   'card-frame.glb': 'jungle',
+  'cave-cliff.glb': 'jungle',
+  'commit-steps.glb': 'jungle',
+  'exhibit-easel.glb': 'jungle',
+  'feed-wall.glb': 'jungle',
   'jungle-arch.glb': 'jungle',
   'jungle-rocks.glb': 'jungle',
   'lantern.glb': 'jungle',

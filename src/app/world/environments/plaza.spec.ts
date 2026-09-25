@@ -172,8 +172,8 @@ describe('PlazaEnvironment', () => {
     expect(toys.terminal.rotationY).toBeCloseTo((3 * Math.PI) / 4, 2);
     expect(toys.languages.position.toArray()).toEqual([STATIONS[3].prop.x, 0, STATIONS[3].prop.z]);
     expect(toys.languages.rotationY).toBeCloseTo((-3 * Math.PI) / 4, 2);
-    expect(toys.ridge.from.toArray()).toEqual([RIDGE.from.x, 0, RIDGE.from.z]);
-    expect(toys.ridge.to.toArray()).toEqual([RIDGE.to.x, 0, RIDGE.to.z]);
+    expect(toys.ridge?.from.toArray()).toEqual([RIDGE.from.x, 0, RIDGE.from.z]);
+    expect(toys.ridge?.to.toArray()).toEqual([RIDGE.to.x, 0, RIDGE.to.z]);
     expect(toys.releases).toEqual(toys.ridge);
     expect(toys.stars).toEqual(toys.ridge);
     // Every prop stands on the station ring, three metres behind its stand.

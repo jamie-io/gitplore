@@ -1,9 +1,17 @@
 import { Vector3 } from 'three';
+import type { ShotPose } from '@engine/camera/camera-shot';
 import { Interactable } from '@engine/interaction/interactable';
 import type { InputActionSource } from '@engine/input.service';
 import { Collider } from '@engine/player/collision';
 import { PlayerController } from '@engine/player/player-controller';
 import { PlayerVisual } from '@engine/player/player-visual';
+import type {
+  GroundPoint,
+  ScenePitch,
+  StationPlate,
+  StationSpec,
+  StationStand,
+} from '@engine/stations/station';
 import { WorldContext, WorldObject, WorldScene } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import { Explorer } from '../avatar/explorer';
@@ -12,11 +20,16 @@ import { CommitRidge } from '../environments/data/commit-ridge';
 import { LanguagePillars, languageSideOffset } from '../environments/data/language-pillars';
 import { ReleaseMarkers } from '../environments/data/release-markers';
 import { StarLanterns } from '../environments/data/star-lanterns';
+import { ExhibitEasel } from '../environments/props/exhibit-easel';
 import { SeedLever } from '../environments/props/seed-lever';
 import { Terminal } from '../environments/props/terminal';
 import { HazedCopies } from '../environments/shaders/hazed-copies';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
-import { ScreenLandmark, ScreenLandmarkOptions } from '../landmarks/base/screen.landmark';
+import {
+  SCREEN_CENTRE,
+  ScreenLandmark,
+  ScreenLandmarkOptions,
+} from '../landmarks/base/screen.landmark';
 import { ReturnPortal } from './return.landmark';
 
 /** Metres from the walk's centre line to either toy: past the ridge and release cairns on one side. */
@@ -161,6 +174,13 @@ export interface ProjectSceneOptions {
    * it changes; `null` clears it. Only worlds with a state of their own write it.
    */
   readonly onStatus?: (status: string | null) => void;
+  /** A passing line for the HUD, e.g. a lantern lit; the director clears it after a moment. */
+  readonly onToast?: (text: string) => void;
+  /**
+   * The world's key moment has happened: the director plays the moment camera over the overview
+   * and shows `banner` for as long as it runs. Only worlds with an `overview` have one.
+   */
+  readonly onMoment?: (banner: string) => void;
 }
 
 /**
@@ -190,6 +210,8 @@ export class ProjectScene implements WorldScene {
   readonly terminal: Terminal;
   /** `null` for an environment whose `toyLayout()` lays out no lever, the Plaza among them. */
   readonly seedLever: SeedLever | null;
+  /** The star lanterns, or in the jungle the firefly swarm a bespoke scene steers. */
+  protected readonly starLanterns: StarLanterns;
   /** Hazed copies of loaded models' materials, where the environment has an atmosphere to share. */
   protected readonly haze: HazedCopies | null;
 
@@ -226,8 +248,10 @@ export class ProjectScene implements WorldScene {
     // metres in front of it and a yaw pointing away, which is exactly "the exit is behind you".
     // `Landmark.spawnYaw` already adds one `Math.PI` to `rotationY`; subtracting it here (rather
     // than adding, which `sin`/`cos` would make physically identical but numerically 2π off)
-    // keeps `arrival.yaw` exactly equal to `environment.spawnYaw` instead of `+ 2π`.
-    const back: LandmarkPlacement = {
+    // keeps `arrival.yaw` exactly equal to `environment.spawnYaw` instead of `+ 2π`. An environment
+    // may stand it further back instead, facing the spawn from behind (the jungle's niche in the
+    // rim), so it is neither underfoot nor in front of the arrival's cameras.
+    const back: LandmarkPlacement = this.environment.returnPortal ?? {
       position: [this.environment.spawn.x, 0, this.environment.spawn.z],
       rotationY: this.environment.spawnYaw - Math.PI,
     };
@@ -264,30 +288,54 @@ export class ProjectScene implements WorldScene {
           position: toys.lever.position,
           rotationY: toys.lever.rotationY,
           ground: this.environment.ground,
-          onReseed: (offset) => this.environment.reseedDecoration?.(offset),
+          onReseed: (o) => this.reseed(o),
           reducedMotion: options.reducedMotion,
           skin,
           haze: this.haze ?? undefined,
         })
       : null;
+    this.starLanterns = new StarLanterns({
+      project: options.project,
+      from: toys.stars.from,
+      to: toys.stars.to,
+      reducedMotion: options.reducedMotion,
+      skin,
+      ground: this.environment.ground,
+    });
     this.parts = [
       this.terminal,
       ...(this.seedLever ? [this.seedLever] : []),
       this.exhibit,
       this.returnPortal,
-      new CommitRidge({
-        project: options.project,
-        from: toys.ridge.from,
-        to: toys.ridge.to,
-        ground: this.environment.ground,
-        skin: modelSkin,
-        haze: this.haze ?? undefined,
-        reducedMotion: options.reducedMotion,
-      }),
+      // The jungle stands its exhibit in a timber easel; everywhere else it stands on its post.
+      ...(skin === 'jungle'
+        ? [
+            new ExhibitEasel({
+              position: this.exhibit.position,
+              rotationY: this.exhibit.rotationY,
+              screenCentre: SCREEN_CENTRE,
+              haze: this.haze ?? undefined,
+            }),
+          ]
+        : []),
+      ...(toys.ridge
+        ? [
+            new CommitRidge({
+              project: options.project,
+              from: toys.ridge.from,
+              to: toys.ridge.to,
+              ground: this.environment.ground,
+              skin: modelSkin,
+              haze: this.haze ?? undefined,
+              reducedMotion: options.reducedMotion,
+            }),
+          ]
+        : []),
       new LanguagePillars({
         project: options.project,
         origin: toys.languages.position,
         rotationY: toys.languages.rotationY,
+        stalks: toys.languages.stalks,
         ground: this.environment.ground,
         skin: modelSkin,
         haze: this.haze ?? undefined,
@@ -300,13 +348,7 @@ export class ProjectScene implements WorldScene {
         skin,
         haze: this.haze ?? undefined,
       }),
-      new StarLanterns({
-        project: options.project,
-        from: toys.stars.from,
-        to: toys.stars.to,
-        reducedMotion: options.reducedMotion,
-        skin,
-      }),
+      this.starLanterns,
     ];
   }
 
@@ -352,6 +394,46 @@ export class ProjectScene implements WorldScene {
   // eslint-disable-next-line @typescript-eslint/class-literal-property-style
   get demo(): InWorldDemo | null {
     return null;
+  }
+
+  /*
+   * The stations, the stands, the shots and the plates the director reads (spec §2, §3). A plain
+   * project world has none of them; a bespoke scene overrides the getters, and defines the two
+   * methods, to have them. Getters, not fields, for the same reason as `demo`.
+   */
+
+  /** The stops of the station bar, in order; none in a plain project world. */
+  get stations(): readonly StationSpec[] | undefined {
+    return undefined;
+  }
+
+  /** Where the 0 key glides to. */
+  get portalStand(): StationStand | undefined {
+    return undefined;
+  }
+
+  /** The pose that frames the whole world, for the arrival camera and the key moment. */
+  get overview(): ShotPose | undefined {
+    return undefined;
+  }
+
+  /** The project's name and one line, over the arrival camera. */
+  get pitch(): ScenePitch | undefined {
+    return undefined;
+  }
+
+  /** The way a glide takes between two spots; a straight line where a scene does not say. */
+  glidePath?(from: GroundPoint, to: GroundPoint): readonly GroundPoint[];
+
+  /** The plate for a find at (x, z) that is not a station. */
+  plateAt?(x: number, z: number): StationPlate | null;
+
+  /**
+   * The seed lever was pulled for the `offset`-th time: the environment scatters its decoration
+   * anew. A bespoke scene may add its own answer to the pull, such as the jungle's fireflies.
+   */
+  protected reseed(offset: number): void {
+    this.environment.reseedDecoration?.(offset);
   }
 
   /** Adds a bespoke object. Call from a subclass constructor only: shapes are read after that. */

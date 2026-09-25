@@ -1,4 +1,15 @@
-import { BADGE, CAPTION, FEED_CARDS, PALETTE, PROMPTS, SLOP_TAGS } from './deslopify.data';
+import {
+  BADGE,
+  CAPTION,
+  FEED_CARDS,
+  MOMENT_BANNER,
+  PALETTE,
+  PLATES,
+  PROMPTS,
+  SLOP_TAGS,
+  STATION_NAMES,
+  TOASTS,
+} from './deslopify.data';
 
 describe('Deslopify canonical data', () => {
   it('holds the four canonical feed cards verbatim', () => {
@@ -125,5 +136,68 @@ describe('Deslopify canonical data', () => {
       ink: '#f4efe4',
       engrave: '#f4e6c8',
     });
+  });
+});
+
+describe('Lichtung copy', () => {
+  it('names the seven stations in story order', () => {
+    expect(STATION_NAMES).toEqual([
+      'Laterne',
+      'Feed-Pfad',
+      'Commit-Stufen',
+      'Bogen',
+      'Exponat',
+      'Feed-Wand',
+      'Höhle',
+    ]);
+  });
+  it('fills the commit count into the steps plate', () => {
+    expect(PLATES.stufen(4).text).toBe(
+      'Elf Stufen hinauf zum Bogen, eine pro Zeitabschnitt. Stufen mit Commits leuchten. Bisher 4 Commits.',
+    );
+    expect(PLATES.stufen(1).text).toContain('Bisher 1 Commit.');
+  });
+  it('says no release yet when there is none', () => {
+    expect(PLATES.cairn(null)).toEqual({
+      kicker: 'Fund',
+      title: 'Release-Steinmann',
+      text: 'Noch kein Release.',
+      en: 'No release yet.',
+    });
+    expect(PLATES.cairn({ de: 'v1.2.0', en: 'v1.2.0' }).text).toBe('Letztes Release: v1.2.0');
+  });
+  it('names the release in each language’s own date on the cairn', () => {
+    const plate = PLATES.cairn({
+      de: 'v1.2.0 · 1. September 2025',
+      en: 'v1.2.0 · 1 September 2025',
+    });
+    expect(plate.text).toBe('Letztes Release: v1.2.0 · 1. September 2025');
+    expect(plate.en).toBe('Latest release: v1.2.0 · 1 September 2025');
+  });
+  it('keeps the portal, wall and moment strings verbatim', () => {
+    expect(PLATES.portal.en).toBe(
+      'A browser extension that brings back original YouTube titles, thumbnails and audio. Follow the lantern.',
+    );
+    expect(PLATES.wandOff.text).toBe('Noch voller Slop. Erst unter dem Bogen installieren.');
+    expect(MOMENT_BANNER).toBe('Deslopify installiert · der Dschungel wird entslopt');
+    expect(TOASTS.wallOn).toBe('Deslopify an: neuer Ring von der Wand');
+  });
+  it('keeps every plate text to two lines of German and one of English', () => {
+    const plates = [
+      PLATES.portal,
+      PLATES.laterne,
+      PLATES.pfad,
+      PLATES.stufen(4),
+      PLATES.bogen,
+      PLATES.exponat,
+      PLATES.wandOn,
+      PLATES.wandOff,
+      PLATES.hoehle,
+      PLATES.liana,
+    ];
+    for (const plate of plates) {
+      expect(plate.text.length).toBeLessThanOrEqual(130);
+      expect(plate.en.length).toBeLessThanOrEqual(110);
+    }
   });
 });

@@ -15,6 +15,7 @@ import { WorldContext, WorldObject } from '@engine/world-object';
 import { Mood } from './mood';
 import { ATMOSPHERE_FOG_GLSL } from './shaders/atmosphere';
 import { NOISE_GLSL } from './shaders/noise.glsl';
+import { groundHazeProgram } from './shaders/ground-haze';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
 interface WaterBase {
@@ -376,6 +377,8 @@ function waterMaterial(options: WaterOptions, detail: 0 | 1 | 2): ShaderMaterial
   const current: { defines: Record<string, string>; uniforms: Record<string, IUniform> } = flow
     ? { defines: { WATER_FLOW: '' }, uniforms: { flow: { value: new Vector2(flow[0], flow[1]) } } }
     : { defines: {}, uniforms: {} };
+  // The ground haze, where the world has one: the water lies under it like the bank beside it.
+  const haze = groundHazeProgram(shared.groundHaze, { linear: !bankFog });
   // Three refreshes `fogColor`, `fogNear` and `fogFar` from `scene.fog` on any material with
   // `fog: true` that declares them, so the water follows the same fog the terrain does.
   return new ShaderMaterial({
@@ -385,9 +388,11 @@ function waterMaterial(options: WaterOptions, detail: 0 | 1 | 2): ShaderMaterial
       ...current.defines,
       ...(reflection === undefined ? {} : { WATER_REFLECTION: reflection.toFixed(3) }),
       ...(bankFog ? { WATER_BANK_FOG: '' } : {}),
+      ...haze.defines,
     },
     uniforms: {
       ...current.uniforms,
+      ...haze.uniforms,
       ...UniformsUtils.clone(UniformsLib.fog),
       time: shared.time,
       sunDirection: shared.sunDirection,

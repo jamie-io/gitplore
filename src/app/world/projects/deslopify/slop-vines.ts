@@ -24,6 +24,8 @@ export interface SlopVinesOptions {
   readonly anchors: readonly Vector3[];
   readonly seed: number;
   readonly reducedMotion?: boolean | (() => boolean);
+  /** Retreat per second in the clear and regrowth in the slop; the scene passes the flow's. */
+  readonly rates?: { readonly retreat: number; readonly regrow: number };
 }
 
 interface VineState {
@@ -56,11 +58,13 @@ export class SlopVines {
   private readonly budPosition = new Vector3();
   private readonly budGeometry = new SphereGeometry(BUD_RADIUS, 10, 8);
   private readonly reducedMotion: () => boolean;
+  private readonly rates: { readonly retreat: number; readonly regrow: number };
   private time = 0;
 
   constructor(options: SlopVinesOptions) {
     this.anchors = options.anchors.map((anchor) => anchor.clone());
     this.reducedMotion = motionFlag(options.reducedMotion);
+    this.rates = options.rates ?? { retreat: RETREAT_RATE, regrow: REGROW_RATE };
     this.object.name = 'slop-vines';
     this.object.userData['vineCount'] = this.anchors.length;
 
@@ -129,7 +133,11 @@ export class SlopVines {
         ? cleared
           ? MIN_GROW
           : 1
-        : clamp(vine.grow + (cleared ? -RETREAT_RATE : REGROW_RATE) * seconds, MIN_GROW, 1);
+        : clamp(
+            vine.grow + (cleared ? -this.rates.retreat : this.rates.regrow) * seconds,
+            MIN_GROW,
+            1,
+          );
       vine.group.userData['grow'] = vine.grow;
     }
     this.applyVisuals();

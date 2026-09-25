@@ -1,4 +1,13 @@
-import { BufferAttribute, BufferGeometry, Color, Group, Mesh, Object3D, Vector3 } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  Group,
+  Matrix4,
+  Mesh,
+  Object3D,
+  Vector3,
+} from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { AssetLike } from '@engine/asset.service';
 
@@ -67,6 +76,18 @@ function findMesh(node: Object3D): Mesh | null {
 export function adoptNode(node: Object3D, authoredAt: Vector3): Object3D {
   node.position.sub(authoredAt);
   return node;
+}
+
+/**
+ * `node`'s transform in `frame`'s space, wherever in the loaded tree it hangs: an empty the game
+ * reads a placement from (a slot, a hinge, an anchor) need not be a direct child of the model's
+ * root, and the root itself may carry a transform. `frame` is usually the group the model was
+ * added to.
+ */
+export function transformIn(node: Object3D, frame: Object3D, target = new Matrix4()): Matrix4 {
+  frame.updateWorldMatrix(true, false);
+  node.updateWorldMatrix(true, false);
+  return target.copy(frame.matrixWorld).invert().multiply(node.matrixWorld);
 }
 
 /**

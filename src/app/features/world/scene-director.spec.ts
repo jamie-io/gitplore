@@ -7,13 +7,17 @@ import { ENGINE } from '@engine/engine.service';
 import { DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { CAPABLE, stubContext } from '@engine/testing/world-context';
 import { StubEngine } from '@engine/testing/stub-engine';
+import { MOMENT } from '@engine/camera/camera-shot';
+import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
+import type { GroundPoint, StationSpec } from '@engine/stations/station';
+import type { WorldScene } from '@engine/world-object';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { ContentService } from '@content/content.service';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { WorldStore } from '@ui/store/world.store';
 import { GALERIE, LICHTUNG } from '@world/environments/mood';
 import { HubScene } from '@world/hub/hub.scene';
-import { InWorldDemo, ProjectScene } from '@world/project/project.scene';
+import { InWorldDemo, ProjectScene, ProjectSceneOptions } from '@world/project/project.scene';
 import { SceneDirector } from './scene-director';
 
 describe('SceneDirector', () => {
@@ -247,6 +251,332 @@ describe('SceneDirector', () => {
 
   afterEach(() => vi.restoreAllMocks());
 
+  describe('stations and camera shots', () => {
+    const OVERVIEW = { position: { x: 0, y: 24, z: 36 }, target: { x: 0, y: 0, z: -6 } };
+    const PITCH = { title: 'Novaverta', line: 'Eine Zeile · One line' };
+    const PORTAL_STAND = { x: 0, z: 6, yaw: 0 };
+    const WAYPOINT: GroundPoint = { x: 5, z: -20 };
+    const STATIONS: readonly StationSpec[] = ['eins', 'zwei', 'drei'].map((id, i) => ({
+      id,
+      name: id,
+      stand: { x: 0, z: -10 * (i + 1), yaw: 0.5 * i },
+      trigger: 3,
+      plate: () => ({ kicker: `Station ${i + 1}`, title: id, text: `${id} text`, en: `${id} en` }),
+    }));
+
+    /** Session storage that keeps what it is told, fresh for every test. */
+    function memoryStorage(): Pick<Storage, 'getItem' | 'setItem'> {
+      const items = new Map<string, string>();
+      return {
+        getItem: (key) => items.get(key) ?? null,
+        setItem: (key, value) => void items.set(key, value),
+      };
+    }
+
+    /**
+     * Dresses novaverta's scene as a world that declares stations would be, the moment it reaches
+     * the engine and before the director places it. No real world declares them yet.
+     */
+    function dressNovaverta(): void {
+      const setScene = engine.setScene.bind(engine);
+      engine.setScene = (world: WorldScene) => {
+        if (world.id === 'project:novaverta') {
+          // Own properties, so they stand in front of `ProjectScene`'s getters for these.
+          Object.defineProperties(world, {
+            stations: { value: STATIONS },
+            portalStand: { value: PORTAL_STAND },
+            overview: { value: OVERVIEW },
+            pitch: { value: PITCH },
+            glidePath: { value: (from: GroundPoint, to: GroundPoint) => [from, WAYPOINT, to] },
+          });
+        }
+        setScene(world);
+      };
+    }
+
+    /** One frame of the loop, for the tickables the director hung on it. */
+    function frame(): void {
+      engine.tickables.forEach((tickable) => tickable.update(1 / 60));
+    }
+
+    function standAt(x: number, z: number): void {
+      engine.player.position.set(x, engine.player.position.y, z);
+      frame();
+    }
+
+    beforeEach(() => {
+      vi.stubGlobal('sessionStorage', memoryStorage());
+      store.markStarted();
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    });
+
+    it('plays the arrival over the overview on the first visit, with the pitch', async () => {
+      dressNovaverta();
+
+      await director.show('novaverta');
+
+      expect(engine.shots.map((shot) => shot.kind)).toEqual(['arrival']);
+      expect(engine.shots[0].pose).toBe(OVERVIEW);
+      expect(store.pitch()).toEqual(PITCH);
+      expect(store.shot()).toBe('arrival');
+    });
+
+    it('does not play it again on a later visit in the same session', async () => {
+      dressNovaverta();
+      await director.show('novaverta');
+      await director.show(null);
+
+      await director.show('novaverta');
+
+      expect(engine.shots.length).toBe(1);
+      expect(store.pitch()).toBeNull();
+    });
+
+    it('plays it when session storage throws, which counts as a first visit', async () => {
+      const throwing = () => {
+        throw new Error('storage disabled');
+      };
+      vi.stubGlobal('sessionStorage', { getItem: throwing, setItem: throwing });
+      dressNovaverta();
+
+      await director.show('novaverta');
+
+      expect(engine.shots.map((shot) => shot.kind)).toEqual(['arrival']);
+    });
+
+    it('holds the arrival until the visitor clicks through the start gate', async () => {
+      TestBed.inject(WorldStore).started.set(false);
+      dressNovaverta();
+
+      await director.show('novaverta');
+      expect(engine.shots.length).toBe(0);
+
+      store.markStarted();
+      TestBed.tick();
+
+      expect(engine.shots.map((shot) => shot.kind)).toEqual(['arrival']);
+      expect(store.pitch()).toEqual(PITCH);
+    });
+
+    it('leaves the bar empty and plays nothing in a world without stations', async () => {
+      await director.show('novaverta');
+      standAt(0, -10);
+
+      expect(store.stations()).toEqual([]);
+      expect(store.plate()).toBeNull();
+      expect(engine.shots.length).toBe(0);
+    });
+
+    it('fills the bar on arrival and follows the player from station to station', async () => {
+      dressNovaverta();
+      await director.show('novaverta');
+
+      expect(store.stations().map((chip) => chip.state)).toEqual(['next', 'open', 'open']);
+
+      standAt(0, -10);
+      expect(store.stations().map((chip) => chip.state)).toEqual(['here', 'next', 'open']);
+      expect(store.plate()?.title).toBe('eins');
+
+      standAt(0, -15);
+      expect(store.stations().map((chip) => chip.state)).toEqual(['visited', 'next', 'open']);
+      expect(store.plate()).toBeNull();
+    });
+
+    it('writes the store only when the bar or the plate changed', async () => {
+      dressNovaverta();
+      await director.show('novaverta');
+      standAt(0, -10);
+      const chips = store.stations();
+      const plate = store.plate();
+
+      standAt(0.5, -10);
+
+      expect(store.stations()).toBe(chips);
+      expect(store.plate()).toBe(plate);
+    });
+
+    it("glides along the scene's path to a station's stand", async () => {
+      dressNovaverta();
+      await director.show('novaverta');
+      const { x, z } = engine.player.position;
+
+      director.glideTo(2);
+
+      expect(engine.glides.length).toBe(1);
+      const glide = engine.glides[0];
+      expect(glide.points[0].x).toBeCloseTo(x, 6);
+      expect(glide.points[0].z).toBeCloseTo(z, 6);
+      expect(glide.points).toContainEqual(WAYPOINT);
+      expect(glide.points.at(-1)).toEqual({ x: 0, z: -20 });
+      expect(glide.endYaw).toBe(0.5);
+    });
+
+    it('glides to the portal stand on 0', async () => {
+      dressNovaverta();
+      await director.show('novaverta');
+      standAt(0, -30);
+
+      director.glideTo(0);
+
+      expect(engine.glides[0].points.at(-1)).toEqual({ x: 0, z: 6 });
+    });
+
+    it('skips a running shot before it glides', async () => {
+      dressNovaverta();
+      await director.show('novaverta');
+
+      director.glideTo(1);
+
+      expect(engine.skips).toBe(1);
+    });
+
+    it('does not glide in a world without stations, or to a station it lacks', async () => {
+      await director.show('novaverta');
+      director.glideTo(1);
+      expect(engine.glides.length).toBe(0);
+
+      dressNovaverta();
+      await director.show('poetzscher');
+      await director.show('novaverta');
+      director.glideTo(8);
+      expect(engine.glides.length).toBe(0);
+    });
+
+    it('plays the moment over the overview and shows the banner until it ends', async () => {
+      dressNovaverta();
+      await director.show('novaverta');
+
+      director.playMoment('Deslopify installiert');
+
+      expect(engine.shots.map((shot) => shot.kind)).toEqual(['arrival', 'moment']);
+      expect(engine.shots[1].pose).toBe(OVERVIEW);
+      expect(store.banner()).toBe('Deslopify installiert');
+      expect(store.shot()).toBe('moment');
+
+      engine.endShot();
+
+      expect(store.banner()).toBeNull();
+      expect(store.shot()).toBeNull();
+    });
+
+    it('holds the banner up for the moment’s length in a world without an overview', async () => {
+      vi.useFakeTimers();
+      await director.show('novaverta');
+
+      director.playMoment('Banner');
+
+      expect(store.banner()).toBe('Banner');
+      vi.advanceTimersByTime(MOMENT.total * 1000);
+      expect(store.banner()).toBeNull();
+    });
+
+    it('clears a toast 2.2 s after the last one', async () => {
+      vi.useFakeTimers();
+      await director.show('novaverta');
+
+      director.showToast('eins');
+      vi.advanceTimersByTime(1000);
+      director.showToast('zwei');
+      vi.advanceTimersByTime(2199);
+      expect(store.toast()?.text).toBe('zwei');
+
+      vi.advanceTimersByTime(1);
+      expect(store.toast()).toBeNull();
+    });
+
+    it("wires the world's toast and moment callbacks to the HUD", async () => {
+      vi.useFakeTimers();
+      await director.show('deslopify');
+      const { sceneOptions } = engine.world as unknown as { sceneOptions: ProjectSceneOptions };
+
+      sceneOptions.onToast?.('Laterne');
+      sceneOptions.onMoment?.('Banner');
+
+      expect(store.toast()?.text).toBe('Laterne');
+      expect(store.banner()).toBe('Banner');
+      // Deslopify frames its bowl: the moment's shot rises to its overview and holds the banner.
+      expect(engine.shots.at(-1)?.kind).toBe('moment');
+      engine.endShot();
+      expect(store.banner()).toBeNull();
+    });
+
+    /** A world mid-moment, with a toast up, a station visited and the player at the next one. */
+    async function midMoment(): Promise<void> {
+      dressNovaverta();
+      await director.show('novaverta');
+      standAt(0, -10);
+      standAt(0, -20);
+      director.glideTo(3);
+      director.showToast('Laterne');
+      director.playMoment('Banner');
+    }
+
+    function expectCleared(): void {
+      expect(store.banner()).toBeNull();
+      expect(store.toast()).toBeNull();
+      expect(store.plate()).toBeNull();
+      expect(store.pitch()).toBeNull();
+      expect(store.shot()).toBeNull();
+      expect(engine.gliding()).toBe(false);
+    }
+
+    it('ends the shot and the glide and forgets the visits on restart', async () => {
+      await midMoment();
+      const endShot = vi.spyOn(engine, 'endShot');
+      const cancelGlide = vi.spyOn(engine, 'cancelGlide');
+
+      director.restart();
+
+      expect(endShot).toHaveBeenCalled();
+      expect(cancelGlide).toHaveBeenCalled();
+      expectCleared();
+      expect(store.stations().map((chip) => chip.state)).toEqual(['next', 'open', 'open']);
+      // Restarting never plays the arrival again.
+      expect(engine.shots.map((shot) => shot.kind)).toEqual(['arrival', 'moment']);
+    });
+
+    it('ends the shot and the glide and clears the HUD when the world is swapped', async () => {
+      await midMoment();
+      const endShot = vi.spyOn(engine, 'endShot');
+      const cancelGlide = vi.spyOn(engine, 'cancelGlide');
+
+      await director.show('poetzscher');
+
+      expect(endShot).toHaveBeenCalled();
+      expect(cancelGlide).toHaveBeenCalled();
+      expectCleared();
+      expect(store.stations()).toEqual([]);
+    });
+
+    it('starts a revisited world with nothing visited', async () => {
+      await midMoment();
+      await director.show(null);
+
+      await director.show('novaverta');
+
+      expect(store.stations().map((chip) => chip.state)).toEqual(['next', 'open', 'open']);
+    });
+
+    it('lets go of everything when the page goes away', async () => {
+      vi.useFakeTimers();
+      await midMoment();
+
+      director.reset();
+
+      expectCleared();
+      expect(store.stations()).toEqual([]);
+      expect(engine.tickables.size).toBe(0);
+      // A toast timer left behind must not reach into the next page's store.
+      store.showToast('neu');
+      vi.advanceTimersByTime(3000);
+      expect(store.toast()?.text).toBe('neu');
+    });
+  });
+
   /** A demo that takes the controls, standing in the generic scene's `demo`. */
   function capturedDemo(): InWorldDemo & { enters: number; interacts: number; exits: number } {
     const demo = {
@@ -369,6 +699,17 @@ describe('SceneDirector', () => {
     expect(engine.player.position.x).toBeCloseTo(scene.seedLever!.position.x, 6);
     expect(engine.player.position.z).toBeCloseTo(scene.seedLever!.position.z + 1.5, 6);
     expect(engine.player.yaw).toBe(0);
+  });
+
+  it('places a browser test visitor on a spot the world names for tests', async () => {
+    await director.show('deslopify');
+    const spot = engine.world!.testSpots!['deslopify:bridge-south'];
+
+    expect(director.teleportToInteractableForTest('deslopify:bridge-south')).toBe(true);
+    expect(engine.player.position.x).toBeCloseTo(spot.x, 6);
+    expect(engine.player.position.y).toBeCloseTo(spot.y + PLAYER_EYE_HEIGHT, 6);
+    expect(engine.player.position.z).toBeCloseTo(spot.z, 6);
+    expect(engine.player.yaw).toBe(spot.yaw);
   });
 
   it('opens the current project panel instead of navigating to the same world', async () => {
