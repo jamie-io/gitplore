@@ -175,12 +175,12 @@ export class LanguagePillars implements WorldObject {
       metalness: 0.08,
     });
     const plaza = this.options.skin === 'plaza';
+    // In the Plaza's air, as the square is: hazed on every tier but the lowest. The jungle's
+    // bamboo stands in the Lichtung's atmosphere like the release cairns beside it.
+    const hazed = jungle || (plaza && ctx.quality.shaderDetail > 0);
     const mesh = new Mesh(
       geometry,
-      // In the Plaza's air, as the square is: hazed on every tier but the lowest.
-      plaza && this.options.haze && ctx.quality.shaderDetail > 0
-        ? this.options.haze.own(material)
-        : material,
+      hazed && this.options.haze ? this.options.haze.own(material) : material,
     );
     mesh.name = this.id;
     mesh.userData['stalkCount'] = languages.length;

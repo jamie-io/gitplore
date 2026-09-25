@@ -150,6 +150,11 @@ export interface GroundHazeOptions {
   readonly clearing: Pick<ClearingUniforms, 'origin' | 'radius'>;
 }
 
+/** `value`, or 0 when it is not a finite number: a NaN uniform would blank the whole bowl. */
+function finite(value: number): number {
+  return Number.isFinite(value) ? value : 0;
+}
+
 /**
  * The jungle's ground haze: its baked ground and the uniforms the atmosphere reads, handed to every
  * material by identity through `SharedUniforms.groundHaze`. The world writes the global slop amount
@@ -199,12 +204,12 @@ export class GroundHaze {
 
   /** The global slop amount, clamped to 0 … 1. */
   setAmount(amount: number): void {
-    this.uniforms.uHazeAmount.value = Math.min(Math.max(amount, 0), 1);
+    this.uniforms.uHazeAmount.value = Math.min(Math.max(finite(amount), 0), 1);
   }
 
   /** Where the lantern's light clears the haze; a radius of 0 (or less) clears nothing. */
   setLight(x: number, z: number, radius: number): void {
-    this.uniforms.uHazeLight.value.set(x, z, Math.max(radius, 0));
+    this.uniforms.uHazeLight.value.set(finite(x), finite(z), Math.max(finite(radius), 0));
   }
 
   dispose(): void {
@@ -304,7 +309,8 @@ vec3 groundHaze(vec3 colour, vec3 worldPosition) {
   float depth = 0.0;
   for (int i = 0; i < HAZE_STEPS; i++) {
     vec3 p = cameraPosition + dir * (enter + (float(i) + 0.5) * stepLength);
-    float ground = texture2D(uHazeGround, (p.xz - uHazeRect.xy) * uHazeRect.zw).r;
+    // Level 0 stated outright: inside the loop implicit derivatives are undefined (WebGL2).
+    float ground = textureLod(uHazeGround, (p.xz - uHazeRect.xy) * uHazeRect.zw, 0.0).r;
     depth += hazeDensity(p.y - ground) * hazeMask(p.xz);
   }
   float opacity = ${f(GROUND_HAZE.opacity)} * uHazeAmount

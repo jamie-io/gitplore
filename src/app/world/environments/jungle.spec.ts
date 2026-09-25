@@ -962,6 +962,16 @@ describe('JungleEnvironment', () => {
       expect(environment.slop).toBe(0);
     });
 
+    it('reads a slop that is not a number as none', () => {
+      const environment = jungle();
+
+      environment.setSlop(Number.NaN);
+      expect(environment.slop).toBe(0);
+      expect(environment.groundHaze.uniforms.uHazeAmount.value).toBe(0);
+      environment.setSlop(Number.POSITIVE_INFINITY);
+      expect(environment.slop).toBe(0);
+    });
+
     it('keeps the full slop over the north bank too: the ring clears it, not the camera', () => {
       for (const z of [ARCH.z - DECK.halfLength - 1, ARCH.z, ARCH.z - 15]) {
         const north = slopped(z);

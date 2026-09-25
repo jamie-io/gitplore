@@ -830,7 +830,8 @@ export class JungleEnvironment implements Environment {
    * applies whatever it is given at once. Clamped to 0 … 1.
    */
   setSlop(value: number): void {
-    this.slopAmount = clamp01(value);
+    // A broken reading must not poison the fog and the haze with NaN: it reads as no slop.
+    this.slopAmount = Number.isFinite(value) ? clamp01(value) : 0;
     this.bridge.setGlow(1 - this.slopAmount);
     this.setGroundHaze(this.slopAmount);
   }

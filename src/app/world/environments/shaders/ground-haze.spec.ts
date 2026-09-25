@@ -203,6 +203,16 @@ describe('GroundHaze', () => {
     haze.dispose();
   });
 
+  it('reads an amount or a light that is not a number as 0', () => {
+    const haze = new GroundHaze({ heightAt: jungleHeightAt, clearing: clearingUniforms() });
+
+    haze.setAmount(Number.NaN);
+    expect(haze.uniforms.uHazeAmount.value).toBe(0);
+    haze.setLight(Number.NaN, Number.POSITIVE_INFINITY, Number.NaN);
+    expect(haze.uniforms.uHazeLight.value.toArray()).toEqual([0, 0, 0]);
+    haze.dispose();
+  });
+
   it('marches 4 steps on the low tier, 10 on medium and 16 on high', () => {
     const haze = new GroundHaze({ heightAt: jungleHeightAt, clearing: clearingUniforms() });
 
@@ -250,6 +260,9 @@ describe('the atmosphere with a ground haze', () => {
     expect(shader.fragmentShader).toContain('#define GROUND_HAZE');
     expect(shader.fragmentShader).toContain('#define HAZE_STEPS 16');
     expect(shader.fragmentShader).toContain('groundHaze(');
+    // Level 0 explicitly: the march samples inside a loop, where implicit derivatives are undefined.
+    expect(shader.fragmentShader).toContain('textureLod(uHazeGround,');
+    expect(shader.fragmentShader).not.toContain('texture2D(uHazeGround,');
     expect(shader.uniforms['uHazeLight']).toBe(haze.uniforms.uHazeLight);
     expect(shader.uniforms['uHazeAmount']).toBe(haze.uniforms.uHazeAmount);
     expect(shader.uniforms['uHazeClearOrigin']).toBe(haze.uniforms.uHazeClearOrigin);
