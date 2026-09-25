@@ -270,6 +270,53 @@ describe('WorldStore', () => {
     expect(store.paused()).toBe(true);
   });
 
+  describe('stations', () => {
+    it('gives each toast a new id, so the same words show again', () => {
+      store.showToast('Laterne entzündet');
+      const first = store.toast();
+      store.showToast('Laterne entzündet');
+      const second = store.toast();
+
+      expect(first?.text).toBe('Laterne entzündet');
+      expect(second?.text).toBe('Laterne entzündet');
+      expect(second?.id).not.toBe(first?.id);
+    });
+
+    it('asks for a glide by its number', () => {
+      store.requestGlide(4);
+
+      expect(store.glideRequest()).toBe(4);
+    });
+
+    it('starts with no stations, plate, toast, banner, pitch or shot', () => {
+      expect(store.stations()).toEqual([]);
+      expect(store.plate()).toBeNull();
+      expect(store.toast()).toBeNull();
+      expect(store.banner()).toBeNull();
+      expect(store.pitch()).toBeNull();
+      expect(store.shot()).toBeNull();
+      expect(store.glideRequest()).toBeNull();
+    });
+
+    it('forgets them when the page goes away', () => {
+      store.stations.set([{ index: 1, id: 'laterne', name: 'Laterne', state: 'next' }]);
+      store.plate.set({ kicker: 'Station 1', title: 'Die Laterne', text: 'Text', en: 'En' });
+      store.showToast('Hallo');
+      store.banner.set('Banner');
+      store.pitch.set({ title: 'Deslopify', line: 'Zeile' });
+      store.requestGlide(2);
+
+      store.resetTransient();
+
+      expect(store.stations()).toEqual([]);
+      expect(store.plate()).toBeNull();
+      expect(store.toast()).toBeNull();
+      expect(store.banner()).toBeNull();
+      expect(store.pitch()).toBeNull();
+      expect(store.glideRequest()).toBeNull();
+    });
+  });
+
   it('forgets the panel and the swap when the page goes away', () => {
     store.setPanelOpen(true);
     store.setSwapping(true);

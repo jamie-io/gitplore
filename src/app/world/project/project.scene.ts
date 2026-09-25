@@ -161,6 +161,13 @@ export interface ProjectSceneOptions {
    * it changes; `null` clears it. Only worlds with a state of their own write it.
    */
   readonly onStatus?: (status: string | null) => void;
+  /** A passing line for the HUD, e.g. a lantern lit; the director clears it after a moment. */
+  readonly onToast?: (text: string) => void;
+  /**
+   * The world's key moment has happened: the director plays the moment camera over the overview
+   * and shows `banner` for as long as it runs. Only worlds with an `overview` have one.
+   */
+  readonly onMoment?: (banner: string) => void;
 }
 
 /**

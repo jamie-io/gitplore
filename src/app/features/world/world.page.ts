@@ -7,6 +7,7 @@ import {
   effect,
   inject,
   signal,
+  untracked,
   viewChild,
   ElementRef,
 } from '@angular/core';
@@ -19,7 +20,7 @@ import { AssetManifest, AssetService } from '@engine/asset.service';
 import { AudioService } from '@engine/audio/audio.service';
 import { CapabilityService } from '@engine/capability.service';
 import { ENGINE } from '@engine/engine.service';
-import { InputAction, InputService } from '@engine/input.service';
+import { InputAction, InputService, STATION_ACTIONS, StationAction } from '@engine/input.service';
 import { ContentService } from '@content/content.service';
 import { Hud } from '@ui/hud/hud';
 import { LoadingScreen } from '@ui/loading-screen/loading-screen';
@@ -46,7 +47,7 @@ import { SceneDirector } from './scene-director';
       tabindex="0"
       role="application"
       aria-label="3D-Welt: mit WASD bewegen, mit den Pfeiltasten umsehen, E benutzt, V wechselt die Ansicht, M öffnet das Menü"
-      (click)="input.requestLock()"
+      (click)="onCanvasClick()"
       [inert]="overlayOpen()"
     ></canvas>
     <app-hud [inert]="overlayOpen()" />
@@ -216,6 +217,18 @@ export class WorldPage {
       }
     });
 
+    // A chip in the station bar asks through the store, as the panel asks for a demo.
+    effect(() => {
+      const index = this.store.glideRequest();
+      if (index === null) {
+        return;
+      }
+      this.store.glideRequest.set(null);
+      if (untracked(() => this.store.inputMode()) === 'world') {
+        this.director.glideTo(index);
+      }
+    });
+
     const offActions = this.input.addActionListener((action) => this.onAction(action));
     const offCapture = this.input.addCaptureListener((captured, prompt) =>
       this.store.setCaptured(captured, prompt),
@@ -236,6 +249,12 @@ export class WorldPage {
 
   protected travelTo(slug: string): void {
     this.director.travelTo(slug);
+  }
+
+  /** A click into the world takes the pointer, and like any key it skips a running shot. */
+  protected onCanvasClick(): void {
+    this.engine.skipShot();
+    this.input.requestLock();
   }
 
   /** The start gate was used: a user gesture, so pointer lock may be requested now. */
@@ -308,6 +327,18 @@ export class WorldPage {
   }
 
   private onAction(action: InputAction): void {
+    // Any key skips a running shot (spec §3) and then does what it always does — except leave the
+    // world, which is not what anyone pressing Esc over the arrival meant.
+    const shotRunning = this.store.shot() !== null;
+    this.engine.skipShot();
+
+    if (isStationAction(action)) {
+      if (this.store.inputMode() === 'world') {
+        this.director.glideTo(STATION_ACTIONS.indexOf(action));
+      }
+      return;
+    }
+
     switch (action) {
       case 'interact': {
         // A running demo eats the key; otherwise it goes to whatever the player is facing.
@@ -353,9 +384,12 @@ export class WorldPage {
           void this.router.navigate(['/']);
         } else if (this.routeState().panel) {
           void this.router.navigate(['/p', this.routeState().slug]);
+        } else if (this.engine.gliding()) {
+          // Esc stops a glide where it is, and does nothing else.
+          this.engine.cancelGlide();
         } else if (this.store.demoActive()) {
           this.director.endDemo();
-        } else if (this.routeState().slug !== null) {
+        } else if (this.routeState().slug !== null && !shotRunning) {
           void this.router.navigate(['/']);
         }
         break;
@@ -381,4 +415,8 @@ export class WorldPage {
       }
     });
   }
+}
+
+function isStationAction(action: InputAction): action is StationAction {
+  return (STATION_ACTIONS as readonly InputAction[]).includes(action);
 }

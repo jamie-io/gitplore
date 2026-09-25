@@ -1,14 +1,15 @@
 import { InjectionToken, NgZone, Service, inject } from '@angular/core';
-import { BufferGeometry, PerspectiveCamera, Scene, Texture } from 'three';
+import { BufferGeometry, PerspectiveCamera, Scene, Texture, Vector3 } from 'three';
 import { AssetService } from './asset.service';
 import { CapabilityService } from './capability.service';
 import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
 import { ViewMode } from '../shared/view-mode';
 import { CameraRig, FirstPersonRig } from './player/camera-rig';
-import { Collider, HeightField } from './player/collision';
+import { Collider, HeightField, floorHeightAt } from './player/collision';
 import { MoveIntent, PlayerController } from './player/player-controller';
 import { CameraShot, SKIP_SECONDS, ShotKind, blendCamera, smoothstep } from './camera/camera-shot';
 import { ThirdPersonRig } from './player/third-person-rig';
+import { Glide, sampleGlide, turn } from './stations/glide';
 import { InputService } from './input.service';
 import { Interactable } from './interaction/interactable';
 import { InteractionSystem } from './interaction/interaction.system';
@@ -26,6 +27,21 @@ const NO_COLLIDERS: readonly Collider[] = [];
  * summed from frame times could stop a hair short of `SKIP_SECONDS` and linger one frame more.
  */
 const SKIP_DONE = 1e-6;
+
+/**
+ * Seconds over which a glide turns the player from where they were facing onto the way it travels,
+ * so pressing a number never swings the camera round in a single frame.
+ */
+const GLIDE_TURN_IN = 0.3;
+
+/**
+ * Metres between the points at which a reduced-motion glide feels for the floor on its way. It
+ * lands on the same deck or step a full glide would, because it climbs onto it the same way.
+ */
+const GLIDE_PROBE = 0.25;
+
+/** Scratch space for placing the player, so a glide frame does not allocate a vector. */
+const placement = new Vector3();
 
 export interface EngineStats {
   readonly fps: number;
@@ -85,6 +101,12 @@ export class EngineService {
   private projectedFov = 0;
   private readonly shotListeners = new Set<(kind: ShotKind | null) => void>();
 
+  /** The glide carrying the player, how far into it they are, and where they faced at its start. */
+  private glideState: { glide: Glide; time: number; startYaw: number } | null = null;
+
+  /** Whether a glide is carrying the player right now. */
+  readonly gliding = (): boolean => this.glideState !== null;
+
   /** Fires only when the interactable in front of the player changes (§2), never per frame. */
   onNearbyChange: ((nearby: Interactable | null) => void) | null = null;
 
@@ -123,6 +145,7 @@ export class EngineService {
   detach(): void {
     this.renderer?.setAnimationLoop(null);
     this.endShot();
+    this.glideState = null;
     this.world?.dispose();
     this.world = null;
 
@@ -150,6 +173,8 @@ export class EngineService {
   setScene(world: WorldScene): void {
     // A shot frames the world it was made for; carried into the next one it would frame nothing.
     this.endShot();
+    // A glide's path runs through the old world's ground, which the new one does not share.
+    this.glideState = null;
     this.world?.dispose();
     // Every WorldObject detaches itself on dispose; clearing is the safety net for one that forgets.
     this.scene.clear();
@@ -268,6 +293,50 @@ export class EngineService {
     return () => this.shotListeners.delete(listener);
   }
 
+  /**
+   * Carries the player along `glide` from the next frame on, replacing any glide already running.
+   * Collisions are ignored on the way, but the world updates every frame as usual, so its triggers
+   * still fire. Under reduced motion the player is put straight down at the end instead.
+   */
+  glide(glide: Glide): void {
+    if (!this.capability.reducedMotion()) {
+      this.glideState = { glide, time: 0, startYaw: this.player.yaw };
+      return;
+    }
+
+    this.glideState = null;
+    const ground = this.world?.ground ?? FLAT_GROUND;
+    const colliders = this.world?.colliders ?? NO_COLLIDERS;
+    let feetY = this.player.position.y - this.player.eyeHeight;
+    const { points } = glide;
+    for (let index = 1; index < points.length; index++) {
+      const from = points[index - 1];
+      const to = points[index];
+      const steps = Math.max(1, Math.ceil(Math.hypot(to.x - from.x, to.z - from.z) / GLIDE_PROBE));
+      for (let step = 1; step <= steps; step++) {
+        const share = step / steps;
+        const x = from.x + (to.x - from.x) * share;
+        const z = from.z + (to.z - from.z) * share;
+        feetY = floorHeightAt(x, z, feetY, ground, colliders);
+      }
+    }
+    const end = points[points.length - 1];
+    this.player.teleport(
+      placement.set(end.x, feetY + this.player.eyeHeight, end.z),
+      glide.endYaw,
+      this.player.pitch,
+    );
+  }
+
+  /** Stops a running glide where the player is now, e.g. for a restart or a keypress. */
+  cancelGlide(): void {
+    if (!this.glideState) {
+      return;
+    }
+    this.glideState = null;
+    this.settle();
+  }
+
   /** Re-applies the current quality settings to the renderer, e.g. after a tier change. */
   refreshQuality(): void {
     this.renderer?.setQuality(this.capability.settings());
@@ -331,7 +400,15 @@ export class EngineService {
     const ground = this.world?.ground ?? FLAT_GROUND;
     const colliders = this.world?.colliders ?? NO_COLLIDERS;
     const intent = this.input.consumeIntent(dt);
-    this.player.update(dt, intent, ground, colliders);
+    // Walking or jumping takes the player back; the glide stops where it is.
+    if (this.glideState && (intent.forward !== 0 || intent.strafe !== 0 || intent.jump)) {
+      this.cancelGlide();
+    }
+    if (this.glideState) {
+      this.advanceGlide(dt, ground, colliders);
+    } else {
+      this.player.update(dt, intent, ground, colliders);
+    }
     // A boom needs the same world the player walks through, or it would hang inside the scenery.
     this.rig.sync(this.player, {
       dt,
@@ -350,6 +427,41 @@ export class EngineService {
     this.tickables.forEach((tickable) => tickable.update(dt));
 
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Moves the player one frame along the glide: across the ground and onto any walkable top along
+   * the way, facing the way it travels. Colliders are not asked, so nothing stops it.
+   */
+  private advanceGlide(dt: number, ground: HeightField, colliders: readonly Collider[]): void {
+    const state = this.glideState!;
+    state.time += dt;
+    const sample = sampleGlide(state.glide, state.time);
+    const player = this.player;
+    // Last frame's footing, so a deck is climbed onto a step at a time just as it is walked onto.
+    const feetY = player.position.y - player.eyeHeight;
+    player.position.set(
+      sample.x,
+      floorHeightAt(sample.x, sample.z, feetY, ground, colliders) + player.eyeHeight,
+      sample.z,
+    );
+    player.yaw =
+      state.time < GLIDE_TURN_IN
+        ? turn(state.startYaw, sample.yaw, smoothstep(state.time / GLIDE_TURN_IN))
+        : sample.yaw;
+
+    if (state.time >= state.glide.duration) {
+      this.glideState = null;
+      this.settle();
+    }
+  }
+
+  /**
+   * Leaves the player standing where the glide has put them. The controller sat idle during the
+   * glide, still holding whatever momentum it had when the glide began, which must not carry on.
+   */
+  private settle(): void {
+    this.player.teleport(placement.copy(this.player.position), this.player.yaw, this.player.pitch);
   }
 
   private updateShot(dt: number, intent: MoveIntent): void {
