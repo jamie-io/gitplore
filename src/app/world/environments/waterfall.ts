@@ -16,6 +16,7 @@ import { Mood } from './mood';
 import { Motes } from './motes';
 import { ATMOSPHERE_FOG_GLSL } from './shaders/atmosphere';
 import { NOISE_GLSL } from './shaders/noise.glsl';
+import { groundHazeProgram } from './shaders/ground-haze';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
 export interface WaterfallOptions {
@@ -268,8 +269,12 @@ export class Waterfall implements WorldObject {
     const { lip, width, drop, rotationY, shared, colours, mood } = this.options;
     const detail = ctx.quality.shaderDetail;
     this.highlight = { value: highlightFor(ctx) };
+    // The foot of the falls stands in the ground haze, where the world has one; the falls fog
+    // before their tone mapping, in linear light.
+    const haze = groundHazeProgram(shared.groundHaze, { linear: true });
     const uniforms = () => ({
       ...UniformsUtils.clone(UniformsLib.fog),
+      ...haze.uniforms,
       time: shared.time,
       sunDirection: shared.sunDirection,
       sunColor: shared.sunColor,
@@ -283,7 +288,7 @@ export class Waterfall implements WorldObject {
       sheetGeometry(width, drop, ROWS[detail]),
       new ShaderMaterial({
         name: 'waterfall-sheet',
-        defines: { FALL_LAYERS: layers },
+        defines: { FALL_LAYERS: layers, ...haze.defines },
         uniforms: {
           ...uniforms(),
           drop: { value: drop },
@@ -305,7 +310,7 @@ export class Waterfall implements WorldObject {
       new CircleGeometry(1, detail === 0 ? 16 : 28).rotateX(-Math.PI / 2),
       new ShaderMaterial({
         name: 'waterfall-foam',
-        defines: { FALL_LAYERS: layers },
+        defines: { FALL_LAYERS: layers, ...haze.defines },
         uniforms: uniforms(),
         vertexShader: VERTEX_SHADER,
         fragmentShader: FOAM_FRAGMENT_SHADER,

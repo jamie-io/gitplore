@@ -352,6 +352,25 @@ describe('DeslopifyScene', () => {
       expect(built.target.lantern.lightRadius).toBeCloseTo(5.5, 5);
     });
 
+    it('clears the ground haze around its light, and nowhere while it is dark', () => {
+      const built = build({ reduced: true });
+      const light = built.environment.groundHaze.uniforms.uHazeLight.value;
+      run(built, 0.1);
+      expect(light.z).toBe(0);
+
+      stand(built.ctx, LANTERN_POST);
+      run(built, 0.2);
+      const at = built.target.lantern.worldPosition(new Vector3());
+      expect(light.x).toBeCloseTo(at.x, 1);
+      expect(light.y).toBeCloseTo(at.z, 1);
+      expect(light.z).toBeCloseTo(built.target.lantern.lightRadius, 5);
+      expect(light.z).toBeGreaterThan(0);
+
+      find(built.target, PROMPTS.lanternOff)!.onInteract();
+      run(built, 0.1);
+      expect(light.z).toBe(0);
+    });
+
     it('wipes a card to its original as the visitor carries the light past it', () => {
       const built = build();
       stand(built.ctx, LANTERN_POST);
