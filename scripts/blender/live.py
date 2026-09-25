@@ -29,12 +29,13 @@ import kit  # noqa: E402
 importlib.reload(kit)
 importlib.reload(author)
 name = globals().get("MODEL")
-module_name, strength, distance, ground = author.MODELS[name]
+module_name, strength, distance, ground, *rest = author.MODELS[name]
 kit.clear()
 module = importlib.import_module(module_name)
 module = importlib.reload(module)
-objects = module.build()
-kit.bake_occlusion(objects, strength=strength, distance=distance, ground=ground)
+objects = module.build(*(rest[0] if rest else ()))
+kit.bake_occlusion([o for o in objects if o.type == "MESH"], strength=strength, distance=distance,
+                   ground=ground)
 for obj in objects:
     obj.select_set(True)
 for area in bpy.context.screen.areas if bpy.context.screen else []:
@@ -48,4 +49,4 @@ for area in bpy.context.screen.areas if bpy.context.screen else []:
             bpy.ops.view3d.view_selected()
 for obj in objects:
     obj.select_set(False)
-print({o.name: kit.triangles(o) for o in objects})
+print({o.name: kit.triangles(o) for o in objects if o.type == "MESH"})
