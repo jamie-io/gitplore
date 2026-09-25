@@ -55,6 +55,19 @@ describe('SlopVines', () => {
     expect(vines.object.children[0]?.scale.y).toBe(1);
   });
 
+  it('takes its retreat and regrowth from the flow when given', () => {
+    const vines = new SlopVines({
+      anchors: [ANCHORS[0]],
+      seed: 1,
+      rates: { retreat: 3, regrow: 0.35 },
+    });
+
+    vines.update(0.2, () => true);
+    expect(vines.object.children[0]?.scale.y).toBeCloseTo(1 - 0.2 * 3);
+    vines.update(0.2, () => false);
+    expect(vines.object.children[0]?.scale.y).toBeCloseTo(1 - 0.2 * 3 + 0.2 * 0.35);
+  });
+
   it('restores one vine through grow and snaps transitions under reduced motion', () => {
     const vines = new SlopVines({ anchors: ANCHORS.slice(0, 2), seed: 2, reducedMotion: true });
 

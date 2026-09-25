@@ -32,7 +32,6 @@ import {
   FOLIAGE,
   JUNGLE_SHADOW_NORMAL_BIAS,
   JungleEnvironment,
-  NORTH_BANK_HAZE,
   POOL,
   POOL_LEVEL,
   RILL_LEVEL,
@@ -869,18 +868,15 @@ describe('JungleEnvironment', () => {
       expect(environment.slop).toBe(0);
     });
 
-    it('thins the haze north of the rill, across the deck', () => {
-      const north = slopped(ARCH.z - DECK.halfLength - 1);
-      expect(north.environment.haze).toBeCloseTo(NORTH_BANK_HAZE, 10);
-      expect(hex(north.fog.color)).toBe(
-        hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, NORTH_BANK_HAZE * SLOP_TINT)),
-      );
-      north.environment.dispose();
-
-      const midspan = slopped(ARCH.z);
-      expect(midspan.environment.haze).toBeGreaterThan(NORTH_BANK_HAZE);
-      expect(midspan.environment.haze).toBeLessThan(1);
-      midspan.environment.dispose();
+    it('keeps the full slop over the north bank too: the ring clears it, not the camera', () => {
+      for (const z of [ARCH.z - DECK.halfLength - 1, ARCH.z, ARCH.z - 15]) {
+        const north = slopped(z);
+        expect(north.environment.haze).toBe(1);
+        expect(hex(north.fog.color)).toBe(
+          hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, SLOP_TINT)),
+        );
+        north.environment.dispose();
+      }
     });
 
     it('shares a clearing origin and radius any material can read, starting at the arch', () => {

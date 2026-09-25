@@ -8,30 +8,67 @@ import {
   MeshBasicMaterial,
   Vector3,
 } from 'three';
+import type { ShotPose } from '@engine/camera/camera-shot';
 import type { Interactable } from '@engine/interaction/interactable';
 import { FACING_THRESHOLD } from '@engine/interaction/interaction.system';
-import type { Collider } from '@engine/player/collision';
+import { type Collider, floorHeightAt } from '@engine/player/collision';
 import { PLAYER_EYE_HEIGHT, PlayerController } from '@engine/player/player-controller';
+import type {
+  GroundPoint,
+  ScenePitch,
+  StationPlate,
+  StationSpec,
+  StationStand,
+} from '@engine/stations/station';
 import type { WorldContext } from '@engine/world-object';
+import type { Project } from '@content/project.model';
+import {
+  formatReleaseLine,
+  parseDate,
+  repositoryLanguages,
+  repositoryReleases,
+} from '@content/repository-data';
 import type { Environment } from '../../environments/environment';
 import {
   ARCH,
+  BAMBOO,
+  BEHIND_FALLS,
   BOARDWALK,
+  CAIRN,
   CARD_SLOTS,
+  DECK,
   LANTERN_POST,
+  LIANA,
   PORTAL,
   Placed,
   Pt,
+  STATION_STANDS,
+  STEPS,
   TAG_SLOTS,
+  TOUR,
   VINE_SLOTS,
   WALL,
+  crossesArch,
+  glidePath,
   nearestOnPath,
   pointAlong,
+  stepCentres,
   underArch,
 } from '../../environments/jungle-layout';
 import { InWorldDemo, ProjectScene, ProjectSceneOptions } from '../../project/project.scene';
-import { DEMO_HINT, FEED_CARDS, PALETTE, POSTER, PROMPTS } from './deslopify.data';
-import { DeslopifyFlow, FlowLight, FlowPoint } from './deslopify.flow';
+import {
+  DEMO_HINT,
+  FEED_CARDS,
+  MOMENT_BANNER,
+  PALETTE,
+  PITCH,
+  PLATES,
+  POSTER,
+  PROMPTS,
+  STATION_NAMES,
+  TOASTS,
+} from './deslopify.data';
+import { DeslopifyFlow, FLOW, FlowLight, FlowPoint } from './deslopify.flow';
 import { FeedCard, FeedWall } from './feed-card';
 import { Lantern } from './lantern';
 import { SlopTags } from './slop-tags';
@@ -44,16 +81,24 @@ export const IGNITE_REACH = 3.5;
 /** Metres ahead of the visitor the carried lantern's switch sits, and how near it must be. */
 const CARRIED_AHEAD = 0.9;
 const CARRIED_REACH = 1.2;
-/** The wall's switch sits in front of its middle and reaches its outer cards. */
-const WALL_AHEAD = 1.2;
+/**
+ * The wall's switch sits on the front of its ledge, in the middle, and reaches its outer cards:
+ * in front of a visitor standing at station 6, a metre off the wall, and of one at the demo's stand.
+ */
+const WALL_AHEAD = 0.6;
 export const WALL_REACH = 5.5;
 /** Where "try it in the world" puts the visitor: on the spur, facing the wall. */
 export const DEMO_STAND = 3.5;
 /** Each card blocks as three posts across its width, too close together to slip between. */
 const CARD_BLOCKERS = [-0.85, 0, 0.85] as const;
 const CARD_BLOCKER_RADIUS = 0.3;
-/** Metres over the ground the tags' centres hang: eye level, a little different for each. */
+/**
+ * Metres over the walk under them the tags' centres hang: over a visitor's head, a little different
+ * for each. Measured from what is walked on there — the boardwalk and the steps stand over the
+ * ground — and round the tag's own width, so a climber on the steps passes under it.
+ */
 export const TAG_HEIGHT = { min: 2.2, max: 2.9 } as const;
+const TAG_SPAN = 0.5;
 /** Metres over the ground the vines' tops hang from: the canopy line, a little different for each. */
 export const VINE_HANG = { min: 5.6, max: 6.8 } as const;
 /** The ring is a glowing band this tall, sunk this far under the ground where it starts. */
@@ -61,6 +106,23 @@ const RING_HEIGHT = 4;
 const RING_SINK = 1.5;
 const RING_SEGMENTS = 128;
 const RING_GLOW = 0.35;
+/** Metres from the portal, a language stalk and the cairn or the liana within which each has a plate. */
+const PLATE_REACH = { portal: 3, languages: 3, find: 2.6 } as const;
+/** The overview the arrival and the install's moment rise to: the whole bowl, looking north. */
+const OVERVIEW: ShotPose = Object.freeze({
+  position: Object.freeze({ x: 0, y: 24, z: 36 }),
+  target: Object.freeze({ x: 0, y: 0, z: -6 }),
+});
+
+/** The jungle's commit steps, lit by the flow; only the jungle has them. */
+interface CommitSteps {
+  setLit(index: number, commits: boolean): void;
+}
+
+function commitSteps(environment: Environment): CommitSteps | null {
+  const steps = (environment as { steps?: Partial<CommitSteps> }).steps;
+  return typeof steps?.setLit === 'function' ? (steps as CommitSteps) : null;
+}
 
 /** The jungle's side of the flow: the violet air and the clearing uniforms. */
 interface SlopAir {
@@ -82,11 +144,15 @@ function slopAir(environment: Environment): SlopAir | null {
 }
 
 /**
- * Deslopify's own world, the Turn 2 walk "Der Weg durch den Slop": a lantern on the arrival ledge
- * that the explorer takes along, four feed cards beside the boardwalk, vines and tags in the violet
- * haze, the arch over the rill that installs the extension with a spreading ring, and the feed wall
- * on the glade whose switch turns it off and on again. `DeslopifyFlow` holds the rules; this scene
+ * Deslopify's own world, the Lichtung: a lantern on the arrival ledge that the explorer takes
+ * along, four feed cards beside the marsh boardwalk, vines and tags in the violet slop, the commit
+ * steps up to the arch that installs the extension with a ring spreading over the whole bowl, the
+ * exhibit in its easel, the feed wall on the north glade whose lever turns it off and on again,
+ * the firefly swarm and the cave behind the falls. `DeslopifyFlow` holds the rules; this scene
  * places the things, feeds the flow the player and the light, and draws what it says.
+ *
+ * It declares seven stations for the station bar and glides, and the plates of its finds; it
+ * tells the HUD its toasts and its one key moment, the install from the arch.
  *
  * Nothing here captures the controls: every switch is an ordinary `Interactable`, and the project
  * menu's "try it in the world" only walks the visitor to the wall.
@@ -103,9 +169,17 @@ export class DeslopifyScene extends ProjectScene {
 
   private readonly sceneOptions: ProjectSceneOptions;
   private readonly air: SlopAir | null;
+  private readonly steps: CommitSteps | null;
+  /** Which of the eleven steps' periods had commits. */
+  private readonly commits: readonly boolean[];
+  private readonly stationList: readonly StationSpec[];
+  private readonly languagesPlate: StationPlate | null;
+  private readonly languageStalks: readonly Pt[];
+  private readonly cairnPlate: StationPlate;
   /** Every card, the trail's four then the wall's four, in the flow's order. */
   private readonly allCards: readonly FeedCard[];
-  private readonly cardAnchors: readonly FlowPoint[];
+  /** Where each card stands, read by the flow; the wall's move to its model's slots when it comes. */
+  private readonly cardAnchors: readonly Vector3[];
   private readonly cardGroups: readonly (readonly FeedCard[])[];
   private readonly shownCleared: boolean[];
   private readonly wallCentre: Vector3;
@@ -141,6 +215,8 @@ export class DeslopifyScene extends ProjectScene {
     super({ ...options, poster: POSTER });
     this.sceneOptions = options;
     this.air = slopAir(this.environment);
+    this.steps = commitSteps(this.environment);
+    this.commits = commitPeriods(options.project.commitBuckets, STEPS.count);
     const ground = this.environment.ground;
     const reducedMotion = options.reducedMotion;
 
@@ -157,15 +233,10 @@ export class DeslopifyScene extends ProjectScene {
       return card;
     });
 
+    // The cards stand on the wall's ledge, where its model's slots put them.
     this.wall = new FeedWall({ reducedMotion });
     this.wall.object.position.copy(this.onGround(WALL));
     this.wall.object.rotation.y = WALL.yaw;
-    this.wall.object.updateMatrixWorld(true);
-    // Four cards across 9.6 m of uneven bank: each stands on its own patch of ground.
-    for (const card of this.wall.cards) {
-      const at = card.object.getWorldPosition(new Vector3());
-      card.object.position.y = ground.heightAt(at.x, at.z) - this.wall.object.position.y;
-    }
     this.wall.object.updateMatrixWorld(true);
     this.wallCentre = this.wall.object.position.clone();
 
@@ -180,23 +251,39 @@ export class DeslopifyScene extends ProjectScene {
       ),
       seed: 26,
       reducedMotion,
+      rates: { retreat: FLOW.vineRetreat, regrow: FLOW.vineRegrow },
     });
+    const walked = this.environment.colliders;
     this.tags = new SlopTags({
       anchors: TAG_SLOTS.map(({ x, y, z }) => new Vector3(x, y, z)),
       yaws: TAG_SLOTS.map(facingTheWalk),
       ropeLength: (index, anchor) =>
-        anchor.y - ground.heightAt(anchor.x, anchor.z) - tagHeight(index),
+        anchor.y - walkSurface(anchor.x, anchor.z, ground, walked) - tagHeight(index),
       reducedMotion,
+      rates: { on: FLOW.tagOn, off: FLOW.tagOff },
     });
 
     this.flow = new DeslopifyFlow({
       lanternPost: LANTERN_POST,
       arch: ARCH,
       wall: this.wallCentre,
-      cards: this.cardAnchors,
+      cards: this.cardAnchors.slice(0, this.cards.length),
+      wallCards: this.cardAnchors.slice(this.cards.length),
+      steps: stepCentres(),
+      behindFalls: BEHIND_FALLS,
       underArch,
+      crossesArch,
+      glidePath,
       reducedMotion,
+      onToast: (text) => this.sceneOptions.onToast?.(text),
+      onArchInstall: () => this.sceneOptions.onMoment?.(MOMENT_BANNER),
     });
+
+    this.stationList = stations(this.flow, commitTotal(options.project));
+    const languages = languageLine(options.project);
+    this.languagesPlate = languages ? PLATES.langs(languages.line) : null;
+    this.languageStalks = BAMBOO.slice(0, languages?.count ?? 0);
+    this.cairnPlate = PLATES.cairn(latestRelease(options.project));
 
     this.ring = ringMesh();
 
@@ -227,7 +314,11 @@ export class DeslopifyScene extends ProjectScene {
 
     this.add({
       id: 'deslopify:furniture',
-      colliders: [...this.lantern.colliders, ...this.allCards.flatMap(cardColliders)],
+      colliders: [
+        ...this.lantern.colliders,
+        ...this.cards.flatMap(cardColliders),
+        ...this.wall.colliders(),
+      ],
       init: () => undefined,
       update: () => undefined,
       dispose: () => undefined,
@@ -237,6 +328,53 @@ export class DeslopifyScene extends ProjectScene {
   /** "Try it in the world": to the wall, with Deslopify on, the controls left with the visitor. */
   override get demo(): InWorldDemo {
     return this.wallDemo;
+  }
+
+  /** The seven stops of the tour, portal to cave (spec §2). */
+  override get stations(): readonly StationSpec[] {
+    return this.stationList;
+  }
+
+  override get portalStand(): StationStand {
+    return PORTAL;
+  }
+
+  override get overview(): ShotPose {
+    return OVERVIEW;
+  }
+
+  override get pitch(): ScenePitch {
+    return PITCH;
+  }
+
+  /** Glides follow the boardwalk, the steps and the north loop. */
+  override glidePath(from: GroundPoint, to: GroundPoint): readonly GroundPoint[] {
+    return glidePath(from, to);
+  }
+
+  /**
+   * The finds that are no station: the portal within 3 m, the language stalks within 3 m (but not
+   * on the deck between them, where the arch's station speaks), the cairn and the liana within
+   * 2.6 m. `null` anywhere else.
+   */
+  override plateAt(x: number, z: number): StationPlate | null {
+    if (Math.hypot(x - PORTAL.x, z - PORTAL.z) < PLATE_REACH.portal) {
+      return PLATES.portal;
+    }
+    if (this.languagesPlate && !onDeck(x, z)) {
+      for (const stalk of this.languageStalks) {
+        if (Math.hypot(x - stalk.x, z - stalk.z) < PLATE_REACH.languages) {
+          return this.languagesPlate;
+        }
+      }
+    }
+    if (Math.hypot(x - CAIRN.x, z - CAIRN.z) < PLATE_REACH.find) {
+      return this.cairnPlate;
+    }
+    if (Math.hypot(x - LIANA.x, z - LIANA.z) < PLATE_REACH.find) {
+      return PLATES.liana;
+    }
+    return null;
   }
 
   /** The shared interactables and whichever of the flow's switches are on offer this frame. */
@@ -259,6 +397,9 @@ export class DeslopifyScene extends ProjectScene {
     for (const card of this.allCards) {
       card.loadFrame(ctx.assets, ctx.quality.shadows, this.haze ?? undefined);
     }
+    this.wall.loadModel(ctx.assets, ctx.quality.shadows, this.haze ?? undefined, () =>
+      this.followWallCards(),
+    );
     ctx.scene.add(this.wall.object, this.vines.object, this.tags.object, this.ring);
     this.air?.setSlop(this.flow.haze);
     this.publishStatus();
@@ -279,15 +420,19 @@ export class DeslopifyScene extends ProjectScene {
     for (const card of this.cards) {
       card.update(dt);
     }
+    this.wall.setSwitch(!this.flow.installed ? 'rest' : this.flow.wallOn ? 'on' : 'off');
     this.wall.update(dt);
     this.vines.update(dt, this.cleared);
     this.tags.update(dt, this.cleared);
+    this.syncSteps();
+    this.syncFireflies();
 
     if (this.air) {
       this.air.setSlop(this.flow.haze);
       const { origin, radius } = this.flow.ring;
       this.air.clearing.origin.value.set(origin.x, this.air.clearing.origin.value.y, origin.z);
-      this.air.clearing.radius.value = this.flow.ringActive ? radius : 0;
+      // The ring clears while it grows and while it shrinks back once the wall has it off.
+      this.air.clearing.radius.value = radius;
       if (this.air.clearing.glow) {
         this.air.clearing.glow.value = this.flow.ringOpacity;
       }
@@ -344,6 +489,8 @@ export class DeslopifyScene extends ProjectScene {
   /** Restarts the entire Deslopify journey at the portal on the arrival ledge. */
   restart(player: PlayerController): void {
     this.flow.reset();
+    this.syncSteps();
+    this.starLanterns.resetSwarm();
     this.lantern.reset();
     this.lanternIgnited = false;
     this.shownCleared.fill(false);
@@ -371,6 +518,13 @@ export class DeslopifyScene extends ProjectScene {
     this.publishStatus();
   }
 
+  /** The liana's pull: the jungle scatters anew, and the fireflies with it. */
+  protected override reseed(offset: number): void {
+    super.reseed(offset);
+    this.starLanterns.burst();
+    this.sceneOptions.onToast?.(TOASTS.liana);
+  }
+
   private tryAtWall(player: PlayerController): void {
     const front = new Vector3(Math.sin(WALL.yaw), 0, Math.cos(WALL.yaw));
     const stand = this.wallCentre.clone().addScaledVector(front, DEMO_STAND);
@@ -381,9 +535,12 @@ export class DeslopifyScene extends ProjectScene {
     }
   }
 
-  /** The lantern's light this frame, where its glass is; `null` while it gives none. */
+  /**
+   * The lantern's light this frame, where its glass is; `null` while it gives none. Once lit it
+   * reaches `FLOW.lightRadius`, growing and fading with the lantern's glow.
+   */
   private light(): FlowLight | null {
-    const radius = this.lantern.lightRadius;
+    const radius = FLOW.lightRadius * this.lantern.glow;
     if (radius <= 0) {
       return null;
     }
@@ -392,6 +549,30 @@ export class DeslopifyScene extends ProjectScene {
     this.lightValue.z = this.lightAt.z;
     this.lightValue.radius = radius;
     return this.lightValue;
+  }
+
+  /** The wall's model moved its cards to its slots: the flow's anchors for them follow. */
+  private followWallCards(): void {
+    this.wall.object.updateMatrixWorld(true);
+    this.wall.cards.forEach((card, index) =>
+      card.object.getWorldPosition(this.cardAnchors[this.cards.length + index]!),
+    );
+  }
+
+  /** Each step the visitor has come by glows if its period had commits; a restart darkens all. */
+  private syncSteps(): void {
+    if (!this.steps) {
+      return;
+    }
+    for (let index = 0; index < this.commits.length; index++) {
+      this.steps.setLit(index, this.flow.stepLit(index) && this.commits[index]!);
+    }
+  }
+
+  /** The swarm follows the lit lantern and glows brighter while Deslopify is on. */
+  private syncFireflies(): void {
+    this.starLanterns.setLantern(this.flowFrame.light);
+    this.starLanterns.setBright(this.flow.ringActive);
   }
 
   /**
@@ -526,6 +707,122 @@ function cardColliders(card: FeedCard): Collider[] {
     const at = card.object.localToWorld(new Vector3(x, 0, 0));
     return { kind: 'cylinder', x: at.x, z: at.z, radius: CARD_BLOCKER_RADIUS };
   });
+}
+
+/**
+ * Which of `count` periods of the project's history had commits: the weekly buckets shared out in
+ * order, each period taking its run of them (or, with fewer buckets than periods, the one it falls
+ * in). No history, no commits.
+ */
+export function commitPeriods(
+  buckets: readonly number[] | undefined,
+  count: number = STEPS.count,
+): boolean[] {
+  const values = buckets ?? [];
+  return Array.from({ length: count }, (_, period) => {
+    if (values.length === 0) {
+      return false;
+    }
+    const start = Math.floor((period * values.length) / count);
+    const end = Math.max(start + 1, Math.floor(((period + 1) * values.length) / count));
+    return values.slice(start, end).some((value) => Number.isFinite(value) && value > 0);
+  });
+}
+
+/** Every commit in the project's history, for the steps' plate. */
+function commitTotal(project: Project): number {
+  return (project.commitBuckets ?? []).reduce(
+    (sum, value) => sum + (Number.isFinite(value) ? Math.max(0, value) : 0),
+    0,
+  );
+}
+
+/** The seven stations of the tour, their plates read from the flow and the project each time. */
+function stations(flow: DeslopifyFlow, commits: number): readonly StationSpec[] {
+  const plates: Record<(typeof TOUR)[number], () => StationPlate> = {
+    laterne: () => PLATES.laterne,
+    pfad: () => PLATES.pfad,
+    stufen: () => PLATES.stufen(commits),
+    bogen: () => PLATES.bogen,
+    exponat: () => PLATES.exponat,
+    wand: () => (flow.wallAvailable ? PLATES.wandOn : PLATES.wandOff),
+    hoehle: () => PLATES.hoehle,
+  };
+  return Object.freeze(
+    TOUR.map((id, index) => ({
+      id,
+      name: STATION_NAMES[index]!,
+      stand: STATION_STANDS[id],
+      trigger: 3,
+      plate: plates[id],
+    })),
+  );
+}
+
+/**
+ * The languages' plate line, largest share first, as many as there are stalks (four at most):
+ * e.g. `JavaScript 81 % · HTML 16 % · Python 2 % · Shell <1 %`. `null` without languages.
+ */
+function languageLine(project: Project): { readonly line: string; readonly count: number } | null {
+  const rows = repositoryLanguages(project).slice(0, BAMBOO.length);
+  if (rows.length === 0) {
+    return null;
+  }
+  const line = rows
+    .map(({ name, share }) => {
+      const percent = share * 100;
+      return `${name} ${percent < 1 ? '<1' : Math.round(percent)} %`;
+    })
+    .join(' · ');
+  return { line, count: rows.length };
+}
+
+/** The newest release as the cairn's plate names it, e.g. `v1.2.0 · 1. September 2025`. */
+function latestRelease(project: Project): string | null {
+  const releases = project.releases ?? [];
+  const rows = repositoryReleases(project);
+  let newest = -1;
+  let newestAt = -Infinity;
+  releases.forEach((release, index) => {
+    const at = parseDate(release.date) ?? -Infinity;
+    if (newest < 0 || at > newestAt) {
+      newest = index;
+      newestAt = at;
+    }
+  });
+  return newest < 0 ? null : formatReleaseLine(rows[newest]!);
+}
+
+/** Whether (x, z) stands on the deck under the arch. */
+function onDeck(x: number, z: number): boolean {
+  return Math.abs(x - ARCH.x) <= DECK.halfWidth && Math.abs(z - ARCH.z) <= DECK.halfLength;
+}
+
+/**
+ * The highest walkable surface round (x, z), a tag's width about: the ground, or the boardwalk or
+ * a step standing over it.
+ */
+function walkSurface(
+  x: number,
+  z: number,
+  ground: { heightAt(x: number, z: number): number },
+  colliders: readonly Collider[],
+): number {
+  let highest = floorHeightAt(x, z, Infinity, ground, colliders);
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    highest = Math.max(
+      highest,
+      floorHeightAt(
+        x + Math.cos(angle) * TAG_SPAN,
+        z + Math.sin(angle) * TAG_SPAN,
+        Infinity,
+        ground,
+        colliders,
+      ),
+    );
+  }
+  return highest;
 }
 
 /** The height a tag's centre hangs at, spread over `TAG_HEIGHT` by the golden ratio. */

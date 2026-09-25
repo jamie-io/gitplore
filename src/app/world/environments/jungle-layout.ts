@@ -87,18 +87,22 @@ export function underArch(x: number, z: number): boolean {
  * visitor from one side of the trigger to the other without ever standing in it.
  */
 export function crossesArch(a: Pt, b: Pt): boolean {
-  let enter = 0;
-  let leave = 1;
+  // Liang–Barsky: clip the segment's parameter range against the box's four sides, in scalars,
+  // since this runs every frame until the install.
   const dx = b.x - a.x;
   const dz = b.z - a.z;
-  // Liang–Barsky: clip the segment's parameter range against each of the box's four sides.
-  const sides: readonly (readonly [number, number])[] = [
-    [-dx, a.x - ARCH_TRIGGER.minX],
-    [dx, ARCH_TRIGGER.maxX - a.x],
-    [-dz, a.z - ARCH_TRIGGER.minZ],
-    [dz, ARCH_TRIGGER.maxZ - a.z],
-  ];
-  for (const [p, q] of sides) {
+  let enter = 0;
+  let leave = 1;
+  for (let side = 0; side < 4; side++) {
+    const p = side === 0 ? -dx : side === 1 ? dx : side === 2 ? -dz : dz;
+    const q =
+      side === 0
+        ? a.x - ARCH_TRIGGER.minX
+        : side === 1
+          ? ARCH_TRIGGER.maxX - a.x
+          : side === 2
+            ? a.z - ARCH_TRIGGER.minZ
+            : ARCH_TRIGGER.maxZ - a.z;
     if (p === 0) {
       if (q <= 0) {
         return false;
@@ -151,15 +155,23 @@ export const BOARDWALK: readonly Pt[] = Object.freeze([
 ]);
 
 /**
- * From the arch north to the exhibit, round the feed wall's west end and the pool's east side,
- * in through the cave's mouth behind the waterfall and out again, and back past the pool's west
- * side to the exhibit. The walk into the cave keeps a body's width off the mouth's jambs and the
- * pool's edge.
+ * Where the north loop forks in front of the exhibit: on the way up from the arch, past the
+ * exhibit's stand, far enough short of the screen for a body to pass.
+ */
+const EXHIBIT_FORK = pt(0, -6.6);
+
+/**
+ * From the arch north to a fork in front of the exhibit, east round the easel (between it and the
+ * cairns) and round the feed wall's west end and the pool's east side, in through the cave's mouth
+ * behind the waterfall and out again, and back past the pool's west side and round the easel's
+ * west side to the fork. The walk keeps a body's width off the easel's legs, the mouth's jambs and
+ * the pool's edge.
  */
 export const NORTH_LOOP: readonly Pt[] = Object.freeze([
   ARCH,
-  pt(0, -9),
-  pt(4.6, -11.2),
+  EXHIBIT_FORK,
+  pt(2.75, -7.6),
+  pt(2.9, -10.6),
   pt(4.9, -12.4),
   pt(4.8, -14.2),
   pt(3.9, -17.6),
@@ -172,7 +184,9 @@ export const NORTH_LOOP: readonly Pt[] = Object.freeze([
   pt(-2.4, -19.2),
   pt(-3.7, -17.8),
   pt(-2.8, -14),
-  pt(0, -9),
+  pt(-2.9, -10.6),
+  pt(-2.75, -7.6),
+  EXHIBIT_FORK,
 ]);
 
 /** Off the north loop to the feed wall: from beside its west end to station 6, in front of it. */

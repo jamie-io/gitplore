@@ -1,8 +1,12 @@
 import type { AssetLike } from '@engine/asset.service';
-import type { Material } from 'three';
+import type { Material, Object3D } from 'three';
+import type { Collider } from '@engine/player/collision';
+import { transformIn } from '../../environments/model-geometry';
 import type { HazedCopies } from '../../environments/shaders/hazed-copies';
 import {
+  BoxGeometry,
   CanvasTexture,
+  Matrix4,
   CylinderGeometry,
   Group,
   Mesh,
@@ -10,6 +14,7 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
   SRGBColorSpace,
+  Vector3,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { disposeObject3D } from '@engine/dispose';
@@ -21,6 +26,15 @@ import { BADGE, FEED_CARDS, PALETTE } from './deslopify.data';
  * rails, backing boards and a little gable round the face, which stays this card's own.
  */
 export const CARD_FRAME_MODEL = 'assets/models/card-frame.glb';
+
+/**
+ * The feed wall, modelled in Blender (scripts/blender/models/feed_wall.py): a dry-stone wall
+ * 5.6 m wide and 2.6 m tall facing +z, a ledge along its foot that four `slot_0` … `slot_3`
+ * empties stand the cards on (each carrying the cards' 0.52 scale), and the switch `lever` on a
+ * pier to its right, turning about x at the `lever_hinge` empty. The lever node's own position
+ * carries the optimiser's dequantising offset, so the hinge is read from the empty, never from it.
+ */
+export const FEED_WALL_MODEL = 'assets/models/feed-wall.glb';
 
 const FRAME_WIDTH = 2.1;
 const FRAME_HEIGHT = 1.98;
@@ -36,7 +50,23 @@ const POST_Z = -0.04;
 const POST_HEIGHT = 1.3;
 const WIPE_SECONDS = 0.36;
 const WIPE_RATE = 1 / WIPE_SECONDS;
-const CARD_SPACING = 2.4;
+/** The wall's measures, in its own frame, as its model builds them. */
+const WALL_SIZE = { width: 5.6, height: 2.6, depth: 0.5, ledgeTop: 0.3, ledgeFront: 0.64 } as const;
+/** Where the cards stand on the ledge: 1.3 m apart, shrunk to fit four across the wall. */
+const WALL_CARD = { pitch: 1.3, y: WALL_SIZE.ledgeTop, z: 0.44, scale: 0.52 } as const;
+/**
+ * How far in front of the wall the block a visitor walks into reaches: the card stands' front on
+ * the ledge. The ledge's stones round off beyond it, too low to matter, so station 6's stand a
+ * metre off the wall keeps a real margin.
+ */
+const BLOCK_FRONT = 0.58;
+/** The switch's pier, right of the wall, and the hinge its lever turns on. */
+const PIER = { x: 3.18, width: 0.56, depth: 0.52 } as const;
+const LEVER_HINGE = new Vector3(3.18, 1.12, 0.02);
+/** Radians the lever leans from upright when switched, and how fast it swings there. */
+const LEVER_THROW = 0.55;
+const LEVER_RATE = 3;
+const STONE = 0x8f8878;
 
 const CANVAS_WIDTH = 640;
 const CANVAS_HEIGHT = 600;
@@ -274,19 +304,77 @@ export class FeedCard {
   }
 }
 
-/** Four canonical cards arranged as a centred row. */
+/** Where the wall's switch stands: upright before install, then one way on and the other off. */
+export type WallSwitch = 'rest' | 'on' | 'off';
+
+/**
+ * The feed wall on the north glade: four canonical cards on the ledge of a stone wall, and the
+ * lever beside it that turns Deslopify off and on. The wall is `feed-wall.glb` once it arrives; a
+ * plain stone block stands in until then, and for good if it never does, with the cards and the
+ * lever already where the model puts them.
+ */
 export class FeedWall {
   readonly object = new Group();
   readonly cards: readonly FeedCard[];
+  /** The lever's pivot, standing at the hinge: its x rotation is the switch's throw. */
+  readonly lever = new Group();
+
+  private readonly reducedMotion: () => boolean;
+  private proxy: Mesh[] = [];
+  private model: Group | null = null;
+  private assets: AssetLike | null = null;
+  private disposed = false;
+  private leverTarget = 0;
 
   constructor(options: FeedWallOptions = {}) {
+    this.reducedMotion = options.reducedMotion ?? (() => false);
     this.object.name = 'feed-wall';
     this.cards = FEED_CARDS.map((data, index) => {
       const card = new FeedCard(data, options);
-      card.object.position.x = (index - (FEED_CARDS.length - 1) / 2) * CARD_SPACING;
+      card.object.position.set(
+        (index - (FEED_CARDS.length - 1) / 2) * WALL_CARD.pitch,
+        WALL_CARD.y,
+        WALL_CARD.z,
+      );
+      card.object.scale.setScalar(WALL_CARD.scale);
       this.object.add(card.object);
       return card;
     });
+
+    this.lever.name = 'feed-wall-lever';
+    this.lever.position.copy(LEVER_HINGE);
+    this.object.add(this.lever);
+    this.buildProxy();
+  }
+
+  /**
+   * Asks for the wall's model and swaps it in for the stone block when it arrives, hazed into the
+   * environment's air when `haze` is given: the cards move to its slots, its lever to the hinge.
+   * `onPlaced` hears when the cards have moved, so whatever tracks where they stand can follow.
+   */
+  loadModel(
+    assets: AssetLike,
+    castShadow = false,
+    haze?: HazedCopies,
+    onPlaced?: () => void,
+  ): void {
+    if (this.disposed || this.assets) {
+      return;
+    }
+    this.assets = assets;
+    assets.model(FEED_WALL_MODEL).then(
+      (model) => {
+        if (this.placeModel(model, castShadow, haze)) {
+          onPlaced?.();
+        }
+      },
+      () => undefined,
+    );
+  }
+
+  /** Where the lever should stand; it swings there over the next frames. */
+  setSwitch(position: WallSwitch): void {
+    this.leverTarget = position === 'on' ? LEVER_THROW : position === 'off' ? -LEVER_THROW : 0;
   }
 
   setOriginal(on: boolean, stagger = 0.12): void {
@@ -295,11 +383,163 @@ export class FeedWall {
 
   update(dt: number): void {
     this.cards.forEach((card) => card.update(dt));
+    const angle = this.lever.rotation.x;
+    if (angle !== this.leverTarget) {
+      const step = this.reducedMotion() ? Infinity : LEVER_RATE * Math.max(0, dt);
+      this.lever.rotation.x =
+        Math.abs(this.leverTarget - angle) <= step
+          ? this.leverTarget
+          : angle + Math.sign(this.leverTarget - angle) * step;
+    }
+  }
+
+  /**
+   * What a visitor walks into, in world space, from where the wall stands now: the wall with its
+   * ledge and the cards on it as one block, and the lever's pier. Call once the wall is placed.
+   */
+  colliders(): Collider[] {
+    const half = WALL_SIZE.width / 2;
+    return [
+      this.worldBox(-half - 0.05, half + 0.05, -WALL_SIZE.depth / 2, BLOCK_FRONT),
+      this.worldBox(
+        PIER.x - PIER.width / 2,
+        PIER.x + PIER.width / 2,
+        -PIER.depth / 2,
+        PIER.depth / 2,
+      ),
+    ];
   }
 
   dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
     this.cards.forEach((card) => card.dispose());
+    if (this.model) {
+      // The asset service owns the model's resources; only the reference goes.
+      this.model = null;
+      this.assets?.releaseModel(FEED_WALL_MODEL);
+    }
+    this.disposeProxy();
+    this.lever.clear();
     this.object.clear();
+  }
+
+  /** The stone block, its ledge, the pier and a plain lever, where the model will put its own. */
+  private buildProxy(): void {
+    const stone = new MeshStandardMaterial({ color: STONE, roughness: 0.92 });
+    const block = (name: string, size: [number, number, number], at: [number, number, number]) => {
+      const mesh = new Mesh(new BoxGeometry(...size), stone);
+      mesh.name = name;
+      mesh.position.set(...at);
+      this.proxy.push(mesh);
+      return mesh;
+    };
+    const { width, height, depth, ledgeTop, ledgeFront } = WALL_SIZE;
+    this.object.add(
+      block('feed-wall-proxy', [width, height, depth], [0, height / 2, 0]),
+      block(
+        'feed-wall-proxy-ledge',
+        [width + 0.1, ledgeTop, ledgeFront - depth / 2],
+        [0, ledgeTop / 2, (ledgeFront + depth / 2) / 2],
+      ),
+      block(
+        'feed-wall-proxy-pier',
+        [PIER.width, LEVER_HINGE.y - 0.06, PIER.depth],
+        [PIER.x, (LEVER_HINGE.y - 0.06) / 2, 0],
+      ),
+    );
+    const handle = new Mesh(
+      new BoxGeometry(0.07, 0.9, 0.07),
+      new MeshStandardMaterial({ color: PALETTE.wood, roughness: 0.85 }),
+    );
+    handle.name = 'feed-wall-proxy-lever';
+    handle.position.y = 0.5;
+    this.proxy.push(handle);
+    this.lever.add(handle);
+  }
+
+  private disposeProxy(): void {
+    const materials = new Set<Material>();
+    for (const mesh of this.proxy) {
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+      materials.add(mesh.material as Material);
+    }
+    materials.forEach((material) => material.dispose());
+    this.proxy = [];
+  }
+
+  /**
+   * Stands the model in the wall's frame and moves the cards and the lever to where it says; the
+   * empties are read wherever they hang in its tree. `false` if it came too late or twice.
+   */
+  private placeModel(model: Group, castShadow: boolean, haze?: HazedCopies): boolean {
+    if (this.disposed || this.model) {
+      this.assets?.releaseModel(FEED_WALL_MODEL);
+      return false;
+    }
+    this.model = model;
+    this.disposeProxy();
+    model.traverse((object) => {
+      if (object instanceof Mesh) {
+        object.castShadow = castShadow;
+        object.receiveShadow = castShadow;
+        if (haze) {
+          object.material = haze.of(object.material as Material);
+        }
+      }
+    });
+    this.object.add(model);
+    const placement = new Matrix4();
+    this.cards.forEach((card, index) => {
+      const slot = model.getObjectByName(`slot_${index}`);
+      if (slot) {
+        transformIn(slot, this.object, placement).decompose(
+          card.object.position,
+          card.object.quaternion,
+          card.object.scale,
+        );
+      }
+    });
+    const hingeNode = model.getObjectByName('lever_hinge');
+    const hinge = hingeNode
+      ? new Vector3().setFromMatrixPosition(transformIn(hingeNode, this.object, placement))
+      : LEVER_HINGE.clone();
+    this.lever.position.copy(hinge);
+    const lever: Object3D | undefined = model.getObjectByName('lever');
+    if (lever) {
+      // Into the pivot at its rest: the hinge's offset comes off, the optimiser's own transform
+      // (its dequantising offset and scale) stays, and the pivot's throw then turns it.
+      const rest = new Matrix4()
+        .makeTranslation(-hinge.x, -hinge.y, -hinge.z)
+        .multiply(transformIn(lever, this.object, placement));
+      this.lever.add(lever);
+      rest.decompose(lever.position, lever.quaternion, lever.scale);
+    }
+    this.object.updateMatrixWorld(true);
+    return true;
+  }
+
+  /** The world box round the wall-frame rectangle x0…x1, z0…z1, as the wall stands now. */
+  private worldBox(x0: number, x1: number, z0: number, z1: number): Collider {
+    this.object.updateMatrixWorld(true);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    const corner = new Vector3();
+    for (const x of [x0, x1]) {
+      for (const z of [z0, z1]) {
+        this.object.localToWorld(corner.set(x, 0, z));
+        minX = Math.min(minX, corner.x);
+        maxX = Math.max(maxX, corner.x);
+        minZ = Math.min(minZ, corner.z);
+        maxZ = Math.max(maxZ, corner.z);
+      }
+    }
+    return { kind: 'aabb', minX, maxX, minZ, maxZ };
   }
 }
 

@@ -1,3 +1,5 @@
+import type { StationPlate } from '@engine/stations/station';
+
 /**
  * The canonical Deslopify content: the four feed cards, the four metadata tags, the badges,
  * the captions, the in-world prompts, the shared palette, and the Lichtung's plates, station
@@ -168,35 +170,23 @@ export const PALETTE = {
 } as const;
 
 /**
- * One plate of the HUD's bottom-left card: the German kicker, title and text with the one-line
- * English summary under it. This is the structural type Task 3's `StationPlate` will hold, so
- * the copy here does not wait for it (spec §"Plate (HUD)").
- */
-export interface PlateCopy {
-  readonly kicker: string;
-  readonly title: string;
-  readonly text: string;
-  readonly en: string;
-}
-
-/**
  * The plate copy for the portal, the seven stations and the three finds, verbatim from
  * spec §"Plates (Deslopify)". The steps, language and release plates take their numbers from
  * the project data, so they are functions of that value.
  */
 export const PLATES: {
-  readonly portal: PlateCopy;
-  readonly laterne: PlateCopy;
-  readonly pfad: PlateCopy;
-  readonly stufen: (commits: number) => PlateCopy;
-  readonly bogen: PlateCopy;
-  readonly exponat: PlateCopy;
-  readonly wandOn: PlateCopy;
-  readonly wandOff: PlateCopy;
-  readonly hoehle: PlateCopy;
-  readonly langs: (line: string) => PlateCopy;
-  readonly cairn: (release: string | null) => PlateCopy;
-  readonly liana: PlateCopy;
+  readonly portal: StationPlate;
+  readonly laterne: StationPlate;
+  readonly pfad: StationPlate;
+  readonly stufen: (commits: number) => StationPlate;
+  readonly bogen: StationPlate;
+  readonly exponat: StationPlate;
+  readonly wandOn: StationPlate;
+  readonly wandOff: StationPlate;
+  readonly hoehle: StationPlate;
+  readonly langs: (line: string) => StationPlate;
+  readonly cairn: (release: string | null) => StationPlate;
+  readonly liana: StationPlate;
 } = {
   portal: {
     kicker: 'Ankunft',

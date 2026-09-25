@@ -51,7 +51,18 @@ const WALL_FOOTPRINT = {
   minZ: WALL.z - 0.25,
   maxZ: WALL.z + 0.25,
 };
-const OBSTACLES = [...ROCK, WALL_FOOTPRINT];
+/**
+ * The exhibit's footprint: the screen's body (3.4 m wide, with the landmark's own margin) and the
+ * easel round it, widened to 1.06, its uprights and its back legs, whose feet stand 1.35 m behind.
+ */
+const EASEL_FOOTPRINT = {
+  kind: 'aabb' as const,
+  minX: EXHIBIT.x - 2.25,
+  maxX: EXHIBIT.x + 2.25,
+  minZ: EXHIBIT.z - 1.55,
+  maxZ: EXHIBIT.z + 0.48,
+};
+const OBSTACLES = [...ROCK, WALL_FOOTPRINT, EASEL_FOOTPRINT];
 /** The pool's edge, as points round its ellipse. */
 const POOL_EDGE = Array.from({ length: 720 }, (_, i) => {
   const angle = (i / 720) * Math.PI * 2;
@@ -153,6 +164,13 @@ describe('jungle layout', () => {
   it('detects a glide segment that jumps over the arch trigger', () => {
     expect(crossesArch({ x: 0, z: 3 }, { x: 0, z: -3 })).toBe(true);
     expect(crossesArch({ x: 5, z: 3 }, { x: 5, z: -3 })).toBe(false);
+    // Diagonally through a corner, along an edge's outside, ending inside, and short of it.
+    expect(crossesArch({ x: -3, z: 2 }, { x: 1, z: -2 })).toBe(true);
+    expect(crossesArch({ x: -3, z: 0.9 }, { x: 3, z: 0.9 })).toBe(false);
+    expect(crossesArch({ x: 0, z: 5 }, { x: 0.2, z: 0.1 })).toBe(true);
+    expect(crossesArch({ x: 0, z: 5 }, { x: 0, z: 1 })).toBe(false);
+    expect(crossesArch({ x: 0, z: 0 }, { x: 0, z: 0 })).toBe(true);
+    expect(crossesArch({ x: 3, z: 3 }, { x: 3, z: 3 })).toBe(false);
   });
 
   it('routes to the cave behind the waterfall', () => {
@@ -204,7 +222,14 @@ describe('jungle layout', () => {
     expect(BOARDWALK[0]).toBe(PORTAL);
     expect(BOARDWALK[BOARDWALK.length - 1]).toBe(STEPS.from);
     expect(NORTH_LOOP[0]).toBe(ARCH);
-    expect(NORTH_LOOP[NORTH_LOOP.length - 1]).toEqual({ x: 0, z: -9 });
+    // The loop closes at a junction in front of the exhibit, on the way from the arch, and forks
+    // round the easel rather than through it; the exhibit's stand is on the way up to it.
+    const junction = NORTH_LOOP[NORTH_LOOP.length - 1];
+    expect(NORTH_LOOP[1]).toBe(junction);
+    expect(junction.x).toBe(EXHIBIT.x);
+    expect(junction.z).toBeLessThan(STATION_STANDS.exponat.z);
+    expect(junction.z).toBeGreaterThan(EXHIBIT.z + 0.48 + PLAYER_RADIUS);
+    expect(worstClearance(NORTH_LOOP).room).toBeGreaterThanOrEqual(PLAYER_RADIUS);
     expect(PATHS).toContain(BOARDWALK);
     expect(PATHS).toContain(NORTH_LOOP);
     expect(PATHS).toContain(WALL_SPUR);

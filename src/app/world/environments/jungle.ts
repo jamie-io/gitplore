@@ -413,9 +413,6 @@ export const SLOP_AIR = {
  */
 export const SLOP_TINT = 0.25;
 
-/** How much of the slop's haze still hangs over the north bank: it thins over the span. */
-export const NORTH_BANK_HAZE = 0.35;
-
 /** Linear-space copies of both ends of the slop blend, made once. */
 const CLEAR = {
   fog: new Color(DSCHUNGEL.fog.color),
@@ -715,9 +712,8 @@ export class JungleEnvironment implements Environment {
   }
 
   /**
-   * The haze actually in the air this frame: the slop, thinned to `NORTH_BANK_HAZE` of itself
-   * once the camera is north of the rill. It thins across the deck, so the fog lifts as the
-   * visitor crosses under the arch.
+   * The haze actually in the air this frame: the slop itself, over the whole bowl. The north half
+   * starts in the slop too (spec §4); only the ring from the arch clears it.
    */
   get haze(): number {
     return this.hazeNow;
@@ -803,12 +799,12 @@ export class JungleEnvironment implements Environment {
 
     this.air = findAir(ctx, this.sun.light);
     this.appliedHaze = -1;
-    this.breathe(ctx.camera.position);
+    this.breathe();
   }
 
   update(dt: number, ctx: WorldContext): void {
     this.shared.update(dt, ctx.player.position, this.options.reducedMotion());
-    this.breathe(ctx.camera.position);
+    this.breathe();
     this.sky.update(dt, ctx);
     this.sun.update(dt, ctx);
     this.pool.update();
@@ -863,13 +859,11 @@ export class JungleEnvironment implements Environment {
   }
 
   /**
-   * Writes the slop's light tint, thinned by the bank the camera is over, into the fog, the sky and
-   * the light: `SLOP_TINT` of the way towards `SLOP_AIR` at full slop.
+   * Writes the slop's light tint into the fog, the sky and the light: `SLOP_TINT` of the way
+   * towards `SLOP_AIR` at full slop.
    */
-  private breathe(camera: Vector3): void {
-    // 0 over the north end of the deck and beyond, 1 over its south end and beyond.
-    const south = smoothstep(-DECK.halfLength, DECK.halfLength, camera.z - RILL.centreZ(camera.x));
-    this.hazeNow = this.slopAmount * (NORTH_BANK_HAZE + (1 - NORTH_BANK_HAZE) * south);
+  private breathe(): void {
+    this.hazeNow = this.slopAmount;
     if (!this.air || Math.abs(this.hazeNow - this.appliedHaze) < 1e-4) {
       return;
     }
