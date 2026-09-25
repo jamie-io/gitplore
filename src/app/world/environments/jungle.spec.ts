@@ -935,7 +935,7 @@ describe('JungleEnvironment', () => {
 
     it('lays the ground haze over every surface the atmosphere reaches, cleared by the ring', () => {
       for (const [tier, steps] of [
-        ['low', 6],
+        ['low', 4],
         ['medium', 10],
         ['high', 16],
       ] as const) {

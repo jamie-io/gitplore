@@ -203,16 +203,16 @@ describe('GroundHaze', () => {
     haze.dispose();
   });
 
-  it('marches 6 steps on the low tier, 10 on medium and 16 on high', () => {
+  it('marches 4 steps on the low tier, 10 on medium and 16 on high', () => {
     const haze = new GroundHaze({ heightAt: jungleHeightAt, clearing: clearingUniforms() });
 
-    expect(haze.steps).toBe(6);
+    expect(haze.steps).toBe(4);
     haze.setDetail(1);
     expect(haze.steps).toBe(10);
     haze.setDetail(2);
     expect(haze.steps).toBe(16);
     haze.setDetail(0);
-    expect(haze.steps).toBe(6);
+    expect(haze.steps).toBe(4);
     haze.dispose();
   });
 
