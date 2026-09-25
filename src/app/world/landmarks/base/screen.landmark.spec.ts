@@ -260,4 +260,26 @@ describe('ScreenLandmark geometry', () => {
 
     expect(postTop).toBeLessThanOrEqual(bodyBottom + 0.01);
   });
+
+  it('stands only its face and label when an environment frames it', () => {
+    const ctx = context();
+    const landmark = new ScreenLandmark(
+      options({ frame: false, placement: { position: [0, 0, 0], rotationY: 0 } }),
+    );
+    landmark.init(ctx);
+
+    expect(landmark.group.getObjectByName('post')).toBeUndefined();
+    expect(landmark.group.getObjectByName('body')).toBeUndefined();
+    const surface = landmark.group.getObjectByName('surface')!;
+    // Where the frame's face expects it: 1.9 m up, 9 cm in front of the centre.
+    expect(surface.position.y).toBeCloseTo(1.9, 6);
+    expect(surface.position.z).toBeCloseTo(0.09, 6);
+    // The footprint covers the environment's frame: the board's posts and feet reach 1.92 m out.
+    const [footprint] = landmark.colliders;
+    expect(footprint.kind).toBe('aabb');
+    if (footprint.kind === 'aabb') {
+      expect((footprint.maxX - footprint.minX) / 2).toBeGreaterThanOrEqual(1.92);
+    }
+    landmark.dispose();
+  });
 });

@@ -30,6 +30,7 @@ import {
   repositoryReleases,
 } from '@content/repository-data';
 import { rotatedAabb } from './footprint';
+import { bakeGeometry, borrowModels } from '../model-geometry';
 import { createLabel } from '../../landmarks/base/label';
 import type { HazedCopies } from '../shaders/hazed-copies';
 
@@ -70,6 +71,18 @@ const READING_PITCH = 0.2;
  * procedural slab's envelope, so the screen panel and the plank label sit on it unchanged.
  */
 export const STELE_MODEL = 'assets/models/stele.glb';
+/**
+ * The Plaza's newsstand kiosk (scripts/blender/models/plaza_terminal.py), built around the default
+ * screen: its empty `screen` sits where the screen is drawn.
+ */
+export const PLAZA_TERMINAL_MODEL = 'assets/models/plaza-terminal.glb';
+
+/**
+ * The kiosk's counter is 2.9 × 0.5 m and its stone feet reach ±1.54 m, so the Plaza's terminal
+ * blocks a wider, deeper box than the default screen on its post.
+ */
+const PLAZA_COLLIDER_WIDTH = 3.1;
+const PLAZA_COLLIDER_DEPTH = 0.65;
 
 const JUNGLE_SCREEN_WIDTH = 1.6;
 const JUNGLE_SCREEN_HEIGHT = 1;
@@ -107,6 +120,9 @@ export const TERMINAL_LINES_PER_PAGE = 8;
 export const TERMINAL_PROMPT = 'Terminal bedienen';
 export const TERMINAL_RELEASE_PROMPT = 'Terminal verlassen';
 
+/** How the terminal is dressed: a screen on a post, the jungle's stele, or the Plaza's kiosk. */
+export type TerminalSkin = 'default' | 'jungle' | 'plaza';
+
 export interface TerminalPage {
   readonly title: string;
   readonly lines: readonly string[];
@@ -119,10 +135,10 @@ export interface TerminalOptions {
   readonly rotationY?: number;
   readonly ground: HeightField;
   readonly project: Project;
-  readonly skin?: 'default' | 'jungle';
+  readonly skin?: TerminalSkin;
   /** The controls the terminal takes while it is used; headless specs may leave it out. */
   readonly input?: InputActionSource;
-  /** Hazes the stele model's materials into the environment's air; without it they stay plain. */
+  /** Hazes the stele's and the kiosk's materials into the environment's air; without it they stay plain. */
   readonly haze?: HazedCopies;
 }
 
@@ -229,7 +245,7 @@ export class Terminal implements WorldObject {
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[];
   readonly pages: readonly TerminalPage[];
-  readonly skin: 'default' | 'jungle';
+  readonly skin: TerminalSkin;
   /** Where the visitor's eyes go while reading: square in front of the screen. */
   readonly reading: Vector3;
 
@@ -241,6 +257,8 @@ export class Terminal implements WorldObject {
   /** The procedural slab and moss edges, until the stele model replaces them. */
   private steleProxy: Mesh[] = [];
   private steleModel: Group | null = null;
+  /** The default case and post, until the Plaza's kiosk model replaces them. */
+  private caseProxy: Mesh[] = [];
   private assets: WorldContext['assets'] | null = null;
   private disposed = false;
   private canvasContext: CanvasRenderingContext2D | null = null;
@@ -331,6 +349,10 @@ export class Terminal implements WorldObject {
       post.position.y = postHeight / 2;
       post.castShadow = ctx.quality.shadows;
       this.group.add(body, post);
+      if (this.skin === 'plaza') {
+        this.caseProxy = [body, post];
+        this.loadKiosk(ctx);
+      }
     }
 
     const canvas = document.createElement('canvas');
@@ -389,6 +411,7 @@ export class Terminal implements WorldObject {
       this.assets?.releaseModel(STELE_MODEL);
     }
     this.steleProxy = [];
+    this.caseProxy = [];
     // Takes the canvas texture with it: `disposeObject3D` releases every map a material holds.
     disposeObject3D(this.group);
     this.group.clear();
@@ -558,6 +581,41 @@ export class Terminal implements WorldObject {
     );
   }
 
+  /**
+   * Swaps the default case and post for the Plaza's kiosk once it arrives: a baked copy of its
+   * geometry in a material of the terminal's own, hazed into the square's air. The kiosk is built
+   * around the default screen, so the screen stays where it is.
+   */
+  private loadKiosk(ctx: WorldContext): void {
+    this.disposed = false;
+    borrowModels(
+      ctx.assets,
+      [PLAZA_TERMINAL_MODEL],
+      () => this.disposed,
+      (models) => {
+        const node = models.get(PLAZA_TERMINAL_MODEL)!.getObjectByName('terminal');
+        const geometry = node ? bakeGeometry(node) : null;
+        if (!geometry) {
+          return;
+        }
+        const material = new MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.8,
+          metalness: 0,
+        });
+        // In the Plaza's air, as the square is: hazed on every tier but the lowest.
+        const hazed = ctx.quality.shaderDetail > 0 ? this.options.haze?.own(material) : undefined;
+        const kiosk = new Mesh(geometry, hazed ?? material);
+        kiosk.name = `${this.id}:kiosk`;
+        kiosk.castShadow = ctx.quality.shadows;
+        kiosk.receiveShadow = ctx.quality.shadows;
+        this.caseProxy.forEach((mesh) => disposeObject3D(mesh));
+        this.caseProxy = [];
+        this.group.add(kiosk);
+      },
+    );
+  }
+
   private addMossEdges(castShadow: boolean): Mesh[] {
     const edge = 0.045;
     const depth = JUNGLE_SLAB_DEPTH + 0.018;
@@ -630,7 +688,7 @@ interface TerminalDimensions {
   readonly readingDistance: number;
 }
 
-function terminalDimensions(skin: 'default' | 'jungle'): TerminalDimensions {
+function terminalDimensions(skin: TerminalSkin): TerminalDimensions {
   if (skin === 'jungle') {
     return {
       screenWidth: JUNGLE_SCREEN_WIDTH,
@@ -651,8 +709,8 @@ function terminalDimensions(skin: 'default' | 'jungle'): TerminalDimensions {
     caseWidth: CASE_WIDTH,
     caseHeight: CASE_HEIGHT,
     caseDepth: CASE_DEPTH,
-    colliderWidth: CASE_WIDTH,
-    colliderDepth: CASE_DEPTH,
+    colliderWidth: skin === 'plaza' ? PLAZA_COLLIDER_WIDTH : CASE_WIDTH,
+    colliderDepth: skin === 'plaza' ? PLAZA_COLLIDER_DEPTH : CASE_DEPTH,
     readingDistance: READING_DISTANCE,
   };
 }

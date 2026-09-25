@@ -4,7 +4,8 @@ Builds the authored models in Blender and exports them as uncompressed GLB sourc
     blender -b --factory-startup --python scripts/blender/author.py -- <out-dir> [name ...]
 
 Each module in `models/` has a `build()` that returns the objects to export; every object becomes
-one glTF node. Ambient occlusion is baked into the vertex colour before export. `npm run
+one glTF node. Ambient occlusion is baked into the vertex colour of the meshes before export; an
+empty (a named point the game puts something at, such as a lamp's bulb) is exported as it is. `npm run
 assets:author` runs this, and `npm run assets:optimize` compresses the result.
 """
 
@@ -19,7 +20,7 @@ sys.path.insert(0, os.path.join(HERE, "models"))
 
 import kit  # noqa: E402
 
-# name → (module, AO strength, AO distance, bake a ground plane under it)
+# name → (module, AO strength, AO distance, bake a ground plane under it[, args for build()])
 MODELS = {
     "jungle-arch": ("arch", 0.6, 0.6, True),
     "lantern": ("lantern", 0.45, 0.25, False),
@@ -28,6 +29,22 @@ MODELS = {
     "jungle-rocks": ("jungle_rocks", 0.5, 0.6, True),
     "cairn": ("cairn", 0.5, 0.4, True),
     "liana-lever": ("liana_lever", 0.5, 0.4, True),
+    "plaza-terminal": ("plaza_terminal", 0.5, 0.35, True),
+    "plaza-board": ("plaza_board", 0.5, 0.35, True),
+    "plaza-step": ("plaza_step", 0.4, 0.25, True),
+    "plaza-pillar": ("plaza_pillar", 0.45, 0.25, True),
+    "plaza-mast": ("plaza_mast", 0.45, 0.3, True),
+    "plaza-bench": ("plaza_bench", 0.5, 0.3, True),
+    "plaza-cypress": ("plaza_cypress", 0.5, 0.6, True),
+    "plaza-house-a": ("plaza_house", 0.5, 0.5, True, ("a",)),
+    "plaza-house-b": ("plaza_house", 0.5, 0.5, True, ("b",)),
+    "plaza-house-c": ("plaza_house", 0.5, 0.5, True, ("c",)),
+    "plaza-house-d": ("plaza_house", 0.5, 0.5, True, ("d",)),
+    "plaza-house-e": ("plaza_house", 0.5, 0.5, True, ("e",)),
+    "plaza-house-f": ("plaza_house", 0.5, 0.5, True, ("f",)),
+    "plaza-corner": ("plaza_corner", 0.5, 0.5, True),
+    "plaza-fountain": ("plaza_fountain", 0.5, 0.5, True),
+    "plaza-arch": ("plaza_arch", 0.55, 0.5, True),
 }
 
 
@@ -40,15 +57,16 @@ def main():
     os.makedirs(out, exist_ok=True)
     report = {}
     for name in names:
-        module_name, strength, distance, ground = MODELS[name]
+        module_name, strength, distance, ground, *rest = MODELS[name]
         kit.reset()
         module = importlib.import_module(module_name)
-        objects = module.build()
-        kit.bake_occlusion(objects, strength=strength, distance=distance, ground=ground)
+        objects = module.build(*(rest[0] if rest else ()))
+        meshes = [o for o in objects if o.type == "MESH"]
+        kit.bake_occlusion(meshes, strength=strength, distance=distance, ground=ground)
         path = os.path.join(out, f"{name}.glb")
         kit.export(path)
         report[name] = {
-            "triangles": sum(kit.triangles(o) for o in objects),
+            "triangles": sum(kit.triangles(o) for o in meshes),
             "nodes": [o.name for o in objects],
             "bytes": os.path.getsize(path),
         }

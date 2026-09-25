@@ -188,7 +188,8 @@ export class ProjectScene implements WorldScene {
   protected readonly exhibit: ScreenLandmark;
   /** The two toys every project world gets; public so specs can find them. */
   readonly terminal: Terminal;
-  readonly seedLever: SeedLever;
+  /** `null` for an environment whose `toyLayout()` lays out no lever, the Plaza among them. */
+  readonly seedLever: SeedLever | null;
   /** Hazed copies of loaded models' materials, where the environment has an atmosphere to share. */
   protected readonly haze: HazedCopies | null;
 
@@ -206,6 +207,9 @@ export class ProjectScene implements WorldScene {
       reducedMotion: options.reducedMotion,
     });
 
+    // The Plaza stands its notice board around the exhibit and its street arch around the portal,
+    // so neither landmark draws its own frame there.
+    const plaza = this.environment.id === 'plaza';
     const [anchor] = this.environment.anchors(1);
     this.exhibit = new ScreenLandmark({
       project: options.project,
@@ -215,6 +219,7 @@ export class ProjectScene implements WorldScene {
       onEnter: options.onOpenInfo,
       textures: options.textures,
       ...options.poster,
+      frame: !plaza,
     });
 
     // Turned to face the arriving player's back: `Landmark` then derives a spawn point a few
@@ -233,13 +238,16 @@ export class ProjectScene implements WorldScene {
       reducedMotion: options.reducedMotion,
       onEnter: () => options.onLeave(),
       textures: options.textures,
+      frame: !plaza,
     });
 
     this.arrival = { position: this.returnPortal.spawn, yaw: this.returnPortal.spawnYaw };
     this.landmarks = [this.exhibit, this.returnPortal];
     const toys = this.environment.toyLayout?.() ?? this.walkLayout(options.project);
-    // The jungle dresses the shared toys in its own materials; every other world keeps the default.
+    // The jungle dresses the shared toys in its own materials, and the Plaza the terminal, the ridge
+    // and the language row in its own models; every other world keeps the default.
     const skin = this.environment.id === 'jungle' ? 'jungle' : undefined;
+    const modelSkin = plaza ? 'plaza' : skin;
     this.terminal = new Terminal({
       id: `${this.id}:terminal`,
       position: toys.terminal.position,
@@ -247,22 +255,24 @@ export class ProjectScene implements WorldScene {
       ground: this.environment.ground,
       project: options.project,
       input: options.input,
-      skin,
+      skin: modelSkin,
       haze: this.haze ?? undefined,
     });
-    this.seedLever = new SeedLever({
-      id: `${this.id}:seed-lever`,
-      position: toys.lever.position,
-      rotationY: toys.lever.rotationY,
-      ground: this.environment.ground,
-      onReseed: (offset) => this.environment.reseedDecoration?.(offset),
-      reducedMotion: options.reducedMotion,
-      skin,
-      haze: this.haze ?? undefined,
-    });
+    this.seedLever = toys.lever
+      ? new SeedLever({
+          id: `${this.id}:seed-lever`,
+          position: toys.lever.position,
+          rotationY: toys.lever.rotationY,
+          ground: this.environment.ground,
+          onReseed: (offset) => this.environment.reseedDecoration?.(offset),
+          reducedMotion: options.reducedMotion,
+          skin,
+          haze: this.haze ?? undefined,
+        })
+      : null;
     this.parts = [
       this.terminal,
-      this.seedLever,
+      ...(this.seedLever ? [this.seedLever] : []),
       this.exhibit,
       this.returnPortal,
       new CommitRidge({
@@ -270,7 +280,8 @@ export class ProjectScene implements WorldScene {
         from: toys.ridge.from,
         to: toys.ridge.to,
         ground: this.environment.ground,
-        skin,
+        skin: modelSkin,
+        haze: this.haze ?? undefined,
         reducedMotion: options.reducedMotion,
       }),
       new LanguagePillars({
@@ -278,7 +289,8 @@ export class ProjectScene implements WorldScene {
         origin: toys.languages.position,
         rotationY: toys.languages.rotationY,
         ground: this.environment.ground,
-        skin,
+        skin: modelSkin,
+        haze: this.haze ?? undefined,
       }),
       new ReleaseMarkers({
         project: options.project,

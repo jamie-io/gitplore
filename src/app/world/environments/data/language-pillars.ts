@@ -1,5 +1,15 @@
-import { CylinderGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import {
+  BufferGeometry,
+  CylinderGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Vector3,
+} from 'three';
+import { STONE } from '../architecture';
 import { assemble, paint } from '../flora';
+import { bakeGeometry, borrowModels, mergeBaked, tintGeometry } from '../model-geometry';
+import type { HazedCopies } from '../shaders/hazed-copies';
 import type { Project } from '@content/project.model';
 import { disposeObject3D } from '@engine/dispose';
 import { WorldContext, WorldObject } from '@engine/world-object';
@@ -23,6 +33,11 @@ export const LANGUAGE_COLOURS: Readonly<Record<string, number>> = {
 };
 
 const FALLBACK_COLOUR = 0x8a8f98;
+/**
+ * The Plaza's Tuscan column (scripts/blender/models/plaza_pillar.py): a `base`, a unit-high `shaft`
+ * and a `capital` ending at 1 m, all white, stretched to each pillar's height.
+ */
+export const PLAZA_PILLAR_MODEL = 'assets/models/plaza-pillar.glb';
 const PILLAR_WIDTH = 0.55;
 const PILLAR_BASE = 0.35;
 const PILLAR_MAX = 3.6;
@@ -35,7 +50,7 @@ export const JUNGLE_BAMBOO_BAND_OFFSET = 0.18;
 /** Keep repository-controlled rows within one side of the visitor's walk. */
 export const MAX_LANGUAGE_PILLARS = 12;
 
-type ToySkin = 'default' | 'jungle';
+type ToySkin = 'default' | 'jungle' | 'plaza';
 
 export interface LanguagePillarsOptions {
   readonly project: Project;
@@ -43,6 +58,17 @@ export interface LanguagePillarsOptions {
   readonly rotationY: number;
   readonly ground: HeightField;
   readonly skin?: ToySkin;
+  /** Hazes the Plaza's columns into the square's air; the other skins keep their plain material. */
+  readonly haze?: HazedCopies;
+}
+
+/** A pillar of the plain row: where it stands, how high, in which colour. */
+interface Pillar {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly height: number;
+  readonly colour: number;
 }
 
 /** One capped pillar per language, merged into one coloured mesh. Missing data stays silent. */
@@ -51,10 +77,12 @@ export class LanguagePillars implements WorldObject {
 
   private mesh?: Mesh;
   private sign?: Group;
+  private disposed = false;
 
   constructor(private readonly options: LanguagePillarsOptions) {}
 
   init(ctx: WorldContext): void {
+    this.disposed = false;
     const languages = languageEntries(this.options.project);
     if (languages.length === 0) {
       return;
@@ -66,21 +94,29 @@ export class LanguagePillars implements WorldObject {
       jungle ? 1.4 + (total > 0 ? bytes / total : 0) * 3.6 : 0,
     );
     let nodeCount = 0;
+    const pillars: Pillar[] = [];
     const parts = languages.flatMap(([language, bytes], index) => {
       const share = total > 0 ? bytes / total : 0;
       const offset = (index - (languages.length - 1) / 2) * PILLAR_SPACING;
       const x = this.options.origin.x + Math.cos(this.options.rotationY) * offset;
       const z = this.options.origin.z - Math.sin(this.options.rotationY) * offset;
       if (!jungle) {
-        const height = PILLAR_BASE + share * PILLAR_MAX;
+        const pillar: Pillar = {
+          x,
+          y: this.options.ground.heightAt(x, z),
+          z,
+          height: PILLAR_BASE + share * PILLAR_MAX,
+          colour: LANGUAGE_COLOURS[language] ?? FALLBACK_COLOUR,
+        };
+        pillars.push(pillar);
         return [
           paint(
-            new CylinderGeometry(PILLAR_WIDTH / 2, PILLAR_WIDTH / 1.8, height, 6).translate(
+            new CylinderGeometry(PILLAR_WIDTH / 2, PILLAR_WIDTH / 1.8, pillar.height, 6).translate(
               x,
-              this.options.ground.heightAt(x, z) + height / 2,
+              pillar.y + pillar.height / 2,
               z,
             ),
-            LANGUAGE_COLOURS[language] ?? FALLBACK_COLOUR,
+            pillar.colour,
           ),
         ];
       }
@@ -123,9 +159,18 @@ export class LanguagePillars implements WorldObject {
       return bamboo;
     });
     const geometry = assemble(parts);
+    const material = new MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.7,
+      metalness: 0.08,
+    });
+    const plaza = this.options.skin === 'plaza';
     const mesh = new Mesh(
       geometry,
-      new MeshStandardMaterial({ vertexColors: true, roughness: 0.7, metalness: 0.08 }),
+      // In the Plaza's air, as the square is: hazed on every tier but the lowest.
+      plaza && this.options.haze && ctx.quality.shaderDetail > 0
+        ? this.options.haze.own(material)
+        : material,
     );
     mesh.name = this.id;
     mesh.userData['stalkCount'] = languages.length;
@@ -135,6 +180,9 @@ export class LanguagePillars implements WorldObject {
     mesh.receiveShadow = ctx.quality.shadows;
     this.mesh = mesh;
     ctx.scene.add(mesh);
+    if (plaza) {
+      this.loadColumns(ctx, mesh, pillars);
+    }
 
     if (jungle) {
       const sign = createPlankSign('Sprachen · Languages', this.options.project.theme.primary);
@@ -156,7 +204,29 @@ export class LanguagePillars implements WorldObject {
     // Language data does not animate.
   }
 
+  /** Swaps the plain pillars for the Plaza's columns once the model arrives; without it they stay. */
+  private loadColumns(ctx: WorldContext, mesh: Mesh, pillars: readonly Pillar[]): void {
+    borrowModels(
+      ctx.assets,
+      [PLAZA_PILLAR_MODEL],
+      () => this.disposed,
+      (models) => {
+        const model = models.get(PLAZA_PILLAR_MODEL)!;
+        const [base, shaft, capital] = ['base', 'shaft', 'capital'].map((name) => {
+          const node = model.getObjectByName(name);
+          return node ? bakeGeometry(node) : null;
+        });
+        if (base && shaft && capital) {
+          mesh.geometry.dispose();
+          mesh.geometry = buildColumns(pillars, this.options.rotationY, base, shaft, capital);
+        }
+        [base, shaft, capital].forEach((part) => part?.dispose());
+      },
+    );
+  }
+
   dispose(): void {
+    this.disposed = true;
     if (this.mesh) {
       disposeObject3D(this.mesh);
       this.mesh = undefined;
@@ -166,6 +236,41 @@ export class LanguagePillars implements WorldObject {
       this.sign = undefined;
     }
   }
+}
+
+/**
+ * The row from the Plaza's column: per pillar the `base` on the ground, the unit-high `shaft`
+ * stretched to the pillar's height in its language's colour, and the `capital` ending at that
+ * height, both in stone, all turned square to the row. Every column stays exactly as high as the
+ * plain pillar. Base and capital take at most half a short column between them, flattened about
+ * their own foot and top but never narrowed, so they still frame the shaft: at full height they left
+ * the shortest columns a squat 10 cm of shaft.
+ */
+function buildColumns(
+  pillars: readonly Pillar[],
+  rotationY: number,
+  base: BufferGeometry,
+  shaft: BufferGeometry,
+  capital: BufferGeometry,
+): BufferGeometry {
+  base.computeBoundingBox();
+  capital.computeBoundingBox();
+  const baseHeight = base.boundingBox!.max.y;
+  const capitalTop = capital.boundingBox!.max.y;
+  const ends = baseHeight + capitalTop - capital.boundingBox!.min.y;
+  return mergeBaked(
+    pillars.flatMap(({ x, y, z, height, colour }) => {
+      const fit = Math.min(1, height / 2 / ends);
+      return [
+        tintGeometry(base.clone(), STONE).scale(1, fit, 1),
+        tintGeometry(shaft.clone(), colour).scale(1, height, 1),
+        tintGeometry(capital.clone(), STONE)
+          .translate(0, -capitalTop, 0)
+          .scale(1, fit, 1)
+          .translate(0, height, 0),
+      ].map((part) => part.rotateY(rotationY).translate(x, y, z));
+    }),
+  );
 }
 
 function languageEntries(project: Project): readonly [string, number][] {

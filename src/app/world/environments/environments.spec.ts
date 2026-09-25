@@ -37,7 +37,8 @@ describe.each(BUILDERS)('$id', ({ id, build }) => {
 
     expect(typeof environment.ground.heightAt(3, -4)).toBe('number');
     expect(Array.isArray(environment.colliders)).toBe(true);
-    expect(environment.anchors(2).length).toBe(2);
+    // The Plaza's layout is fixed: it has one exhibit station and seats one landmark only.
+    expect(environment.anchors(2).length).toBe(id === 'plaza' ? 1 : 2);
   });
 
   it('turns every anchor towards the arriving player, who would otherwise meet its back', () => {

@@ -1,5 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import { qualitySettings } from '@engine/capability.service';
 import { stubContext } from '@engine/testing/world-context';
+import { PLAZA } from '../mood';
+import { HazedCopies } from '../shaders/hazed-copies';
+import { SharedUniforms } from '../shaders/shared-uniforms';
+import { ModelFiles } from '../testing/model-files';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import {
@@ -7,7 +13,11 @@ import {
   JUNGLE_BOARDWALK_PLANK_COUNT,
   JUNGLE_RAIL_POST_COUNT,
   JUNGLE_WOOD_COLOURS,
+  PLAZA_STEP_MODEL,
   RIDGE_SLAB_COUNT,
+  plazaStepCount,
+  resampleBuckets,
+  slabHeight as heightFor,
 } from './commit-ridge';
 
 const PROJECT = PROJECT_FIXTURES[0];
@@ -218,6 +228,125 @@ describe('CommitRidge', () => {
     expect((ctx.scene.getObjectByName('commit-ridge') as Mesh).userData['plankCount']).toBe(
       JUNGLE_BOARDWALK_PLANK_COUNT,
     );
+    ridge.dispose();
+  });
+
+  it('builds the Plaza ridge from the step model: one step per half metre of its chord', async () => {
+    // The Plaza's ridge: a 6 m chord at the north-east station.
+    const from = new Vector3(5.66, 0, -9.9);
+    const to = new Vector3(9.9, 0, -5.66);
+    const chord = from.distanceTo(to);
+    const project: Project = {
+      ...PROJECT,
+      commitBuckets: Array.from({ length: RIDGE_SLAB_COUNT }, (_, index) => (index % 7) * 3),
+    };
+    const assets = new ModelFiles((path) => readFileSync(path));
+    const ctx = stubContext(assets);
+    const haze = new HazedCopies(new SharedUniforms(PLAZA));
+    const ridge = new CommitRidge({ project, from, to, ground, skin: 'plaza', haze });
+
+    ridge.init(ctx);
+    expect(plazaStepCount(from, to)).toBe(12);
+    const proxy = ctx.scene.getObjectByName('commit-ridge') as Mesh;
+    const proxyGeometry = proxy.geometry;
+    expect(proxyGeometry.getAttribute('position').count % 12).toBe(0);
+    expect(assets.requested).toEqual([PLAZA_STEP_MODEL]);
+    await assets.settled();
+
+    const mesh = ctx.scene.getObjectByName('commit-ridge') as Mesh;
+    expect(mesh.geometry).not.toBe(proxyGeometry);
+    expect(mesh.geometry.getAttribute('color')).toBeDefined();
+    // Twelve steps shoulder to shoulder along the whole chord, each as high as the commits of
+    // its stretch of the 52 buckets.
+    const expected = resampleBuckets(project.commitBuckets, 12);
+    expect(expected.reduce((sum, value) => sum + value, 0)).toBe(
+      project.commitBuckets!.reduce((sum, value) => sum + value, 0),
+    );
+    const axis = to.clone().sub(from).normalize();
+    const position = mesh.geometry.getAttribute('position');
+    const perStep = position.count / 12;
+    expect(Number.isInteger(perStep)).toBe(true);
+    const point = new Vector3();
+    for (let step = 0; step < 12; step++) {
+      let [low, high, near, far] = [Infinity, -Infinity, Infinity, -Infinity];
+      for (let vertex = step * perStep; vertex < (step + 1) * perStep; vertex++) {
+        point.fromBufferAttribute(position, vertex);
+        low = Math.min(low, point.y);
+        high = Math.max(high, point.y);
+        const along = point.clone().sub(from).dot(axis);
+        near = Math.min(near, along);
+        far = Math.max(far, along);
+      }
+      expect(high - low).toBeCloseTo(heightFor(expected[step]), 3);
+      expect(far - near).toBeCloseTo(chord / 12, 3);
+      expect(near).toBeCloseTo((step * chord) / 12, 3);
+    }
+    const material = mesh.material as MeshStandardMaterial;
+    expect(material.vertexColors).toBe(true);
+    expect(material.color.getHex()).toBe(new Color(PROJECT.theme.primary).getHex());
+    expect(material.customProgramCacheKey()).toContain('atmosphere');
+
+    ridge.dispose();
+    expect(assets.releasedModels).toEqual([PLAZA_STEP_MODEL]);
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('resamples the buckets into groups that keep every commit, and a missing history level', () => {
+    expect(resampleBuckets([1, 2, 3, 4, 5, 6], 3)).toEqual([3, 7, 11]);
+    expect(resampleBuckets([1, 2, 3, 4, 5], 2)).toEqual([3, 12]);
+    expect(resampleBuckets(undefined, 4)).toEqual([0, 0, 0, 0]);
+    expect(resampleBuckets([Number.NaN, -2, 5], 1)).toEqual([5]);
+  });
+
+  it('leaves the Plaza ridge in plain air on the lowest tier, as the square is', () => {
+    const ctx = { ...stubContext(), quality: qualitySettings('low') };
+    const haze = new HazedCopies(new SharedUniforms(PLAZA));
+    const ridge = new CommitRidge({
+      project: PROJECT,
+      from: FROM,
+      to: TO,
+      ground,
+      skin: 'plaza',
+      haze,
+    });
+    ridge.init(ctx);
+
+    const mesh = ctx.scene.getObjectByName('commit-ridge') as Mesh;
+    expect((mesh.material as MeshStandardMaterial).customProgramCacheKey()).not.toContain(
+      'atmosphere',
+    );
+    ridge.dispose();
+  });
+
+  it('keeps 52 slabs for the default and jungle ridges', () => {
+    for (const skin of [undefined, 'jungle'] as const) {
+      const ctx = stubContext();
+      const ridge = new CommitRidge({ project: PROJECT, from: FROM, to: TO, ground, skin });
+      ridge.init(ctx);
+      const mesh = ctx.scene.getObjectByName('commit-ridge') as Mesh;
+      if (skin === undefined) {
+        expect(mesh.geometry.getAttribute('position').count % RIDGE_SLAB_COUNT).toBe(0);
+        expect(mesh.geometry.getAttribute('position').count / RIDGE_SLAB_COUNT).toBe(24);
+      } else {
+        expect(mesh.userData['plankCount']).toBeGreaterThan(0);
+      }
+      ridge.dispose();
+    }
+  });
+
+  it('keeps the plain slabs when the step model fails', async () => {
+    const assets = new ModelFiles(
+      (path) => readFileSync(path),
+      () => true,
+    );
+    const ctx = stubContext(assets);
+    const ridge = new CommitRidge({ project: PROJECT, from: FROM, to: TO, ground, skin: 'plaza' });
+    ridge.init(ctx);
+    const geometry = (ctx.scene.getObjectByName('commit-ridge') as Mesh).geometry;
+    await assets.settled();
+
+    expect((ctx.scene.getObjectByName('commit-ridge') as Mesh).geometry).toBe(geometry);
+    expect(assets.releasedModels).toEqual([]);
     ridge.dispose();
   });
 });
