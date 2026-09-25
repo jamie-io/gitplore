@@ -327,9 +327,7 @@ export class WorldPage {
   }
 
   private onAction(action: InputAction): void {
-    // Any key skips a running shot (spec §3) and then does what it always does — except leave the
-    // world, which is not what anyone pressing Esc over the arrival meant.
-    const shotRunning = this.store.shot() !== null;
+    // Any key skips a running shot (spec §3) and then does what it always does.
     this.engine.skipShot();
 
     if (isStationAction(action)) {
@@ -389,7 +387,7 @@ export class WorldPage {
           this.engine.cancelGlide();
         } else if (this.store.demoActive()) {
           this.director.endDemo();
-        } else if (this.routeState().slug !== null && !shotRunning) {
+        } else if (this.routeState().slug !== null) {
           void this.router.navigate(['/']);
         }
         break;

@@ -16,8 +16,8 @@ test.describe('walking between worlds', () => {
     await expect(page).toHaveURL(/\/p\/deslopify$/);
     await expect(page.locator('app-hud .area')).toContainText('Dschungel');
 
-    // The return portal stands at the arrival point, right behind the visitor: turning to face it
-    // is enough, no walking needed.
+    // Any key skips the arrival shot before turning to face the return portal behind the visitor.
+    await page.keyboard.press('KeyW');
     await page.keyboard.down('ArrowLeft');
     await expect(page.locator('app-hud .prompt')).toContainText('Zurück', { timeout: 20_000 });
     await page.keyboard.up('ArrowLeft');

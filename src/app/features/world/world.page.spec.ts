@@ -16,6 +16,7 @@ import { WorldPage } from './world.page';
 import { SceneDirector } from './scene-director';
 import { CAPABLE } from '@engine/testing/world-context';
 import { StubEngine } from '@engine/testing/stub-engine';
+import { arrivalShot } from '@engine/camera/camera-shot';
 
 /**
  * A stub for the `info` leaf: `WorldPage` only cares that the route was matched, not what it
@@ -208,6 +209,30 @@ describe('WorldPage', () => {
     press('KeyR');
 
     expect(restart).toHaveBeenCalledOnce();
+  });
+
+  it('leaves a repo world when Escape skips its arrival shot', async () => {
+    await bootWithoutManifest();
+    store.markStarted();
+    TestBed.tick();
+    await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+    await settle(() => engine.world?.id === 'project:novaverta', 'Novaverta world');
+
+    engine.playShot(
+      arrivalShot(
+        {
+          position: { x: 0, y: 2, z: 0 },
+          target: { x: 0, y: 1, z: -1 },
+        },
+        false,
+      ),
+    );
+    expect(store.shot()).toBe('arrival');
+
+    press('Escape');
+    await settle(() => TestBed.inject(Router).url === '/', 'the repo world to close');
+
+    expect(TestBed.inject(Router).url).toBe('/');
   });
 
   describe('stations', () => {
