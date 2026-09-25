@@ -146,6 +146,7 @@ export class SceneDirector {
       this.current = scene;
       this.place(scene);
       this.store.setArea(project ? `${environment.name} — ${project.title}` : environment.name);
+      this.store.setEnvironment(environment.id);
       this.store.setCurrentProject(project?.slug ?? null);
       this.store.setTravelDistances(new Map());
       this.previousSlug = slug;

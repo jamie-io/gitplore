@@ -14,6 +14,7 @@ import { StubAssets } from '@engine/testing/world-context';
 import { PlayerController } from '@engine/player/player-controller';
 import { WorldContext } from '@engine/world-object';
 import { PROJECT_FIXTURES as PROJECTS } from '@content/testing/project-fixtures';
+import { clearance } from '../../environments/testing/clearance';
 import { TextureProvider } from './landmark';
 import { ScreenLandmark, ScreenLandmarkOptions } from './screen.landmark';
 
@@ -275,11 +276,28 @@ describe('ScreenLandmark geometry', () => {
     expect(surface.position.y).toBeCloseTo(1.9, 6);
     expect(surface.position.z).toBeCloseTo(0.09, 6);
     // The footprint covers the environment's frame: the board's posts and feet reach 1.92 m out.
-    const [footprint] = landmark.colliders;
-    expect(footprint.kind).toBe('aabb');
-    if (footprint.kind === 'aabb') {
-      expect((footprint.maxX - footprint.minX) / 2).toBeGreaterThanOrEqual(1.92);
+    for (const x of [-1.92, 0, 1.92]) {
+      expect(clearance(x, 0, landmark.colliders)).toBeLessThan(0);
     }
     landmark.dispose();
+  });
+
+  it('follows a framing board turned onto a diagonal, rather than boxing it in', () => {
+    const turn = Math.PI / 4;
+    const landmark = new ScreenLandmark(
+      options({ frame: false, placement: { position: [0, 0, 0], rotationY: turn } }),
+    );
+
+    // Both posts are still solid…
+    for (const along of [-1.92, 1.92]) {
+      const x = Math.cos(turn) * along;
+      const z = -Math.sin(turn) * along;
+      expect(clearance(x, z, landmark.colliders)).toBeLessThan(0);
+    }
+    // …but 0.9 m in front of the face is free: a box around the turned board would reach 1.75 m.
+    const front = 0.9;
+    expect(
+      clearance(Math.sin(turn) * front, Math.cos(turn) * front, landmark.colliders),
+    ).toBeGreaterThan(0);
   });
 });

@@ -326,6 +326,19 @@ describe('Hud interaction prompt and navigation', () => {
     }
   });
 
+  it('names the environment on its host, so the station bar and plate take its colours', async () => {
+    await fixture.whenStable();
+    expect(host().hasAttribute('data-environment')).toBe(false);
+
+    store.setEnvironment('plaza');
+    await fixture.whenStable();
+    expect(host().getAttribute('data-environment')).toBe('plaza');
+
+    store.setEnvironment('jungle');
+    await fixture.whenStable();
+    expect(host().getAttribute('data-environment')).toBe('jungle');
+  });
+
   it('moves the prompt class when stations exist', async () => {
     store.stations.set([{ index: 1, id: 'lantern', name: 'Laterne', state: 'here' }]);
     await fixture.whenStable();

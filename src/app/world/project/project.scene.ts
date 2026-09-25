@@ -266,6 +266,11 @@ export class ProjectScene implements WorldScene {
     });
 
     this.arrival = { position: this.returnPortal.spawn, yaw: this.returnPortal.spawnYaw };
+    // A bespoke scene's own path is already on its prototype here, and wins; otherwise the
+    // environment's, bound so the director can call it from the scene.
+    if (!this.glidePath && this.environment.glidePath) {
+      this.glidePath = this.environment.glidePath.bind(this.environment);
+    }
     this.landmarks = [this.exhibit, this.returnPortal];
     const toys = this.environment.toyLayout?.() ?? this.walkLayout(options.project);
     // The jungle dresses the shared toys in its own materials, and the Plaza the terminal, the ridge
@@ -398,18 +403,19 @@ export class ProjectScene implements WorldScene {
 
   /*
    * The stations, the stands, the shots and the plates the director reads (spec §2, §3). A plain
-   * project world has none of them; a bespoke scene overrides the getters, and defines the two
-   * methods, to have them. Getters, not fields, for the same reason as `demo`.
+   * project world has the environment's stations, stand and path, if it lays any out (the Plaza),
+   * and none otherwise; a bespoke scene overrides the getters, and defines the two methods, to
+   * have its own. Getters, not fields, for the same reason as `demo`.
    */
 
-  /** The stops of the station bar, in order; none in a plain project world. */
+  /** The stops of the station bar, in order: the environment's, if it lays any out. */
   get stations(): readonly StationSpec[] | undefined {
-    return undefined;
+    return this.environment.stations?.();
   }
 
-  /** Where the 0 key glides to. */
+  /** Where the 0 key glides to: the environment's stand, if it has one. */
   get portalStand(): StationStand | undefined {
-    return undefined;
+    return this.environment.portalStand;
   }
 
   /** The pose that frames the whole world, for the arrival camera and the key moment. */
@@ -422,7 +428,10 @@ export class ProjectScene implements WorldScene {
     return undefined;
   }
 
-  /** The way a glide takes between two spots; a straight line where a scene does not say. */
+  /**
+   * The way a glide takes between two spots; a straight line where neither the scene nor the
+   * environment says. The environment's path is set in the constructor, bound to it.
+   */
   glidePath?(from: GroundPoint, to: GroundPoint): readonly GroundPoint[];
 
   /** The plate for a find at (x, z) that is not a station. */

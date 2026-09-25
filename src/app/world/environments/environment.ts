@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import { Interactable } from '@engine/interaction/interactable';
 import { Collider, HeightField } from '@engine/player/collision';
+import type { GroundPoint, StationSpec, StationStand } from '@engine/stations/station';
 import { WorldObject } from '@engine/world-object';
 import type { EnvironmentId } from '@content/project.model';
 import type { LandmarkPlacement } from '../landmarks/base/landmark';
@@ -105,6 +106,16 @@ export interface Environment extends WorldObject {
    * it the scene stands them along the straight walk from the arrival to the exhibit.
    */
   toyLayout?(): ToyLayout;
+  /**
+   * The places a player can be glided to, if the environment lays out stations: a project world
+   * standing here takes them over unless its own scene declares others. Knows nothing about the
+   * project, so its plates speak of what the toys at each station show.
+   */
+  stations?(): readonly StationSpec[];
+  /** Where the 0 key glides to, in front of the return portal, for an environment with stations. */
+  readonly portalStand?: StationStand;
+  /** The route a glide takes between two spots; without it the kit glides in a straight line. */
+  glidePath?(from: GroundPoint, to: GroundPoint): readonly GroundPoint[];
   /**
    * `count` places to stand a landmark, turned to face an approaching visitor. Layout is the
    * environment's business: a clearing scatters differently from a plaza.

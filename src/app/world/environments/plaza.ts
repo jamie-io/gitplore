@@ -16,6 +16,7 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Collider, HeightField } from '@engine/player/collision';
+import type { GroundPoint, StationPlate, StationSpec } from '@engine/stations/station';
 import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import {
@@ -49,6 +50,7 @@ import {
   HOUSE_DEPTH,
   HouseSpot,
   MASTS,
+  PORTAL_STAND,
   POTS,
   PlazaStation,
   RIDGE,
@@ -60,6 +62,7 @@ import {
   STUCCO,
   footprint,
   houseRow,
+  plazaGlidePath,
 } from './plaza-layout';
 import {
   PLAZA_MODELS,
@@ -106,6 +109,50 @@ const BOARD_BACKING = 0x3a3026;
 /** Radius of a station medallion, and its lift off the floor. */
 const MEDALLION = 0.9;
 const MEDALLION_LIFT = 0.01;
+
+/**
+ * What each station's plate says, German first. The environment knows nothing about the project,
+ * so the words speak of what the toy at the station shows: the terminal pages through the
+ * repository's figures, the board carries its picture, the ridge's steps each gather a stretch of
+ * the project's life, as tall as its commits, and the pillars stand for its languages.
+ */
+const PLATES: Readonly<Record<PlazaStation['id'], Pick<StationPlate, 'text' | 'en'>>> = {
+  terminal: {
+    text: 'Die Zahlen des Repositorys, Seite für Seite zum Blättern.',
+    en: 'The repository’s figures, page by page.',
+  },
+  board: {
+    text: 'Worum es geht, in einem Bild.',
+    en: 'What it is about, at a glance.',
+  },
+  ridge: {
+    text: 'Jede Stufe ist ein Stück der Projektzeit: je mehr Commits, desto höher.',
+    en: 'Each step is a stretch of the project’s life: the more commits, the taller.',
+  },
+  languages: {
+    text: 'Woraus das Projekt gebaut ist.',
+    en: 'What the project is built from.',
+  },
+};
+
+/** Metres from a stand within which the visitor counts as being at its station. */
+const STATION_TRIGGER = 2.5;
+
+/** The four stations of the station bar, in key order, each with its plate. */
+export const PLAZA_STATIONS: readonly StationSpec[] = STATIONS.map((station) => {
+  const plate: StationPlate = {
+    kicker: `Station ${station.key}`,
+    title: station.name,
+    ...PLATES[station.id],
+  };
+  return {
+    id: station.id,
+    name: station.name,
+    stand: station.stand,
+    trigger: STATION_TRIGGER,
+    plate: () => plate,
+  };
+});
 
 /**
  * A stretch of the town merged into one mesh: a few neighbouring houses of one row, and the corner
@@ -453,6 +500,19 @@ export class PlazaEnvironment implements Environment {
 
   get ground() {
     return this.floor;
+  }
+
+  /** In front of the portal in the arch, facing it: where the 0 key glides to. */
+  readonly portalStand = PORTAL_STAND;
+
+  /** The terminal, the board, the ridge and the languages, on the diagonals round the fountain. */
+  stations(): readonly StationSpec[] {
+    return PLAZA_STATIONS;
+  }
+
+  /** Out to the circle round the fountain, along its shorter arc, and in to the stand. */
+  glidePath(from: GroundPoint, to: GroundPoint): readonly GroundPoint[] {
+    return plazaGlidePath(from, to);
   }
 
   /** The project board: one exhibit, at the north-west station, facing the fountain. */

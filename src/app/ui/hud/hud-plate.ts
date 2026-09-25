@@ -36,10 +36,10 @@ const PLATE_FADE_MS = 250;
       flex-direction: column;
       gap: 6px;
       padding: 14px 18px;
-      border: 1px solid #3a4a3f;
+      border: 1px solid var(--hud-plate-border, #3a4a3f);
       border-radius: 10px;
-      background: rgb(20 27 23 / 88%);
-      color: #c9d2cc;
+      background: var(--hud-plate-background, rgb(20 27 23 / 88%));
+      color: var(--hud-plate-text, #c9d2cc);
       text-shadow: none;
     }
     .plate.plate-enter {
@@ -49,7 +49,7 @@ const PLATE_FADE_MS = 250;
       animation: hud-plate-leave 0.25s linear both;
     }
     .kicker {
-      color: #e0a13c;
+      color: var(--hud-accent-text, #e0a13c);
       font:
         600 12px 'IBM Plex Mono',
         monospace;
@@ -57,7 +57,7 @@ const PLATE_FADE_MS = 250;
     }
     h2 {
       margin: 0;
-      color: #f4efe4;
+      color: var(--hud-plate-title, #f4efe4);
       font:
         700 32px 'Barlow Semi Condensed',
         sans-serif;
@@ -66,13 +66,13 @@ const PLATE_FADE_MS = 250;
       margin: 0;
     }
     .text {
-      color: #c9d2cc;
+      color: var(--hud-plate-text, #c9d2cc);
       font:
         500 18px/1.45 'IBM Plex Sans',
         sans-serif;
     }
     .en {
-      color: #9aa89f;
+      color: var(--hud-plate-muted, #9aa89f);
       font:
         400 14px 'IBM Plex Sans',
         sans-serif;

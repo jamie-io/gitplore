@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { TestBed } from '@angular/core/testing';
 import {
   Box3,
   BoxGeometry,
@@ -14,14 +15,27 @@ import {
   Vector3,
 } from 'three';
 import { Collider } from '@engine/player/collision';
-import { qualitySettings } from '@engine/capability.service';
-import { stubContext } from '@engine/testing/world-context';
+import {
+  CapabilityService,
+  DEVICE_CAPABILITIES,
+  qualitySettings,
+} from '@engine/capability.service';
+import { EngineService } from '@engine/engine.service';
+import { PLAYER_EYE_HEIGHT, PLAYER_RADIUS } from '@engine/player/player-controller';
+import { RENDERER_FACTORY, RendererLike } from '@engine/renderer.factory';
+import { GLIDE, planGlide } from '@engine/stations/glide';
+import type { GroundPoint } from '@engine/stations/station';
+import { CAPABLE, stubContext } from '@engine/testing/world-context';
+import type { WorldScene } from '@engine/world-object';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import { SPAWN_DISTANCE } from '../landmarks/base/landmark';
 import { PLAZA_FOUNTAIN } from './architecture';
 import { bakeGeometry, markerPosition } from './model-geometry';
+import { ClearingEnvironment } from './clearing';
+import { JungleEnvironment } from './jungle';
 import { PlazaEnvironment, TOWN_BLOCKS } from './plaza';
+import { ShowroomEnvironment } from './showroom';
 import {
   ARCH,
   CORNERS,
@@ -29,12 +43,14 @@ import {
   FACADE,
   GLIDE_RADIUS,
   HouseSpot,
+  PORTAL_STAND,
   RIDGE,
   SPAWN,
   STATIONS,
   STATION_RADIUS,
   VARIANTS,
   houseRow,
+  plazaGlidePath,
 } from './plaza-layout';
 import { PLAZA_MODELS, TownModel, dressedCorner, dressedHouse, townModel } from './plaza-models';
 import { PLAZA_TERMINAL_MODEL } from './props/terminal';
@@ -699,5 +715,202 @@ describe('PlazaEnvironment', () => {
 
     expect(environment.shared.time.value).toBe(0);
     environment.dispose();
+  });
+});
+
+describe('the Plaza’s stations', () => {
+  /** Points along every stretch of `path`, a quarter metre apart. */
+  const samples = (path: readonly GroundPoint[], every = 0.25): GroundPoint[] =>
+    path.slice(1).flatMap((p, i) => {
+      const q = path[i];
+      const n = Math.max(1, Math.ceil(Math.hypot(p.x - q.x, p.z - q.z) / every));
+      return Array.from({ length: n + 1 }, (_, k) => ({
+        x: q.x + ((p.x - q.x) * k) / n,
+        z: q.z + ((p.z - q.z) * k) / n,
+      }));
+    });
+  const arrivalOf = (scene: ProjectScene): GroundPoint => ({
+    x: scene.arrival.position.x,
+    z: scene.arrival.position.z,
+  });
+
+  it('lays out four stations in key order, at the stands of the layout', () => {
+    const target = projectScene(plaza());
+
+    const stations = target.stations!;
+    expect(stations.map(({ id }) => id)).toEqual(['terminal', 'board', 'ridge', 'languages']);
+    expect(stations.map(({ name }) => name)).toEqual([
+      'Terminal',
+      'Projekttafel',
+      'Commit-Treppe',
+      'Sprachen',
+    ]);
+    stations.forEach((station, index) => {
+      expect(station.stand).toEqual(STATIONS[index].stand);
+      expect(station.trigger).toBe(2.5);
+      const plate = station.plate();
+      expect(plate.kicker).toBe(`Station ${index + 1}`);
+      expect(plate.title).toBe(station.name);
+      expect(plate.text.length).toBeGreaterThan(0);
+      expect(plate.en.length).toBeGreaterThan(0);
+    });
+    // Asked twice, the same list: the director and the number keys read it at different times.
+    expect(target.stations).toBe(stations);
+    expect(target.portalStand).toEqual(PORTAL_STAND);
+  });
+
+  it('keeps each station’s trigger around its own stand only', () => {
+    for (const [index, station] of STATIONS.entries()) {
+      for (const other of STATIONS.slice(index + 1)) {
+        const apart = Math.hypot(station.stand.x - other.stand.x, station.stand.z - other.stand.z);
+        expect(apart).toBeGreaterThan(2 * 2.5);
+      }
+    }
+  });
+
+  it('glides along the circle round the fountain', () => {
+    const target = projectScene(plaza());
+    const from = arrivalOf(target);
+
+    for (const { stand } of [...STATIONS, { stand: PORTAL_STAND }]) {
+      expect(target.glidePath!(from, stand)).toEqual(plazaGlidePath(from, stand));
+    }
+  });
+
+  it('gives no other world stations, a portal stand or a glide path', () => {
+    const environments = [
+      new ShowroomEnvironment({ reducedMotion: () => true }),
+      new JungleEnvironment({ reducedMotion: () => true }),
+      new ClearingEnvironment({ reducedMotion: () => true }),
+    ];
+    for (const environment of environments) {
+      const target = new ProjectScene({
+        environment,
+        project: PROJECT_FIXTURES[0],
+        reducedMotion: () => true,
+        onOpenInfo: () => undefined,
+        onLeave: () => undefined,
+      });
+      expect(target.stations, environment.id).toBeUndefined();
+      expect(target.portalStand, environment.id).toBeUndefined();
+      expect(target.glidePath, environment.id).toBeUndefined();
+    }
+  });
+
+  it.each(STATIONS.map((s) => [s.key, s] as const))(
+    'glides from the arrival to station %i in at most 2.2 s',
+    (_key, { stand }) => {
+      const target = projectScene(plaza());
+
+      const glide = planGlide(target.glidePath!(arrivalOf(target), stand), stand.yaw);
+
+      expect(glide).not.toBeNull();
+      expect(glide!.duration).toBeLessThanOrEqual(2.2);
+      expect(glide!.duration).toBeLessThanOrEqual(GLIDE.max);
+      expect(glide!.points.at(-1)).toEqual({ x: stand.x, z: stand.z });
+    },
+  );
+
+  it('keeps the glide ring clear of everything the scene stands on the square', () => {
+    const { colliders } = projectScene(plaza());
+
+    for (let r = 7.15; r <= 8.85 + 1e-9; r += 0.17) {
+      for (let a = 0; a < Math.PI * 2; a += 0.02) {
+        const gap = clearance(Math.cos(a) * r, Math.sin(a) * r, colliders);
+        expect(gap, `r ${r.toFixed(2)}, a ${a.toFixed(2)}`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('glides between any two stops without passing through anything', () => {
+    const target = projectScene(plaza());
+    const stops: GroundPoint[] = [
+      arrivalOf(target),
+      ...STATIONS.map(({ stand }) => stand),
+      PORTAL_STAND,
+    ];
+
+    for (const from of stops) {
+      for (const to of stops) {
+        for (const p of samples(target.glidePath!(from, to))) {
+          expect(clearance(p.x, p.z, target.colliders)).toBeGreaterThan(PLAYER_RADIUS);
+        }
+      }
+    }
+  });
+
+  describe('under reduced motion', () => {
+    class StubRenderer implements RendererLike {
+      loop: ((time: number) => void) | null = null;
+      readonly domElement = document.createElement('canvas');
+      readonly info = { memory: { geometries: 0, textures: 0 } };
+      readonly renderLists = { dispose: () => undefined };
+      setAnimationLoop(fn: ((time: number) => void) | null) {
+        this.loop = fn;
+      }
+      setSize() {
+        // Nothing to size.
+      }
+      setPixelRatio() {
+        // Nothing to scale.
+      }
+      setQuality() {
+        // Nothing to tune.
+      }
+      render() {
+        // Nothing to draw.
+      }
+      dispose() {
+        // Nothing to release.
+      }
+    }
+
+    let engine: EngineService;
+    let renderer: StubRenderer;
+
+    beforeEach(() => {
+      TestBed.resetTestingModule();
+      renderer = new StubRenderer();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: DEVICE_CAPABILITIES, useValue: CAPABLE },
+          { provide: RENDERER_FACTORY, useValue: () => renderer },
+        ],
+      });
+      engine = TestBed.inject(EngineService);
+      engine.attach(document.createElement('canvas'));
+      TestBed.inject(CapabilityService).overrideReducedMotion(true);
+    });
+
+    afterEach(() => engine.detach());
+
+    it.each(STATIONS.map((s) => [s.key, s] as const))(
+      'puts the visitor straight down at station %i',
+      (_key, { stand }) => {
+        const target = projectScene(plaza());
+        // The square's ground and everything on it, without building its meshes.
+        const world: WorldScene = {
+          id: target.id,
+          ground: target.ground,
+          colliders: target.colliders,
+          interactables: [],
+          init: () => undefined,
+          update: () => undefined,
+          dispose: () => undefined,
+        };
+        engine.setScene(world);
+        renderer.loop?.(0);
+        const { x, z } = target.arrival.position;
+        engine.player.teleport(new Vector3(x, PLAYER_EYE_HEIGHT, z), target.arrival.yaw, 0);
+
+        engine.glide(planGlide(target.glidePath!(arrivalOf(target), stand), stand.yaw)!);
+
+        expect(engine.gliding()).toBe(false);
+        expect(engine.player.position.x).toBeCloseTo(stand.x, 6);
+        expect(engine.player.position.z).toBeCloseTo(stand.z, 6);
+        expect(engine.player.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 6);
+        expect(engine.player.yaw).toBe(stand.yaw);
+      },
+    );
   });
 });

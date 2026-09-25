@@ -58,14 +58,14 @@ import type { StationChip } from '@engine/stations/station';
       white-space: nowrap;
     }
     .chip[data-state='here'] {
-      border-color: #e0a13c;
-      background: #e0a13c;
-      color: #1a1408;
+      border-color: var(--hud-accent, #e0a13c);
+      background: var(--hud-accent, #e0a13c);
+      color: var(--hud-accent-ink, #1a1408);
     }
     .chip[data-state='visited'] {
-      border-color: #e0a13c;
+      border-color: var(--hud-accent, #e0a13c);
       background: rgb(0 0 0 / 55%);
-      color: #f4e6c8;
+      color: var(--hud-accent-soft, #f4e6c8);
     }
     .chip[data-state='next'] {
       border-color: #fff;
@@ -90,12 +90,12 @@ import type { StationChip } from '@engine/stations/station';
         monospace;
     }
     .chip[data-state='here'] .mark {
-      background: #1a1408;
-      color: #e0a13c;
+      background: var(--hud-accent-ink, #1a1408);
+      color: var(--hud-accent, #e0a13c);
     }
     .chip[data-state='visited'] .mark {
-      background: #e0a13c;
-      color: #1a1408;
+      background: var(--hud-accent, #e0a13c);
+      color: var(--hud-accent-ink, #1a1408);
     }
     .chip[data-state='next'] .mark {
       background: #fff;
@@ -106,7 +106,7 @@ import type { StationChip } from '@engine/stations/station';
       color: #fff;
     }
     .chip:focus-visible {
-      outline: 2px solid #e0a13c;
+      outline: 2px solid var(--hud-accent, #e0a13c);
       outline-offset: 2px;
     }
     :host(.reduced-motion) .chip[data-state='next'] {
@@ -120,10 +120,10 @@ import type { StationChip } from '@engine/stations/station';
     @keyframes station-next-pulse {
       0%,
       100% {
-        box-shadow: 0 0 0 2px rgba(224, 161, 60, 0.2);
+        box-shadow: 0 0 0 2px var(--hud-accent-glow, rgba(224, 161, 60, 0.2));
       }
       50% {
-        box-shadow: 0 0 0 4px rgba(224, 161, 60, 0.45);
+        box-shadow: 0 0 0 4px var(--hud-accent-glow-strong, rgba(224, 161, 60, 0.45));
       }
     }
   `,

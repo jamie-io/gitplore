@@ -105,6 +105,38 @@ const BANNER_FADE_MS = 300;
     }
   `,
   styles: `
+    /*
+     * The station bar's, the plate's, the toast's and the banner's colours, per environment; the
+     * bar and the plate inherit them. The defaults are the Lichtung's amber on dark moss, and a
+     * world with a palette of its own names itself in data-environment.
+     */
+    :host {
+      --hud-accent: #e0a13c;
+      --hud-accent-ink: #1a1408;
+      --hud-accent-soft: #f4e6c8;
+      --hud-accent-text: #e0a13c;
+      --hud-accent-glow: rgba(224, 161, 60, 0.2);
+      --hud-accent-glow-strong: rgba(224, 161, 60, 0.45);
+      --hud-plate-background: rgb(20 27 23 / 88%);
+      --hud-plate-border: #3a4a3f;
+      --hud-plate-title: #f4efe4;
+      --hud-plate-text: #c9d2cc;
+      --hud-plate-muted: #9aa89f;
+    }
+    /* The Plaza: terracotta on warm dark umber, white on the accent. Every text pairing ≥ 4.5 : 1. */
+    :host([data-environment='plaza']) {
+      --hud-accent: #b8583a;
+      --hud-accent-ink: #fff;
+      --hud-accent-soft: #f6dcc8;
+      --hud-accent-text: #f0a585;
+      --hud-accent-glow: rgba(184, 88, 58, 0.25);
+      --hud-accent-glow-strong: rgba(184, 88, 58, 0.55);
+      --hud-plate-background: rgb(46 34 28 / 88%);
+      --hud-plate-border: #8a6a4a;
+      --hud-plate-title: #f7efe6;
+      --hud-plate-text: #e6d8cc;
+      --hud-plate-muted: #bca99a;
+    }
     :host {
       position: absolute;
       inset: 0;
@@ -209,10 +241,10 @@ const BANNER_FADE_MS = 300;
     }
     .toast {
       padding: 7px 14px;
-      border: 1px solid #e0a13c;
+      border: 1px solid var(--hud-accent);
       border-radius: 999px;
       background: rgb(0 0 0 / 72%);
-      color: #f4e6c8;
+      color: var(--hud-accent-soft);
       font:
         500 13px 'IBM Plex Mono',
         monospace;
@@ -224,8 +256,8 @@ const BANNER_FADE_MS = 300;
     .moment-banner {
       padding: 7px 14px;
       border-radius: 999px;
-      background: #e0a13c;
-      color: #1a1408;
+      background: var(--hud-accent);
+      color: var(--hud-accent-ink);
       font:
         600 14px system-ui,
         sans-serif;
@@ -307,6 +339,7 @@ const BANNER_FADE_MS = 300;
   // the state of the context is the only thing a browser test can check.
   host: {
     '[attr.data-audio]': 'audio.state()',
+    '[attr.data-environment]': 'store.environment()',
     '[class.reduced-motion]': 'capability.reducedMotion()',
   },
 })

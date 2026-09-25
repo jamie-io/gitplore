@@ -111,6 +111,17 @@ describe('SceneDirector', () => {
     expect(store.area()).toBe('Lichtung');
   });
 
+  it('tells the HUD which environment the world stands in', async () => {
+    await director.show(null);
+    expect(store.environment()).toBe('clearing');
+
+    await director.show('novaverta');
+    expect(store.environment()).toBe('showroom');
+
+    await director.show('deslopify');
+    expect(store.environment()).toBe('jungle');
+  });
+
   it('builds once when two navigations overlap, and disposes the old world once', async () => {
     await director.show(null);
     const first = engine.world!;
