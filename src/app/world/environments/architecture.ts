@@ -29,7 +29,8 @@ const TERRACOTTA = [0xb8583a, 0xa84f36, 0xc46a45] as const;
 const GLASS = 0x2f3a45;
 const DOOR = 0x5a3a28;
 const IRON = 0x2a2d33;
-const STONE = 0xd9cdb5;
+/** Pale limestone: the fountain, the arch and the square's kerbs. */
+export const STONE = 0xd9cdb5;
 const STONE_DARK = 0xcfc1a6;
 
 /**
@@ -189,6 +190,18 @@ export const FOUNTAIN = {
   lower: { level: 0.58, radius: 3.85 },
   upper: { level: 2.52, radius: 1.25 },
   spout: [0, 3.62, 0],
+} as const;
+
+/**
+ * The Plaza's own, smaller fountain: its kerb, the levels and radii of its two basins and its
+ * spout. The collider is `radius + 0.2`. These are the plan's figures; the fountain model's own
+ * measurements replace them once it ships.
+ */
+export const PLAZA_FOUNTAIN = {
+  radius: 3,
+  lower: { level: 0.5, radius: 2.6 },
+  upper: { level: 2.1, radius: 0.95 },
+  spout: [0, 3.0, 0],
 } as const;
 
 /** A two-tier stone fountain: a wide basin with a kerb, a pedestal, an upper bowl and a finial. */

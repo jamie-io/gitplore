@@ -6,6 +6,7 @@ import type { Project } from '@content/project.model';
 import { mergedProjects } from '../../../../scripts/lib/portfolio.mjs';
 import { createEnvironment } from '../environments/create-environment';
 import { LIANA, STELE } from '../environments/jungle-layout';
+import { STATIONS } from '../environments/plaza-layout';
 import { clearance } from '../environments/testing/clearance';
 import { createProjectScene } from './create-project-scene';
 import { ProjectScene, TOY_SIDE_OFFSET } from './project.scene';
@@ -100,6 +101,13 @@ async function expectToysClear(project: Project): Promise<void> {
       const spot = toy === scene.terminal ? STELE : LIANA;
       expect(toy.position.x, `${where} is not at its spot`).toBeCloseTo(spot.position.x, 5);
       expect(toy.position.z, `${where} is not at its spot`).toBeCloseTo(spot.position.z, 5);
+    } else if (project.environment === 'plaza') {
+      // The Plaza stands the terminal at its south-west station; the lever is a stand-in there.
+      if (toy === scene.terminal) {
+        const { prop } = STATIONS[0];
+        expect(toy.position.x, `${where} is not at its station`).toBeCloseTo(prop.x, 5);
+        expect(toy.position.z, `${where} is not at its station`).toBeCloseTo(prop.z, 5);
+      }
     } else {
       const from = toy.position.clone().sub(scene.arrival.position).setY(0);
       const along = from.dot(walk);
