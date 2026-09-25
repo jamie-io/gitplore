@@ -23,6 +23,7 @@ import {
   TOUR,
   VINE_SLOTS,
   WALL,
+  WALL_SPUR,
   WATERFALL,
   crossesArch,
   distanceToPaths,
@@ -34,6 +35,56 @@ import {
   stepCentres,
   underArch,
 } from './jungle-layout';
+import { PLAYER_RADIUS } from '@engine/player/player-controller';
+import { JungleCave } from './jungle-cave';
+import { DSCHUNGEL } from './mood';
+import { SharedUniforms } from './shaders/shared-uniforms';
+import { clearance } from './testing/clearance';
+
+/** The rock the walk passes into the cave by: the cliff's colliders either side of its mouth. */
+const ROCK = new JungleCave({ shared: new SharedUniforms(DSCHUNGEL) }).colliders;
+/** The feed wall's footprint: 5.6 m wide and 0.5 m deep round its centre, facing south. */
+const WALL_FOOTPRINT = {
+  kind: 'aabb' as const,
+  minX: WALL.x - 2.8,
+  maxX: WALL.x + 2.8,
+  minZ: WALL.z - 0.25,
+  maxZ: WALL.z + 0.25,
+};
+const OBSTACLES = [...ROCK, WALL_FOOTPRINT];
+/** The pool's edge, as points round its ellipse. */
+const POOL_EDGE = Array.from({ length: 720 }, (_, i) => {
+  const angle = (i / 720) * Math.PI * 2;
+  return { x: POOL.x + POOL.rx * Math.cos(angle), z: POOL.z + POOL.rz * Math.sin(angle) };
+});
+
+/** Metres from (x, z) to the pool's edge; negative inside the water. */
+function poolClearance(x: number, z: number): number {
+  const edge = Math.min(...POOL_EDGE.map((p) => Math.hypot(x - p.x, z - p.z)));
+  return Math.hypot((x - POOL.x) / POOL.rx, (z - POOL.z) / POOL.rz) < 1 ? -edge : edge;
+}
+
+/**
+ * The least room along a polyline, sampled every 5 cm of every segment, between it and the cave's
+ * rock, the pool's edge and the feed wall.
+ */
+function worstClearance(points: readonly Pt[]): { room: number; at: string } {
+  let worst = { room: Infinity, at: 'nowhere' };
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    const samples = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.05));
+    for (let k = 0; k <= samples; k++) {
+      const x = a.x + ((b.x - a.x) * k) / samples;
+      const z = a.z + ((b.z - a.z) * k) / samples;
+      const room = Math.min(clearance(x, z, OBSTACLES), poolClearance(x, z));
+      if (room < worst.room) {
+        worst = { room, at: `${x.toFixed(2)}, ${z.toFixed(2)}` };
+      }
+    }
+  }
+  return worst;
+}
 
 /** The walked lines as a graph: every vertex, keyed by its coordinates, with its neighbours. */
 function pathGraph(): Map<string, { point: Pt; next: Set<string> }> {
@@ -63,18 +114,21 @@ describe('jungle layout', () => {
     expect(BOWL.rz * 2).toBeLessThanOrEqual(45);
   });
 
-  it('keeps the tour at most 60 m and stations 3–14 m apart', () => {
+  // K6 asks for 60 m and 14 m; routing round the feed wall's west end, the pool and the cave's
+  // jambs with a body's width to spare takes a little more, so the controller relaxed the tour to
+  // 62 m and the stations' spacing to 16 m.
+  it('keeps the tour at most 62 m and stations 3–16 m apart', () => {
     const stops = [PORTAL, ...TOUR.map((id) => STATION_STANDS[id])];
     let total = 0;
     for (let i = 1; i < stops.length; i++) {
       const leg = pathLength(glidePath(stops[i - 1], stops[i]));
       if (i > 1) {
         expect(leg, `leg to ${TOUR[i - 1]}`).toBeGreaterThanOrEqual(3);
-        expect(leg, `leg to ${TOUR[i - 1]}`).toBeLessThanOrEqual(14);
+        expect(leg, `leg to ${TOUR[i - 1]}`).toBeLessThanOrEqual(16);
       }
       total += leg;
     }
-    expect(total).toBeLessThanOrEqual(60);
+    expect(total).toBeLessThanOrEqual(62);
   });
 
   it('looks from the portal through the arch at the exhibit', () => {
@@ -107,21 +161,42 @@ describe('jungle layout', () => {
     for (const p of path) {
       expect(Math.hypot((p.x - POOL.x) / POOL.rx, (p.z - POOL.z) / POOL.rz)).toBeGreaterThan(1);
     }
+    // Along every segment, not only at its ends: a body's width off the pool and the rock.
+    const worst = worstClearance(path);
+    expect(worst.room, worst.at).toBeGreaterThanOrEqual(PLAYER_RADIUS);
+  });
+
+  it('keeps every walked line a body’s width off the cave’s jambs, the pool and the feed wall', () => {
+    for (const path of PATHS) {
+      const worst = worstClearance(path);
+      expect(worst.room, worst.at).toBeGreaterThanOrEqual(PLAYER_RADIUS);
+    }
+  });
+
+  it('glides between consecutive stops a body’s width off the jambs, the pool and the wall', () => {
+    const stops = [PORTAL, ...TOUR.map((id) => STATION_STANDS[id])];
+    for (let i = 1; i < stops.length; i++) {
+      const worst = worstClearance(glidePath(stops[i - 1], stops[i]));
+      expect(worst.room, `to ${TOUR[i - 1]}: ${worst.at}`).toBeGreaterThanOrEqual(PLAYER_RADIUS);
+    }
   });
 
   it('has no dead end longer than 15 m', () => {
-    // The only line that ends without joining another is the boardwalk's start: the arrival
-    // itself, not a side path. Every other end meets the rest of the network.
+    // The boardwalk's start is the arrival itself, not a side path; the spur to the feed wall is
+    // the one side path, and ends at station 6.
     const graph = pathGraph();
     const ends = [...graph.values()]
       .filter(({ next }) => next.size === 1)
       .map(({ point }) => point);
-    expect(ends).toEqual([PORTAL]);
+    expect(ends).toEqual([PORTAL, WALL_SPUR[1]]);
+    expect(WALL_SPUR[1]).toEqual({ x: STATION_STANDS.wand.x, z: STATION_STANDS.wand.z });
 
+    const junctions = [...graph.values()]
+      .filter(({ next }) => next.size >= 3)
+      .map(({ point }) => point);
     for (const end of ends.filter((point) => point !== PORTAL)) {
-      const junction = [...graph.values()].filter(({ next }) => next.size >= 3);
-      const nearest = Math.min(...junction.map(({ point }) => pathLength(glidePath(end, point))));
-      expect(nearest).toBeLessThanOrEqual(15);
+      const nearest = Math.min(...junctions.map((point) => pathLength(glidePath(end, point))));
+      expect(nearest, `${end.x}, ${end.z}`).toBeLessThanOrEqual(15);
     }
   });
 
@@ -132,6 +207,7 @@ describe('jungle layout', () => {
     expect(NORTH_LOOP[NORTH_LOOP.length - 1]).toEqual({ x: 0, z: -9 });
     expect(PATHS).toContain(BOARDWALK);
     expect(PATHS).toContain(NORTH_LOOP);
+    expect(PATHS).toContain(WALL_SPUR);
     // The steps land on the deck's south end, the deck ends at the arch.
     expect(STEPS.to).toEqual({ x: 0, z: 2.2 });
     expect(pathLength([STEPS.from, STEPS.to])).toBeCloseTo(4.8, 1);
@@ -266,6 +342,9 @@ describe('jungle layout', () => {
       expect(Math.abs(stalk.z)).toBeLessThanOrEqual(DECK.halfLength);
     }
     expect(jungleHeightAt(LANTERN_POST.x, LANTERN_POST.z)).toBeCloseTo(3, 1);
+    // Off the walk by the post's radius and a body's width, west of the laterne stand.
+    expect(distanceToPaths(LANTERN_POST.x, LANTERN_POST.z)).toBeGreaterThan(0.14 + PLAYER_RADIUS);
+    expect(LANTERN_POST.x).toBeLessThan(STATION_STANDS.laterne.x);
     expect(WALL.z).toBeLessThan(STATION_STANDS.wand.z);
   });
 });

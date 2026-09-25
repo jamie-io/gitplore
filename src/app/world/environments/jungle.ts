@@ -46,7 +46,9 @@ import {
   Pt,
   RILL,
   RILL_REACH,
+  STATION_STANDS,
   STELE,
+  STEPS,
   WALL,
   WATERFALL,
   beyondBowl,
@@ -542,15 +544,20 @@ export class JungleEnvironment implements Environment {
     colour: 0xf2ffd0,
     intensity: 2,
     shafts: [
-      // One on the deck, so the arch stands in light, one by the lantern, and the rest over the
-      // marsh, the glade and the pool.
+      // One on the deck, so the arch stands in light, one by the lantern, and the rest beside the
+      // boardwalk, over the steps, on the glade by the exhibit and the wall, and by the pool.
       { x: ARCH.x, z: ARCH.z, radius: 2.2, height: 30 },
       { x: LANTERN_POST.x + 1.5, z: LANTERN_POST.z - 1.5, radius: 1.4, height: 30 },
-      { x: -9, z: 11, radius: 1.6, height: 30 },
-      { x: 4, z: 9, radius: 1.3, height: 30 },
-      { x: -3, z: -8, radius: 1.6, height: 30 },
-      { x: 6, z: -14.5, radius: 1.4, height: 30 },
-      { x: -4.5, z: -16, radius: 1.2, height: 30 },
+      { x: STATION_STANDS.pfad.x - 2, z: STATION_STANDS.pfad.z - 0.6, radius: 1.6, height: 30 },
+      {
+        x: (STEPS.from.x + STEPS.to.x) / 2 + 1.5,
+        z: (STEPS.from.z + STEPS.to.z) / 2 + 1,
+        radius: 1.3,
+        height: 30,
+      },
+      { x: EXHIBIT.x - 3, z: EXHIBIT.z + 1, radius: 1.6, height: 30 },
+      { x: WALL.x - 2.4, z: WALL.z - 1.5, radius: 1.4, height: 30 },
+      { x: POOL.x - POOL.rx - 1.5, z: POOL.z + 1.6, radius: 1.2, height: 30 },
     ],
   });
   private readonly spores = new Motes({

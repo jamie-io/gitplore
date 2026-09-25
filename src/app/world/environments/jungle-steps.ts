@@ -7,7 +7,6 @@ import {
   InstancedMesh,
   Material,
   Mesh,
-  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
 } from 'three';
@@ -30,6 +29,7 @@ import {
 } from './jungle-layout';
 import { seededRandom } from './random';
 import { withAtmosphere } from './shaders/atmosphere';
+import { patchMaterial } from './shaders/patch';
 import { HazedCopies } from './shaders/hazed-copies';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
@@ -151,7 +151,7 @@ export class JungleSteps implements WorldObject {
 
   private boardwalk: Mesh | null = null;
   private flight: Mesh | null = null;
-  private inlay: InstancedMesh<BoxGeometry, MeshBasicMaterial> | null = null;
+  private inlay: InstancedMesh<BoxGeometry, MeshStandardMaterial> | null = null;
   private model: Group | null = null;
   private haze: HazedCopies | null = null;
   /** Each step's own copy of the model's inlay, so each lights on its own. */
@@ -184,7 +184,7 @@ export class JungleSteps implements WorldObject {
     this.flight.receiveShadow = shadows;
     ctx.scene.add(this.flight);
 
-    this.inlay = inlayStrips();
+    this.inlay = inlayStrips(this.options.shared);
     this.paintInlay();
     ctx.scene.add(this.inlay);
 
@@ -530,12 +530,32 @@ function flightGeometry(): BufferGeometry {
   return geometry;
 }
 
+/**
+ * The inlay's material: in the jungle's atmosphere like every other surface, and glowing with its
+ * instance's colour, so a lit step's amber reaches past the tone mapper's white into the bloom.
+ */
+function inlayMaterial(shared: SharedUniforms): MeshStandardMaterial {
+  const material = new MeshStandardMaterial({
+    color: 0xffffff,
+    emissive: 0xffffff,
+    roughness: 0.5,
+    metalness: 0,
+  });
+  patchMaterial(material, 'inlay-glow', (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      '#include <emissivemap_fragment>\n#ifdef USE_COLOR\n  totalEmissiveRadiance *= vColor.rgb;\n#endif',
+    );
+  });
+  return withAtmosphere(material, shared);
+}
+
 /** The inset strips along each tread's front, one instance per step, coloured by `setLit`. */
-function inlayStrips(): InstancedMesh<BoxGeometry, MeshBasicMaterial> {
+function inlayStrips(shared: SharedUniforms): InstancedMesh<BoxGeometry, MeshStandardMaterial> {
   const tread = FLIGHT.length / STEPS.count;
   const strips = new InstancedMesh(
     new BoxGeometry(STEP_WIDTH - 0.4, 0.014, 0.07),
-    new MeshBasicMaterial({ color: 0xffffff }),
+    inlayMaterial(shared),
     STEPS.count,
   );
   strips.name = 'commit-steps-inlay';

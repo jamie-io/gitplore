@@ -63,6 +63,7 @@ import {
   STEPS,
   STELE,
   WALL,
+  WALL_SPUR,
   beyondBowl,
   distanceToPaths,
   inBowl,
@@ -293,13 +294,12 @@ describe('JungleEnvironment', () => {
   it('walks a visitor round the north loop and in behind the falls to the stele', () => {
     const environment = jungle();
     const player = standAt(0, -4);
-    walk(player, environment, [
-      ...NORTH_LOOP.slice(1, 6),
-      { x: 0.9, z: -19.6 },
-      { x: 0, z: STELE.z + 0.6 },
-    ]);
+    const inside = NORTH_LOOP.findIndex(({ x, z }) => x === 0 && z < CAVE.z1);
+    walk(player, environment, [...NORTH_LOOP.slice(1, inside + 1), { x: 0, z: STELE.z + 0.6 }]);
     expect(player.position.y - PLAYER_EYE_HEIGHT).toBeCloseTo(CAVE.floor, 1);
-    walk(player, environment, [{ x: 0.9, z: -19.6 }, { x: -2.4, z: -19 }, ...NORTH_LOOP.slice(8)]);
+    walk(player, environment, NORTH_LOOP.slice(inside));
+    // And out along the spur to the feed wall's stand.
+    walk(player, environment, [NORTH_LOOP[2], ...WALL_SPUR]);
   });
 
   it('walks from the test hook on the top steps to the arch, facing north', () => {

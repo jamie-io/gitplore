@@ -1,4 +1,14 @@
-import { BoxGeometry, Color, Group, InstancedMesh, Mesh, MeshStandardMaterial } from 'three';
+import {
+  BoxGeometry,
+  Color,
+  Group,
+  InstancedMesh,
+  Mesh,
+  MeshStandardMaterial,
+  ShaderLib,
+  WebGLProgramParametersWithUniforms,
+  WebGLRenderer,
+} from 'three';
 import { STEP_HEIGHT, floorHeightAt } from '@engine/player/collision';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import {
@@ -121,6 +131,25 @@ describe('JungleSteps', () => {
 
     target.dispose();
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('hazes the inlay like every other surface and lets it glow in its step’s colour', () => {
+    const ctx = stubContext();
+    const target = steps();
+    target.init(ctx);
+    const inlay = ctx.scene.getObjectByName('commit-steps-inlay') as InstancedMesh;
+    const material = inlay.material as MeshStandardMaterial;
+    expect(material).toBeInstanceOf(MeshStandardMaterial);
+    expect(material.customProgramCacheKey()).toContain('atmosphere');
+    const shader = {
+      vertexShader: ShaderLib.standard.vertexShader,
+      fragmentShader: ShaderLib.standard.fragmentShader,
+      uniforms: {},
+      defines: {},
+    } as unknown as WebGLProgramParametersWithUniforms;
+    material.onBeforeCompile(shader, {} as WebGLRenderer);
+    expect(shader.fragmentShader).toContain('totalEmissiveRadiance *= vColor.rgb');
+    target.dispose();
   });
 
   it('lights a step’s inlay when its period had commits, and darkens it again', () => {

@@ -60,8 +60,11 @@ export function beyondBowl(x: number, z: number): number {
 /** Where arriving visitors appear, on the ledge, looking north along the axis through the arch. */
 export const PORTAL: Placed = placed(0, 20.6, 0);
 
-/** The lantern's post on the ledge, just before the ramp; its arm (the model's −X) reaches east. */
-export const LANTERN_POST: Placed = placed(-2, 18, Math.PI);
+/**
+ * The lantern's post on the ledge, just before the ramp, 0.75 m west of the boardwalk's bend at
+ * (−2, 18) so the walk passes it; its arm (the model's −X) reaches east over the walk.
+ */
+export const LANTERN_POST: Placed = placed(-2.6, 18.5, Math.PI);
 
 /** The arch, over the middle of its deck: the origin. */
 export const ARCH: Pt = pt(0, 0);
@@ -148,29 +151,57 @@ export const BOARDWALK: readonly Pt[] = Object.freeze([
 ]);
 
 /**
- * From the arch north to the exhibit, round the feed wall, behind the waterfall into the cave and
- * back past the pool's west side to the exhibit.
+ * From the arch north to the exhibit, round the feed wall's west end and the pool's east side,
+ * in through the cave's mouth behind the waterfall and out again, and back past the pool's west
+ * side to the exhibit. The walk into the cave keeps a body's width off the mouth's jambs and the
+ * pool's edge.
  */
 export const NORTH_LOOP: readonly Pt[] = Object.freeze([
   ARCH,
   pt(0, -9),
   pt(4.6, -11.2),
-  pt(9, -12.8),
-  pt(6, -15.6),
+  pt(4.9, -12.4),
+  pt(4.8, -14.2),
+  pt(3.9, -17.6),
   pt(2.4, -19.2),
+  pt(1.25, -19.5),
+  pt(0.9, -20.4),
   pt(0, -21),
-  pt(-2.4, -19),
+  pt(-0.9, -20.4),
+  pt(-1.25, -19.5),
+  pt(-2.4, -19.2),
+  pt(-3.7, -17.8),
   pt(-2.8, -14),
   pt(0, -9),
 ]);
 
-/** Every walked line: the boardwalk, the steps, the deck and the north loop. */
+/** Off the north loop to the feed wall: from beside its west end to station 6, in front of it. */
+export const WALL_SPUR: readonly Pt[] = Object.freeze([pt(4.9, -12.4), pt(8.4, -12)]);
+
+/** Every walked line: the boardwalk, the steps, the deck, the north loop and the spur to the wall. */
 export const PATHS: readonly (readonly Pt[])[] = Object.freeze([
   BOARDWALK,
   Object.freeze([STEPS.from, STEPS.to]),
   Object.freeze([STEPS.to, ARCH]),
   NORTH_LOOP,
+  WALL_SPUR,
 ]);
+
+/** Every walked segment as numbers, `ax, az, dx, dz` four to a segment, for allocation-free lookups. */
+const PATH_SEGMENTS: Float64Array = (() => {
+  const values: number[] = [];
+  for (const path of PATHS) {
+    for (let i = 1; i < path.length; i++) {
+      values.push(
+        path[i - 1].x,
+        path[i - 1].z,
+        path[i].x - path[i - 1].x,
+        path[i].z - path[i - 1].z,
+      );
+    }
+  }
+  return Float64Array.from(values);
+})();
 
 /** The strip in front of the cave where the visitor passes behind the falling water. */
 export const BEHIND_FALLS = { x0: -1.2, x1: 1.2, z0: -21, z1: -18.2 } as const;
@@ -219,13 +250,24 @@ export function pointAlong(path: readonly Pt[], along: number): Pt {
   return { x: end.x, z: end.z };
 }
 
-/** Metres from (x, z) to the nearest walked line. */
+/**
+ * Metres from (x, z) to the nearest walked line. Allocates nothing: the ground's height reads it,
+ * and the player and the camera read the ground every frame.
+ */
 export function distanceToPaths(x: number, z: number): number {
   let nearest = Infinity;
-  for (const path of PATHS) {
-    nearest = Math.min(nearest, nearestOnPath(x, z, path).distance);
+  for (let i = 0; i < PATH_SEGMENTS.length; i += 4) {
+    const ax = PATH_SEGMENTS[i];
+    const az = PATH_SEGMENTS[i + 1];
+    const dx = PATH_SEGMENTS[i + 2];
+    const dz = PATH_SEGMENTS[i + 3];
+    const length = dx * dx + dz * dz;
+    const t = length > 0 ? Math.min(Math.max(((x - ax) * dx + (z - az) * dz) / length, 0), 1) : 0;
+    const ex = x - ax - dx * t;
+    const ez = z - az - dz * t;
+    nearest = Math.min(nearest, ex * ex + ez * ez);
   }
-  return nearest;
+  return Math.sqrt(nearest);
 }
 
 /** Metres along a polyline, end to end. */
@@ -339,13 +381,13 @@ export function glidePath(from: Pt, to: Pt): readonly Pt[] {
 }
 
 /**
- * Where the visitor stands at each station, facing what it shows. The lantern's stand is a metre
- * east of its post. The feed wall's is where the prototype puts station 6 (404, 120), a metre in
- * front of the wall rather than the spec table's 2.4 m: from there the leg on to the cave stays
- * within 14 m and the whole tour within 60 m.
+ * Where the visitor stands at each station, facing what it shows. The lantern's stand is on the
+ * walk east of its post, facing it. The feed wall's is where the prototype puts station 6
+ * (404, 120), a metre in front of the wall rather than the spec table's 2.4 m, at the end of the
+ * spur to it: from there the leg on to the cave, round the wall and the pool, stays within 16 m.
  */
 export const STATION_STANDS = Object.freeze({
-  laterne: placed(-1, 18, Math.PI / 2),
+  laterne: placed(-1, 18, heading(pt(-1, 18), LANTERN_POST)),
   pfad: placed(-7, 11.6, heading(pt(-7, 11.6), pt(-6.6, 7.8))),
   stufen: placed(-2, 3.8, heading(STEPS.from, STEPS.to)),
   bogen: placed(0, 0, 0),

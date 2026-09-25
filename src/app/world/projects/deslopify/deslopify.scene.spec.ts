@@ -11,6 +11,7 @@ import {
   ARCH,
   BOARDWALK,
   CARD_SLOTS,
+  DECK,
   LANTERN_POST,
   PORTAL,
   TAG_SLOTS,
@@ -89,9 +90,9 @@ function reachable(ctx: WorldContext, interactable: Interactable): boolean {
   return distance > 0 && distance <= interactable.radius && facing >= FACING_THRESHOLD;
 }
 
-/** Walks the player under the arch and lets the flow see it. */
+/** Walks the player under the arch, on the deck, and lets the flow see it. */
 function crossArch(built: Built): void {
-  stand(built.ctx, ARCH, 0);
+  built.ctx.player.teleport(new Vector3(ARCH.x, DECK.height + PLAYER_EYE_HEIGHT, ARCH.z), 0);
   run(built, 1 / 30);
 }
 
