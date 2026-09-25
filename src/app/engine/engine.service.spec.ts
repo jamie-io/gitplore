@@ -17,6 +17,7 @@ import { BOOM_HEIGHT, BOOM_LENGTH } from './player/third-person-rig';
 import { WorldScene } from './world-object';
 import { CAPABLE } from './testing/world-context';
 import { arrivalShot, momentShot } from './camera/camera-shot';
+import { planGlide } from './stations/glide';
 
 class StubRenderer implements RendererLike {
   loop: ((time: number) => void) | null = null;
@@ -654,6 +655,162 @@ describe('EngineService', () => {
       engine.setScene(stubScene('other'));
 
       expect(seen).toEqual(['arrival', null]);
+    });
+  });
+
+  describe('glides', () => {
+    const press = (code: string) => document.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    const release = (code: string) => document.dispatchEvent(new KeyboardEvent('keyup', { code }));
+    const run = (from: number, to: number, step = 16) => {
+      for (let time = from; time <= to; time += step) {
+        tick(time);
+      }
+    };
+    /** A wall across the way north, with no top to step onto. */
+    const WALL: Collider = { kind: 'aabb', minX: -5, maxX: 5, minZ: -5.5, maxZ: -4.5 };
+    const north = () =>
+      planGlide(
+        [
+          { x: 0, z: 0 },
+          { x: 0, z: -10 },
+        ],
+        Math.PI,
+      )!;
+
+    it('moves the player along the glide, straight through what it would bump into', () => {
+      engine.setScene(stubScene('hub', [], [WALL]));
+      tick(0);
+      tick(16);
+      engine.glide(north());
+
+      expect(engine.gliding()).toBe(true);
+      tick(32);
+      expect(engine.player.position.z).toBeLessThan(0);
+      run(48, 48 + 800);
+
+      expect(engine.gliding()).toBe(false);
+      expect(engine.player.position.x).toBeCloseTo(0, 6);
+      expect(engine.player.position.z).toBeCloseTo(-10, 6);
+      expect(engine.player.yaw).toBe(Math.PI);
+    });
+
+    it('stands the player on the ground and the walkable tops along the way', () => {
+      const deck: Collider = { kind: 'aabb', minX: -2, maxX: 2, minZ: -12, maxZ: -2, top: 0.3 };
+      engine.setScene(stubScene('hub', [], [deck]));
+      tick(0);
+      engine.glide(north());
+
+      run(16, 16 + 800);
+
+      expect(engine.player.position.y).toBeCloseTo(0.3 + PLAYER_EYE_HEIGHT, 6);
+    });
+
+    it('still runs the world, the avatar and the rig while gliding', () => {
+      const scene = stubSceneWithAvatar();
+      engine.setScene(scene);
+      tick(0);
+      engine.glide(north());
+      const updates = scene.updates.length;
+      const synced = scene.avatar.synced.length;
+
+      tick(16);
+      tick(32);
+
+      expect(scene.updates.length).toBe(updates + 2);
+      expect(scene.avatar.synced.length).toBe(synced + 2);
+      // The boom follows the player north.
+      expect(engine.camera.position.z).toBeLessThan(BOOM_LENGTH);
+    });
+
+    it('cancels in place on movement', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 320);
+      const z = engine.player.position.z;
+      expect(z).toBeLessThan(-0.5);
+      expect(z).toBeGreaterThan(-9.5);
+
+      press('KeyD');
+      tick(336);
+      release('KeyD');
+
+      expect(engine.gliding()).toBe(false);
+      run(352, 352 + 800);
+      // Walked a little to the side, never on to the stand.
+      expect(engine.player.position.z).toBeGreaterThan(-9.5);
+    });
+
+    it('cancels in place on cancelGlide', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 320);
+
+      engine.cancelGlide();
+      const z = engine.player.position.z;
+      run(336, 336 + 800);
+
+      expect(engine.gliding()).toBe(false);
+      expect(engine.player.position.z).toBeCloseTo(z, 6);
+    });
+
+    it('lets a new glide replace a running one', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 320);
+
+      const { x, z } = engine.player.position;
+      engine.glide(
+        planGlide(
+          [
+            { x, z },
+            { x: 6, z },
+          ],
+          0,
+        )!,
+      );
+      run(336, 336 + 800);
+
+      expect(engine.player.position.x).toBeCloseTo(6, 6);
+      expect(engine.player.position.z).toBeCloseTo(z, 6);
+    });
+
+    it('teleports straight to the stand under reduced motion', () => {
+      TestBed.inject(CapabilityService).overrideReducedMotion(true);
+      engine.setScene(stubScene('hub', [], [WALL]));
+      tick(0);
+
+      engine.glide(north());
+
+      expect(engine.gliding()).toBe(false);
+      expect(engine.player.position.x).toBeCloseTo(0, 6);
+      expect(engine.player.position.z).toBeCloseTo(-10, 6);
+      expect(engine.player.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 6);
+      expect(engine.player.yaw).toBe(Math.PI);
+    });
+
+    it('stops a glide when the world is swapped', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+
+      engine.setScene(stubScene('other'));
+
+      expect(engine.gliding()).toBe(false);
+    });
+
+    it('keeps the player where the glide left them once it is over', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 16 + 800);
+
+      run(832, 832 + 500);
+
+      expect(engine.player.position.z).toBeCloseTo(-10, 6);
+      expect(engine.player.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT, 6);
     });
   });
 

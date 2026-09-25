@@ -210,6 +210,68 @@ describe('WorldPage', () => {
     expect(restart).toHaveBeenCalledOnce();
   });
 
+  describe('stations', () => {
+    async function startedWorld(): Promise<SceneDirector> {
+      await bootWithoutManifest();
+      store.markStarted();
+      TestBed.tick();
+      return TestBed.inject(SceneDirector);
+    }
+
+    it('glides to a station on its number and to the portal on 0', async () => {
+      const glideTo = vi.spyOn(await startedWorld(), 'glideTo');
+
+      press('Digit3');
+      press('Digit0');
+      press('Numpad8');
+
+      expect(glideTo.mock.calls).toEqual([[3], [0], [8]]);
+    });
+
+    it('does not glide while an overlay has the input', async () => {
+      const glideTo = vi.spyOn(await startedWorld(), 'glideTo');
+      store.setMenuOpen(true);
+      TestBed.tick();
+
+      press('Digit3');
+
+      expect(glideTo).not.toHaveBeenCalled();
+    });
+
+    it('fulfils and clears a glide a chip asked for', async () => {
+      const glideTo = vi.spyOn(await startedWorld(), 'glideTo');
+
+      store.requestGlide(4);
+      TestBed.tick();
+
+      expect(glideTo).toHaveBeenCalledExactlyOnceWith(4);
+      expect(store.glideRequest()).toBeNull();
+    });
+
+    it('skips a running shot on any action key and on a click into the world', async () => {
+      await startedWorld();
+
+      press('KeyV');
+      expect(engine.skips).toBe(1);
+
+      (fixture.nativeElement as HTMLElement).querySelector('canvas')!.click();
+      expect(engine.skips).toBe(2);
+    });
+
+    it('stops a glide on Escape instead of leaving the world', async () => {
+      await startedWorld();
+      await TestBed.inject(Router).navigate(['/p', 'novaverta']);
+      await settle(() => engine.world?.id === 'project:novaverta', 'Novaverta world');
+      engine.activeGlide = { points: [], length: 1, duration: 1, endYaw: 0 };
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
+
+      press('Escape');
+
+      expect(engine.gliding()).toBe(false);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+  });
+
   it('marks the world inert while an overlay owns the input', async () => {
     await bootWithoutManifest();
     // jsdom knows the property, not the attribute; the e2e suite checks the attribute in Chrome.

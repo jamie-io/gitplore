@@ -325,6 +325,52 @@ describe('InputService', () => {
     });
   });
 
+  describe('station keys', () => {
+    it('glides to a station on its number and to the portal on 0', () => {
+      press('Digit3');
+      press('Digit0');
+      press('Numpad5');
+
+      expect([...input.consumeActions()]).toEqual(['station3', 'portal', 'station5']);
+    });
+
+    it('maps every number from 1 to 8, on the top row and the keypad', () => {
+      for (let digit = 1; digit <= 8; digit++) {
+        press(`Digit${digit}`);
+        expect([...input.consumeActions()]).toEqual([`station${digit}`]);
+        press(`Numpad${digit}`);
+        expect([...input.consumeActions()]).toEqual([`station${digit}`]);
+      }
+      press('Digit9');
+      expect([...input.consumeActions()]).toEqual([]);
+    });
+
+    it('leaves the number keys alone outside the world', () => {
+      for (const mode of ['ui', 'demo'] as const) {
+        input.setMode(mode);
+        press('Digit3');
+        press('Digit0');
+        press('Numpad5');
+        expect([...input.consumeActions()]).toEqual([]);
+      }
+
+      input.capture();
+      press('Digit3');
+      press('Digit0');
+      press('Numpad5');
+      expect([...input.consumeActions()]).toEqual([]);
+    });
+
+    it('ignores a held or modified number, which belongs to the browser', () => {
+      press('Digit2', { repeat: true });
+      press('Digit2', { ctrlKey: true });
+      press('Digit2', { metaKey: true });
+      press('Digit2', { altKey: true });
+
+      expect([...input.consumeActions()]).toEqual([]);
+    });
+  });
+
   it('stops listening after detach', () => {
     detach();
     press('KeyW');
