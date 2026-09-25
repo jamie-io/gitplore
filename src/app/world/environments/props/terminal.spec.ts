@@ -12,6 +12,7 @@ import {
 } from 'three';
 import type { InputAction, InputActionSource } from '@engine/input.service';
 import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
+import { qualitySettings } from '@engine/capability.service';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import type { Project } from '@content/project.model';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
@@ -643,6 +644,32 @@ describe('Terminal', () => {
     target.dispose();
     expect(assets.releasedModels).toEqual([PLAZA_TERMINAL_MODEL]);
     expect(ctx.scene.children).toHaveLength(0);
+    haze.dispose();
+    context.mockRestore();
+  });
+
+  it('leaves the Plaza kiosk in plain air on the lowest tier, as the square is', async () => {
+    const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const assets = new ModelFiles((path: string) => readFileSync(path));
+    const haze = new HazedCopies(new SharedUniforms(PLAZA));
+    const target = new Terminal({
+      id: 'test:plaza-low',
+      position: new Vector3(0, 0, -2),
+      ground,
+      project: PROJECT,
+      skin: 'plaza',
+      haze,
+    });
+    const ctx = { ...stubContext(assets), quality: qualitySettings('low') };
+    target.init(ctx);
+    await assets.settled();
+
+    const kiosk = ctx.scene.getObjectByName('test:plaza-low:kiosk') as Mesh;
+    expect(kiosk).toBeInstanceOf(Mesh);
+    expect((kiosk.material as MeshStandardMaterial).customProgramCacheKey()).not.toContain(
+      'atmosphere',
+    );
+    target.dispose();
     haze.dispose();
     context.mockRestore();
   });

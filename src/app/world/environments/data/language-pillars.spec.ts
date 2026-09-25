@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { Box3, Color, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import { qualitySettings } from '@engine/capability.service';
 import { stubContext } from '@engine/testing/world-context';
 import { PLAZA } from '../mood';
 import { HazedCopies } from '../shaders/hazed-copies';
 import { SharedUniforms } from '../shaders/shared-uniforms';
-import { ModelFiles } from '../testing/model-files';
+import { bakeGeometry } from '../model-geometry';
+import { ModelFiles, loadModelFile } from '../testing/model-files';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import {
@@ -205,5 +207,76 @@ describe('LanguagePillars', () => {
     plain.dispose();
     expect(assets.releasedModels).toEqual([PLAZA_PILLAR_MODEL]);
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('keeps a short column’s shaft in view and turns every column square to the row', async () => {
+    const project: Project = { ...PROJECT, languages: { TypeScript: 1000, Tiny: 1 } };
+    const read = (path: string) => readFileSync(path);
+    const assets = new ModelFiles(read);
+    const ctx = stubContext(assets);
+    const rotationY = Math.PI / 4;
+    const pillars = new LanguagePillars({
+      ...options(project),
+      origin: new Vector3(0, 0, 0),
+      rotationY,
+      skin: 'plaza',
+    });
+    pillars.init(ctx);
+    await assets.settled();
+
+    const model = await loadModelFile(read, `public/${PLAZA_PILLAR_MODEL}`);
+    const [base, shaft, capital] = ['base', 'shaft', 'capital'].map(
+      (name) => bakeGeometry(model.getObjectByName(name)!)!.getAttribute('position').count,
+    );
+    const position = (ctx.scene.getObjectByName('language-pillars') as Mesh).geometry.getAttribute(
+      'position',
+    );
+    expect(position.count).toBe(2 * (base + shaft + capital));
+    // The second column, Tiny: the shortest pillar there is.
+    const first = base + shaft + capital;
+    const span = (from: number, count: number, read: (i: number) => number) => {
+      let [low, high] = [Infinity, -Infinity];
+      for (let i = from; i < from + count; i++) {
+        low = Math.min(low, read(i));
+        high = Math.max(high, read(i));
+      }
+      return { low, high };
+    };
+    const y = (i: number) => position.getY(i);
+    const height = span(first, base + shaft + capital, y).high;
+    expect(height).toBeCloseTo(0.35, 2);
+    const plinth = span(first, base, y);
+    const abacus = span(first + base + shaft, capital, y);
+    // Base and capital take no more than half the column, so half of it is shaft.
+    expect(abacus.low - plinth.high).toBeGreaterThanOrEqual(height / 2 - 1e-3);
+    expect(abacus.high).toBeCloseTo(height, 3);
+    // Square to the row: the plinth is as long along the row as across it, and narrower than its
+    // diagonal, which it would show along a turned row if it stood square to the world.
+    const along = new Vector3(Math.cos(rotationY), 0, -Math.sin(rotationY));
+    const across = new Vector3(Math.sin(rotationY), 0, Math.cos(rotationY));
+    const point = new Vector3();
+    const extent = (direction: Vector3) =>
+      span(first, base, (i) => point.fromBufferAttribute(position, i).dot(direction));
+    const alongRow = extent(along);
+    const acrossRow = extent(across);
+    expect(alongRow.high - alongRow.low).toBeCloseTo(acrossRow.high - acrossRow.low, 2);
+    expect(alongRow.high - alongRow.low).toBeLessThan(0.8);
+
+    pillars.dispose();
+  });
+
+  it('leaves the Plaza row in plain air on the lowest tier, as the square is', () => {
+    const ctx = { ...stubContext(), quality: qualitySettings('low') };
+    const haze = new HazedCopies(new SharedUniforms(PLAZA));
+    const project: Project = { ...PROJECT, languages: { TypeScript: 1 } };
+    const pillars = new LanguagePillars({ ...options(project), skin: 'plaza', haze });
+    pillars.init(ctx);
+
+    const mesh = ctx.scene.getObjectByName('language-pillars') as Mesh;
+    expect(mesh).toBeInstanceOf(Mesh);
+    expect((mesh.material as MeshStandardMaterial).customProgramCacheKey()).not.toContain(
+      'atmosphere',
+    );
+    pillars.dispose();
   });
 });

@@ -18,6 +18,8 @@ const SCREEN_DEPTH = 0.16;
 /** Height of the screen's centre above the ground. */
 const SCREEN_CENTRE = 1.9;
 const INTERACT_RADIUS = 4;
+/** Half the footprint's width when an environment's frame stands around the screen. */
+const FRAMED_HALF_WIDTH = 2;
 
 export interface ScreenLandmarkOptions extends LandmarkOptions {
   readonly comparison?: PosterComparison;
@@ -136,7 +138,9 @@ export class ScreenLandmark extends Landmark {
 
   /** Axis-aligned bounds of the rotated screen body, on the ground. */
   private footprint() {
-    const halfW = SCREEN_WIDTH / 2 + 0.3;
+    // Framed by the environment (the Plaza's notice board, 4.2 m across its roof), the posts and
+    // their stone feet reach 1.92 m out: the footprint covers them.
+    const halfW = this.frame ? SCREEN_WIDTH / 2 + 0.3 : FRAMED_HALF_WIDTH;
     const halfD = SCREEN_DEPTH / 2 + 0.4;
     const corners = [
       this.toWorld(-halfW, 0, -halfD),

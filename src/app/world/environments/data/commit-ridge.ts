@@ -38,6 +38,8 @@ const SLAB_DEPTH = 0.9;
  * pivot at the bottom centre, stretched to each slab.
  */
 export const PLAZA_STEP_MODEL = 'assets/models/plaza-step.glb';
+/** The step model's length along the ridge: the Plaza ridge stands one step per this many metres. */
+const PLAZA_STEP_MODULE = 0.5;
 const SLAB_GAP = 0.3;
 const RIDGE_PATH_GAP = 0.5;
 
@@ -98,7 +100,8 @@ export class CommitRidge implements WorldObject {
     });
     const mesh = new Mesh(
       geometry,
-      this.options.skin === 'plaza' && this.options.haze
+      // In the Plaza's air, as the square is: hazed on every tier but the lowest.
+      this.options.skin === 'plaza' && this.options.haze && ctx.quality.shaderDetail > 0
         ? this.options.haze.own(material)
         : material,
     );
@@ -355,15 +358,68 @@ interface Slab {
   readonly angle: number;
 }
 
-/** The 52 slabs of the ridge, laid beside the walking line, each as high as its bucket. */
+/**
+ * The ridge's slabs, laid beside the walking line. The default and jungle ridges stand one slab per
+ * bucket, 52 of them, inset from both ends. The Plaza's ridge is only a 6 m chord, where 52 slabs
+ * came out 8 cm wide and read as spikes: it stands one step per `PLAZA_STEP_MODULE` of the full
+ * chord instead, each as high as the commits of the stretch of buckets it covers.
+ */
 function slabs(options: CommitRidgeOptions): Slab[] {
+  return options.skin === 'plaza' ? plazaSteps(options) : bucketSlabs(options);
+}
+
+/** The steps of the Plaza ridge: shoulder to shoulder along the whole chord. */
+function plazaSteps(options: CommitRidgeOptions): Slab[] {
+  const { from, axis, side, angle, distance } = ridgeFrame(options);
+  const count = plazaStepCount(options.from, options.to);
+  const width = distance / count;
+  const heights = resampleBuckets(options.project.commitBuckets, count).map(slabHeight);
+  return heights.map((height, index) => {
+    const foot = from
+      .clone()
+      .addScaledVector(axis, (index + 0.5) * width)
+      .addScaledVector(side, -RIDGE_OFFSET);
+    foot.y = options.ground.heightAt(foot.x, foot.z);
+    return { foot, width, height, angle };
+  });
+}
+
+/** How many steps the Plaza ridge stands along its chord: one per step module, at least one. */
+export function plazaStepCount(from: Vector3, to: Vector3): number {
+  return Math.max(1, Math.round(Math.hypot(to.x - from.x, to.z - from.z) / PLAZA_STEP_MODULE));
+}
+
+/**
+ * `buckets` gathered into `groups` consecutive stretches, each the sum of its commits, so a step
+ * stands for every commit in its part of the project's life. Missing data stays a level path.
+ */
+export function resampleBuckets(buckets: readonly number[] | undefined, groups: number): number[] {
+  const values = buckets ?? [];
+  return Array.from({ length: groups }, (_, group) => {
+    const start = Math.floor((group * values.length) / groups);
+    const end = Math.floor(((group + 1) * values.length) / groups);
+    let sum = 0;
+    for (let index = start; index < end; index++) {
+      const value = values[index];
+      sum += typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
+    }
+    return sum;
+  });
+}
+
+function ridgeFrame(options: CommitRidgeOptions) {
   const from = new Vector3(options.from.x, 0, options.from.z);
   const to = new Vector3(options.to.x, 0, options.to.z);
   const direction = to.clone().sub(from);
   const distance = direction.length();
   const axis = distance > 0 ? direction.clone().normalize() : new Vector3(0, 0, -1);
   const side = new Vector3(-axis.z, 0, axis.x);
-  const angle = Math.atan2(-axis.z, axis.x);
+  return { from, axis, side, distance, angle: Math.atan2(-axis.z, axis.x) };
+}
+
+/** The 52 slabs of the default and jungle ridges, each as high as its bucket. */
+function bucketSlabs(options: CommitRidgeOptions): Slab[] {
+  const { from, axis, side, distance, angle } = ridgeFrame(options);
   const inset = Math.min(PATH_INSET, distance / 4);
   const usable = Math.max(distance - inset * 2, 0);
   const width = Math.max(0.08, Math.min(0.65, (usable / RIDGE_SLAB_COUNT) * (1 - SLAB_GAP)));
@@ -414,7 +470,8 @@ function buildGeometry(options: CommitRidgeOptions) {
   return merged;
 }
 
-function slabHeight(count: number | undefined): number {
+/** How high a slab or step stands for `count` commits: square-root scaled, capped at 2.86 m. */
+export function slabHeight(count: number | undefined): number {
   const safeCount = typeof count === 'number' && Number.isFinite(count) ? Math.max(0, count) : 0;
   return Math.min(MAX_HEIGHT, BASE_HEIGHT + SLAB_UNIT * Math.sqrt(safeCount));
 }

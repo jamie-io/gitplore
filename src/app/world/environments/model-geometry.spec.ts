@@ -227,4 +227,28 @@ describe('model geometry', () => {
     expect(used).toHaveLength(1);
     expect(cancelled.releasedModels).toEqual(['a.glb']);
   });
+
+  it('logs a model that cannot be dressed, still hands it back, and rejects nothing', async () => {
+    const assets = new StubAssets();
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+
+    borrowModels(
+      assets,
+      ['a.glb'],
+      () => false,
+      () => {
+        throw new Error('no such node');
+      },
+    );
+    await assets.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(logged).toHaveBeenCalledOnce();
+    expect(assets.releasedModels).toEqual(['a.glb']);
+    expect(unhandled).not.toHaveBeenCalled();
+    process.off('unhandledRejection', unhandled);
+    logged.mockRestore();
+  });
 });

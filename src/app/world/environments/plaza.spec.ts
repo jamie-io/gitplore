@@ -3,6 +3,7 @@ import {
   Box3,
   BoxGeometry,
   BufferAttribute,
+  BufferGeometry,
   Color,
   InstancedMesh,
   Mesh,
@@ -24,6 +25,7 @@ import { PlazaEnvironment, TOWN_BLOCKS } from './plaza';
 import {
   ARCH,
   CORNERS,
+  CORNER_FOOTPRINTS,
   FACADE,
   GLIDE_RADIUS,
   HouseSpot,
@@ -34,7 +36,7 @@ import {
   VARIANTS,
   houseRow,
 } from './plaza-layout';
-import { PLAZA_MODELS, TownModel, dressedHouse, townModel } from './plaza-models';
+import { PLAZA_MODELS, TownModel, dressedCorner, dressedHouse, townModel } from './plaza-models';
 import { PLAZA_TERMINAL_MODEL } from './props/terminal';
 import { PLAZA_STEP_MODEL } from './data/commit-ridge';
 import { PLAZA_PILLAR_MODEL } from './data/language-pillars';
@@ -518,6 +520,28 @@ describe('PlazaEnvironment', () => {
       : Math.min(Math.abs(bounds.min.x), Math.abs(bounds.max.x));
     expect(front).toBeGreaterThan(FACADE - 1.5);
     expect(front).toBeLessThanOrEqual(FACADE + 0.01);
+  });
+
+  it('stands every corner model inside its corner’s footprint', async () => {
+    const model = townModel(await loadModelFile(read, `public/${PLAZA_MODELS.corner}`))!;
+    const walls: TownModel = { ...model, shutters: model.stucco, trim: model.stucco };
+    const paint = { stucco: 0xffffff, shutters: 0xffffff };
+    CORNERS.forEach((corner, index) => {
+      const footprint = CORNER_FOOTPRINTS[index];
+      const inside = (geometry: BufferGeometry, slack: number) => {
+        geometry.computeBoundingBox();
+        const bounds = geometry.boundingBox!;
+        expect(bounds.min.x).toBeGreaterThanOrEqual(footprint.minX - slack);
+        expect(bounds.max.x).toBeLessThanOrEqual(footprint.maxX + slack);
+        expect(bounds.min.z).toBeGreaterThanOrEqual(footprint.minZ - slack);
+        expect(bounds.max.z).toBeLessThanOrEqual(footprint.maxZ + slack);
+        geometry.dispose();
+      };
+      // The walls fill the footprint, to the thickness of a render coat.
+      inside(dressedCorner(corner, walls, paint), 0.07);
+      // Only the eaves, the cornices and the sills reach past, as far as the houses' eaves.
+      inside(dressedCorner(corner, model, paint), 0.45);
+    });
   });
 
   it('lights a bulb in every wall lamp once the houses arrive', async () => {

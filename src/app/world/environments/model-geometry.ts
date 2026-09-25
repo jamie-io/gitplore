@@ -126,6 +126,9 @@ export function borrowModels(
       if (models.size === urls.length && !cancelled()) {
         use(models);
       }
+    } catch (error) {
+      // A model that cannot be dressed leaves the procedural build standing, as a missing one does.
+      console.error(`could not stand ${urls.join(', ')}`, error);
     } finally {
       models.forEach((_, url) => assets.releaseModel(url));
     }

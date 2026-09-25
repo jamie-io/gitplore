@@ -167,7 +167,10 @@ export class LanguagePillars implements WorldObject {
     const plaza = this.options.skin === 'plaza';
     const mesh = new Mesh(
       geometry,
-      plaza && this.options.haze ? this.options.haze.own(material) : material,
+      // In the Plaza's air, as the square is: hazed on every tier but the lowest.
+      plaza && this.options.haze && ctx.quality.shaderDetail > 0
+        ? this.options.haze.own(material)
+        : material,
     );
     mesh.name = this.id;
     mesh.userData['stalkCount'] = languages.length;
@@ -215,7 +218,7 @@ export class LanguagePillars implements WorldObject {
         });
         if (base && shaft && capital) {
           mesh.geometry.dispose();
-          mesh.geometry = buildColumns(pillars, base, shaft, capital);
+          mesh.geometry = buildColumns(pillars, this.options.rotationY, base, shaft, capital);
         }
         [base, shaft, capital].forEach((part) => part?.dispose());
       },
@@ -236,22 +239,37 @@ export class LanguagePillars implements WorldObject {
 }
 
 /**
- * The row from the Plaza's column: per pillar the `base` as modelled, the unit-high `shaft`
- * stretched to the pillar's height in its language's colour, and the `capital` lifted to end at
- * that height, both in stone. Every pillar stays exactly as high as the plain one.
+ * The row from the Plaza's column: per pillar the `base` on the ground, the unit-high `shaft`
+ * stretched to the pillar's height in its language's colour, and the `capital` ending at that
+ * height, both in stone, all turned square to the row. Every column stays exactly as high as the
+ * plain pillar. Base and capital take at most half a short column between them, flattened about
+ * their own foot and top but never narrowed, so they still frame the shaft: at full height they left
+ * the shortest columns a squat 10 cm of shaft.
  */
 function buildColumns(
   pillars: readonly Pillar[],
+  rotationY: number,
   base: BufferGeometry,
   shaft: BufferGeometry,
   capital: BufferGeometry,
 ): BufferGeometry {
+  base.computeBoundingBox();
+  capital.computeBoundingBox();
+  const baseHeight = base.boundingBox!.max.y;
+  const capitalTop = capital.boundingBox!.max.y;
+  const ends = baseHeight + capitalTop - capital.boundingBox!.min.y;
   return mergeBaked(
-    pillars.flatMap(({ x, y, z, height, colour }) => [
-      tintGeometry(base.clone(), STONE).translate(x, y, z),
-      tintGeometry(shaft.clone(), colour).scale(1, height, 1).translate(x, y, z),
-      tintGeometry(capital.clone(), STONE).translate(x, y + height - 1, z),
-    ]),
+    pillars.flatMap(({ x, y, z, height, colour }) => {
+      const fit = Math.min(1, height / 2 / ends);
+      return [
+        tintGeometry(base.clone(), STONE).scale(1, fit, 1),
+        tintGeometry(shaft.clone(), colour).scale(1, height, 1),
+        tintGeometry(capital.clone(), STONE)
+          .translate(0, -capitalTop, 0)
+          .scale(1, fit, 1)
+          .translate(0, height, 0),
+      ].map((part) => part.rotateY(rotationY).translate(x, y, z));
+    }),
   );
 }
 

@@ -603,7 +603,9 @@ export class Terminal implements WorldObject {
           roughness: 0.8,
           metalness: 0,
         });
-        const kiosk = new Mesh(geometry, this.options.haze?.own(material) ?? material);
+        // In the Plaza's air, as the square is: hazed on every tier but the lowest.
+        const hazed = ctx.quality.shaderDetail > 0 ? this.options.haze?.own(material) : undefined;
+        const kiosk = new Mesh(geometry, hazed ?? material);
         kiosk.name = `${this.id}:kiosk`;
         kiosk.castShadow = ctx.quality.shadows;
         kiosk.receiveShadow = ctx.quality.shadows;
