@@ -164,7 +164,15 @@ describe('Lichtung copy', () => {
       text: 'Noch kein Release.',
       en: 'No release yet.',
     });
-    expect(PLATES.cairn('v1.2.0').text).toBe('Letztes Release: v1.2.0');
+    expect(PLATES.cairn({ de: 'v1.2.0', en: 'v1.2.0' }).text).toBe('Letztes Release: v1.2.0');
+  });
+  it('names the release in each language’s own date on the cairn', () => {
+    const plate = PLATES.cairn({
+      de: 'v1.2.0 · 1. September 2025',
+      en: 'v1.2.0 · 1 September 2025',
+    });
+    expect(plate.text).toBe('Letztes Release: v1.2.0 · 1. September 2025');
+    expect(plate.en).toBe('Latest release: v1.2.0 · 1 September 2025');
   });
   it('keeps the portal, wall and moment strings verbatim', () => {
     expect(PLATES.portal.en).toBe(

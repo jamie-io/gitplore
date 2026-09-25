@@ -185,7 +185,8 @@ export const PLATES: {
   readonly wandOff: StationPlate;
   readonly hoehle: StationPlate;
   readonly langs: (line: string) => StationPlate;
-  readonly cairn: (release: string | null) => StationPlate;
+  /** The newest release, named with its date in German and in English; `null` for none. */
+  readonly cairn: (release: { readonly de: string; readonly en: string } | null) => StationPlate;
   readonly liana: StationPlate;
 } = {
   portal: {
@@ -248,7 +249,7 @@ export const PLATES: {
     text: line,
     en: 'One bamboo stalk per language at the bridge ends, height = share.',
   }),
-  cairn: (release: string | null) =>
+  cairn: (release) =>
     release === null
       ? {
           kicker: 'Fund',
@@ -259,8 +260,8 @@ export const PLATES: {
       : {
           kicker: 'Fund',
           title: 'Release-Steinmann',
-          text: `Letztes Release: ${release}`,
-          en: `Latest release: ${release}`,
+          text: `Letztes Release: ${release.de}`,
+          en: `Latest release: ${release.en}`,
         },
   liana: {
     kicker: 'Fund',

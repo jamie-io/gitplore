@@ -76,6 +76,18 @@ describe('ExhibitEasel', () => {
     easel.dispose();
   });
 
+  it('stands a model without a screen anchor as it comes, not lifted by the screen’s height', async () => {
+    const { assets, easel } = build();
+    const { model } = easelModel();
+    model.remove(model.getObjectByName('screen_anchor')!);
+    model.position.set(0.02, 0.05, -0.01);
+
+    await assets.resolve(model);
+
+    expect(model.position.toArray()).toEqual([0.02, 0.05, -0.01]);
+    easel.dispose();
+  });
+
   it('blocks its uprights and back legs, outside the screen’s body', () => {
     const { easel } = build();
 

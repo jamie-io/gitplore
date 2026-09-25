@@ -772,8 +772,14 @@ function languageLine(project: Project): { readonly line: string; readonly count
   return { line, count: rows.length };
 }
 
-/** The newest release as the cairn's plate names it, e.g. `v1.2.0 · 1. September 2025`. */
-function latestRelease(project: Project): string | null {
+/** A release date as the English plate line gives it, e.g. `1 September 2025`. */
+const ENGLISH_DATE = new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'UTC' });
+
+/**
+ * The newest release as the cairn's plate names it, in German (`v1.2.0 · 1. September 2025`) and
+ * in English (`v1.2.0 · 1 September 2025`); `null` without releases.
+ */
+function latestRelease(project: Project): { readonly de: string; readonly en: string } | null {
   const releases = project.releases ?? [];
   const rows = repositoryReleases(project);
   let newest = -1;
@@ -785,7 +791,15 @@ function latestRelease(project: Project): string | null {
       newestAt = at;
     }
   });
-  return newest < 0 ? null : formatReleaseLine(rows[newest]!);
+  if (newest < 0) {
+    return null;
+  }
+  const name = releases[newest]!.name;
+  const at = parseDate(releases[newest]!.date);
+  return {
+    de: formatReleaseLine(rows[newest]!),
+    en: at === undefined ? name : `${name} · ${ENGLISH_DATE.format(at)}`,
+  };
 }
 
 /** Whether (x, z) stands on the deck under the arch. */

@@ -322,6 +322,13 @@ export class FeedWall {
       return;
     }
     this.assets = assets;
+    // The stand-in stands in the same air as the model will: its materials are the wall's own, so
+    // they are hazed in place and freed with the proxy.
+    if (haze) {
+      new Set(this.proxy.map((mesh) => mesh.material as MeshStandardMaterial)).forEach((material) =>
+        haze.own(material),
+      );
+    }
     assets.model(FEED_WALL_MODEL).then(
       (model) => {
         if (this.placeModel(model, castShadow, haze)) {

@@ -325,6 +325,20 @@ describe('FeedWall', () => {
     wall.dispose();
   });
 
+  it('stands the procedural wall and lever in the same haze while the model is on its way', () => {
+    const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));
+    const wall = new FeedWall();
+    wall.loadModel(new StubAssets(), false, haze);
+
+    for (const name of ['feed-wall-proxy', 'feed-wall-proxy-pier', 'feed-wall-proxy-lever']) {
+      const mesh = wall.object.getObjectByName(name) as Mesh;
+      expect((mesh.material as MeshStandardMaterial).customProgramCacheKey(), name).toContain(
+        'atmosphere',
+      );
+    }
+    wall.dispose();
+  });
+
   it('loads feed-wall.glb once: cards into its slots, the lever onto its hinge, stone hazed', async () => {
     const assets = new StubAssets();
     const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));

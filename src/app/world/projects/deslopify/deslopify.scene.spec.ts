@@ -679,7 +679,11 @@ describe('DeslopifyScene', () => {
       expect(target.plateAt(ARCH.x, ARCH.z + 1)).toBeNull();
 
       expect(target.plateAt(CAIRN.x + 2.5, CAIRN.z)).toEqual(
-        PLATES.cairn('v1.2.0 · 1. September 2025'),
+        PLATES.cairn({ de: 'v1.2.0 · 1. September 2025', en: 'v1.2.0 · 1 September 2025' }),
+      );
+      // No German date in the English line.
+      expect(target.plateAt(CAIRN.x, CAIRN.z)?.en).toBe(
+        'Latest release: v1.2.0 · 1 September 2025',
       );
       expect(target.plateAt(CAIRN.x + 2.7, CAIRN.z)).toBeNull();
       expect(target.plateAt(LIANA.x + 2.5, LIANA.z)).toEqual(PLATES.liana);

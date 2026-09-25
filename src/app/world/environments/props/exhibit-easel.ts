@@ -106,11 +106,13 @@ export class ExhibitEasel implements WorldObject {
       }
     });
     this.group.add(model);
-    // The anchor wherever it hangs in the model's tree, in the easel group's own frame.
+    // The anchor wherever it hangs in the model's tree, in the easel group's own frame. Without
+    // one the model stands as it comes: there is nothing to line up with the screen's middle.
     const node = model.getObjectByName(SCREEN_ANCHOR);
-    const anchor = node
-      ? new Vector3().setFromMatrixPosition(transformIn(node, this.group))
-      : model.position.clone();
+    if (!node) {
+      return;
+    }
+    const anchor = new Vector3().setFromMatrixPosition(transformIn(node, this.group));
     model.position.add(new Vector3(0, this.options.screenCentre, 0).sub(anchor));
   }
 }
