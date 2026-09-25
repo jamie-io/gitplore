@@ -79,7 +79,9 @@ function vertices(root: Object3D, names: ReadonlySet<string>): Vector3[] {
 /** Everything the toys must keep clear of, in one built scene. */
 async function expectToysClear(project: Project): Promise<void> {
   const scene = await build(project);
-  const toys = [scene.terminal, scene.seedLever];
+  // `seedLever` is `null` for an environment that lays out no lever, the Plaza among them; skip
+  // its assertions rather than fail on a toy that was never built.
+  const toys = [scene.terminal, scene.seedLever].filter((toy) => toy !== null);
   const own = new Set<Collider>(toys.flatMap((toy) => toy.colliders));
   const others = scene.colliders.filter((collider) => !own.has(collider));
 

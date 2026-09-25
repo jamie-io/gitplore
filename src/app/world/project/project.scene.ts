@@ -188,7 +188,8 @@ export class ProjectScene implements WorldScene {
   protected readonly exhibit: ScreenLandmark;
   /** The two toys every project world gets; public so specs can find them. */
   readonly terminal: Terminal;
-  readonly seedLever: SeedLever;
+  /** `null` for an environment whose `toyLayout()` lays out no lever, the Plaza among them. */
+  readonly seedLever: SeedLever | null;
   /** Hazed copies of loaded models' materials, where the environment has an atmosphere to share. */
   protected readonly haze: HazedCopies | null;
 
@@ -250,19 +251,21 @@ export class ProjectScene implements WorldScene {
       skin,
       haze: this.haze ?? undefined,
     });
-    this.seedLever = new SeedLever({
-      id: `${this.id}:seed-lever`,
-      position: toys.lever.position,
-      rotationY: toys.lever.rotationY,
-      ground: this.environment.ground,
-      onReseed: (offset) => this.environment.reseedDecoration?.(offset),
-      reducedMotion: options.reducedMotion,
-      skin,
-      haze: this.haze ?? undefined,
-    });
+    this.seedLever = toys.lever
+      ? new SeedLever({
+          id: `${this.id}:seed-lever`,
+          position: toys.lever.position,
+          rotationY: toys.lever.rotationY,
+          ground: this.environment.ground,
+          onReseed: (offset) => this.environment.reseedDecoration?.(offset),
+          reducedMotion: options.reducedMotion,
+          skin,
+          haze: this.haze ?? undefined,
+        })
+      : null;
     this.parts = [
       this.terminal,
-      this.seedLever,
+      ...(this.seedLever ? [this.seedLever] : []),
       this.exhibit,
       this.returnPortal,
       new CommitRidge({
