@@ -280,12 +280,13 @@ describe('SceneDirector', () => {
       const setScene = engine.setScene.bind(engine);
       engine.setScene = (world: WorldScene) => {
         if (world.id === 'project:novaverta') {
-          Object.assign(world, {
-            stations: STATIONS,
-            portalStand: PORTAL_STAND,
-            overview: OVERVIEW,
-            pitch: PITCH,
-            glidePath: (from: GroundPoint, to: GroundPoint) => [from, WAYPOINT, to],
+          // Own properties, so they stand in front of `ProjectScene`'s getters for these.
+          Object.defineProperties(world, {
+            stations: { value: STATIONS },
+            portalStand: { value: PORTAL_STAND },
+            overview: { value: OVERVIEW },
+            pitch: { value: PITCH },
+            glidePath: { value: (from: GroundPoint, to: GroundPoint) => [from, WAYPOINT, to] },
           });
         }
         setScene(world);
@@ -461,6 +462,17 @@ describe('SceneDirector', () => {
       expect(store.shot()).toBeNull();
     });
 
+    it('holds the banner up for the moment’s length in a world without an overview', async () => {
+      vi.useFakeTimers();
+      await director.show('novaverta');
+
+      director.playMoment('Banner');
+
+      expect(store.banner()).toBe('Banner');
+      vi.advanceTimersByTime(MOMENT.total * 1000);
+      expect(store.banner()).toBeNull();
+    });
+
     it('clears a toast 2.2 s after the last one', async () => {
       vi.useFakeTimers();
       await director.show('novaverta');
@@ -485,8 +497,9 @@ describe('SceneDirector', () => {
 
       expect(store.toast()?.text).toBe('Laterne');
       expect(store.banner()).toBe('Banner');
-      // A world without an overview has no camera to hold the banner up; the moment's length does.
-      vi.advanceTimersByTime(MOMENT.total * 1000);
+      // Deslopify frames its bowl: the moment's shot rises to its overview and holds the banner.
+      expect(engine.shots.at(-1)?.kind).toBe('moment');
+      engine.endShot();
       expect(store.banner()).toBeNull();
     });
 

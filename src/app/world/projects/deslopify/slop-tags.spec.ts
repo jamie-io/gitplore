@@ -113,6 +113,17 @@ describe('SlopTags', () => {
     expect(tags.flipped(0)).toBe(false);
   });
 
+  it('takes its flip rates from the flow when given', () => {
+    const tags = new SlopTags({ anchors: [ANCHORS[0]], rates: { on: 2.6, off: 1.2 } });
+
+    tags.update(10, () => true);
+    tags.update(0.5, () => false);
+
+    expect(tags.object.getObjectByName('slop-tag-face:0')?.scale.x).toBeCloseTo(
+      Math.abs(Math.cos((1 - 0.5 * 1.2) * Math.PI)),
+    );
+  });
+
   it('snaps to face state under reduced motion', () => {
     const tags = new SlopTags({ anchors: [ANCHORS[0]], reducedMotion: true });
 

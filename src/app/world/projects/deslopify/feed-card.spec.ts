@@ -7,6 +7,7 @@ import {
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
+  Vector3,
   WebGLRenderer,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -15,7 +16,7 @@ import { DSCHUNGEL } from '../../environments/mood';
 import { HazedCopies } from '../../environments/shaders/hazed-copies';
 import { SharedUniforms } from '../../environments/shaders/shared-uniforms';
 import { BADGE, FEED_CARDS } from './deslopify.data';
-import { CARD_FRAME_MODEL, FeedCard, FeedWall } from './feed-card';
+import { CARD_FRAME_MODEL, FEED_WALL_MODEL, FeedCard, FeedWall } from './feed-card';
 
 interface CanvasFixture {
   readonly contexts: CanvasRenderingContext2D[];
@@ -285,15 +286,51 @@ describe('FeedCard', () => {
 });
 
 describe('FeedWall', () => {
-  it('centres four cards at 2.4 metre spacing and staggers transitions', () => {
+  /** A stand-in for feed-wall.glb, laid out as the optimiser leaves it. */
+  function wallModel(): {
+    model: Group;
+    stone: MeshStandardMaterial;
+    wall: Mesh;
+    lever: Mesh;
+  } {
+    const model = new Group();
+    const stone = new MeshStandardMaterial({ name: 'wall-stone' });
+    const wall = new Mesh(new BoxGeometry(1, 1, 1), stone);
+    wall.name = 'feed-wall';
+    // The optimiser's dequantising offset and scale sit on every mesh node.
+    wall.position.set(0.3, 1.341, 0.16);
+    wall.scale.setScalar(3.171);
+    const lever = new Mesh(new BoxGeometry(1, 1, 1), stone);
+    lever.name = 'lever';
+    lever.position.set(3.18, 1.569, 0.02);
+    lever.scale.setScalar(0.501);
+    const hinge = new Group();
+    hinge.name = 'lever_hinge';
+    hinge.position.set(3.18, 1.12, 0.02);
+    model.add(wall, lever, hinge);
+    [-1.95, -0.65, 0.65, 1.95].forEach((x, index) => {
+      const slot = new Group();
+      slot.name = `slot_${index}`;
+      slot.position.set(x, 0.3, 0.44);
+      slot.scale.setScalar(0.52);
+      model.add(slot);
+    });
+    return { model, stone, wall, lever };
+  }
+
+  it('stands four cards on its 5.6 m ledge, 1.3 m apart at 0.52 scale, and staggers them', () => {
     const wall = new FeedWall();
     expect(wall.cards).toHaveLength(4);
-    expect(wall.object.children).toHaveLength(4);
-    wall.cards
-      .map((card) => card.object.position.x)
-      .forEach((x, index) => {
-        expect(x).toBeCloseTo([-3.6, -1.2, 1.2, 3.6][index]);
-      });
+    wall.cards.forEach((card, index) => {
+      expect(card.object.parent).toBe(wall.object);
+      expect(card.object.position.x).toBeCloseTo([-1.95, -0.65, 0.65, 1.95][index], 6);
+      expect(card.object.position.y).toBeCloseTo(0.3, 6);
+      expect(card.object.position.z).toBeCloseTo(0.44, 6);
+      expect(card.object.scale.x).toBeCloseTo(0.52, 6);
+    });
+    // The whole row fits on the wall, stands included.
+    const span = 1.95 * 2 + 2.1 * 0.52;
+    expect(span).toBeLessThan(5.6);
 
     wall.setOriginal(true, 0.12);
     wall.update(0.12);
@@ -303,5 +340,114 @@ describe('FeedWall', () => {
 
     wall.dispose();
     expect(wall.object.children).toHaveLength(0);
+  });
+
+  it('stands a procedural wall behind the cards until the model arrives', () => {
+    const wall = new FeedWall();
+
+    const proxy = wall.object.getObjectByName('feed-wall-proxy') as Mesh<BoxGeometry>;
+    expect(proxy).toBeInstanceOf(Mesh);
+    expect(proxy.geometry.parameters.width).toBeCloseTo(5.6, 6);
+    expect(proxy.geometry.parameters.height).toBeCloseTo(2.6, 6);
+    expect(wall.lever.position.toArray()).toEqual([3.18, 1.12, 0.02]);
+    expect(wall.lever.children.length).toBeGreaterThan(0);
+    wall.dispose();
+  });
+
+  it('loads feed-wall.glb once: cards into its slots, the lever onto its hinge, stone hazed', async () => {
+    const assets = new StubAssets();
+    const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));
+    const wall = new FeedWall();
+    wall.loadModel(assets, false, haze);
+    wall.loadModel(assets, false, haze);
+    expect(assets.requested).toEqual([FEED_WALL_MODEL]);
+
+    const { model, stone, wall: body, lever } = wallModel();
+    await assets.resolve(model);
+
+    expect(wall.object.getObjectByName('feed-wall-proxy')).toBeUndefined();
+    expect(model.parent).toBe(wall.object);
+    expect(body.material).toBe(haze.of(stone));
+    expect(lever.parent).toBe(wall.lever);
+    // Only the authored placement came off: the dequantising offset and scale stay.
+    expect(lever.position.y).toBeCloseTo(1.569 - 1.12, 6);
+    expect(lever.scale.x).toBeCloseTo(0.501, 6);
+    const world = new Vector3();
+    wall.object.updateMatrixWorld(true);
+    expect(lever.getWorldPosition(world).y).toBeCloseTo(1.569, 6);
+    wall.cards.forEach((card, index) => {
+      const slot = model.getObjectByName(`slot_${index}`)!;
+      expect(card.object.position.toArray()).toEqual(slot.position.toArray());
+      expect(card.object.scale.x).toBeCloseTo(0.52, 6);
+    });
+
+    wall.dispose();
+    wall.dispose();
+    expect(assets.releasedModels).toEqual([FEED_WALL_MODEL]);
+  });
+
+  it('throws its lever about the hinge’s x axis: upright at rest, one way on, the other off', () => {
+    const wall = new FeedWall();
+    expect(wall.lever.rotation.x).toBe(0);
+
+    wall.setSwitch('on');
+    wall.update(2);
+    const on = wall.lever.rotation.x;
+    expect(Math.abs(on)).toBeGreaterThan(0.3);
+
+    wall.setSwitch('off');
+    wall.update(0.05);
+    expect(wall.lever.rotation.x).not.toBe(on);
+    wall.update(2);
+    expect(wall.lever.rotation.x).toBeCloseTo(-on, 6);
+    expect(wall.lever.rotation.y).toBe(0);
+    expect(wall.lever.rotation.z).toBe(0);
+
+    wall.setSwitch('rest');
+    wall.update(2);
+    expect(wall.lever.rotation.x).toBe(0);
+    wall.dispose();
+  });
+
+  it('snaps its lever under reduced motion', () => {
+    const wall = new FeedWall({ reducedMotion: () => true });
+
+    wall.setSwitch('off');
+    wall.update(1 / 60);
+
+    expect(Math.abs(wall.lever.rotation.x)).toBeGreaterThan(0.3);
+    wall.dispose();
+  });
+
+  it('blocks the wall with its ledge and the lever’s pier, turned and placed with it', () => {
+    const wall = new FeedWall();
+    wall.object.position.set(8.4, 0.5, -13);
+    wall.object.updateMatrixWorld(true);
+
+    const boxes = wall.colliders();
+    const covers = (x: number, z: number) =>
+      boxes.some(
+        (box) =>
+          box.kind === 'aabb' && x >= box.minX && x <= box.maxX && z >= box.minZ && z <= box.maxZ,
+      );
+    expect(covers(8.4 - 2.7, -13)).toBe(true);
+    expect(covers(8.4 + 2.7, -13 + 0.5)).toBe(true);
+    expect(covers(8.4 + 3.18, -13)).toBe(true);
+    expect(covers(8.4, -13 + 0.7)).toBe(false);
+    expect(covers(8.4, -13 - 0.3)).toBe(false);
+    wall.dispose();
+  });
+
+  it('releases a model that arrives after dispose without adding it', async () => {
+    const assets = new StubAssets();
+    const wall = new FeedWall();
+    wall.loadModel(assets);
+    wall.dispose();
+
+    const { model } = wallModel();
+    await assets.resolve(model);
+
+    expect(assets.releasedModels).toEqual([FEED_WALL_MODEL]);
+    expect(model.parent).toBeNull();
   });
 });

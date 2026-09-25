@@ -1,10 +1,13 @@
-import { Mesh, Texture, Vector3 } from 'three';
-import { stubContext } from '@engine/testing/world-context';
+import { Mesh, Points, Texture, Vector3 } from 'three';
+import type { GroundPoint, StationPlate } from '@engine/stations/station';
+import { StubAssets, stubContext } from '@engine/testing/world-context';
+import type { WorldScene } from '@engine/world-object';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import { JungleEnvironment } from '../environments/jungle';
 import { BAMBOO, CAIRN, LIANA, STELE } from '../environments/jungle-layout';
 import { PlazaEnvironment } from '../environments/plaza';
+import { EASEL_WIDEN, EXHIBIT_EASEL_MODEL } from '../environments/props/exhibit-easel';
 import { ShowroomEnvironment } from '../environments/showroom';
 import { clearance } from '../environments/testing/clearance';
 import { ProjectScene, ProjectSceneOptions } from './project.scene';
@@ -231,6 +234,92 @@ describe('ProjectScene', () => {
       2.5,
     );
 
+    target.dispose();
+  });
+
+  it('has no stations, portal stand, overview, pitch, glide path or plates of its own', () => {
+    const target: WorldScene = scene();
+
+    expect(target.stations).toBeUndefined();
+    expect(target.portalStand).toBeUndefined();
+    expect(target.overview).toBeUndefined();
+    expect(target.pitch).toBeUndefined();
+    expect(target.glidePath).toBeUndefined();
+    expect(target.plateAt).toBeUndefined();
+  });
+
+  it('hands a bespoke scene’s stations, stands, shots and plates to the director', () => {
+    const plate = { kicker: 'Fund', title: 'Test', text: 'Text', en: 'Text' };
+    const stations = [
+      { id: 'a', name: 'A', stand: { x: 1, z: 2, yaw: 0 }, trigger: 3, plate: () => plate },
+    ];
+    class Bespoke extends ProjectScene {
+      override get stations() {
+        return stations;
+      }
+      override get portalStand() {
+        return { x: 0, z: 5, yaw: 0 };
+      }
+      override get overview() {
+        return { position: { x: 0, y: 20, z: 30 }, target: { x: 0, y: 0, z: 0 } };
+      }
+      override get pitch() {
+        return { title: 'T', line: 'L' };
+      }
+      override glidePath(from: GroundPoint, to: GroundPoint): readonly GroundPoint[] {
+        return [from, { x: 9, z: 9 }, to];
+      }
+      override plateAt(): StationPlate | null {
+        return plate;
+      }
+    }
+    const target: WorldScene = new Bespoke({
+      environment: new ShowroomEnvironment({ reducedMotion: () => true }),
+      project: PROJECT,
+      reducedMotion: () => true,
+      onOpenInfo: () => undefined,
+      onLeave: () => undefined,
+    });
+
+    expect(target.stations).toBe(stations);
+    expect(target.portalStand).toEqual({ x: 0, z: 5, yaw: 0 });
+    expect(target.overview?.position.y).toBe(20);
+    expect(target.pitch?.title).toBe('T');
+    expect(target.glidePath?.({ x: 0, z: 0 }, { x: 1, z: 1 })).toHaveLength(3);
+    expect(target.plateAt?.(0, 0)).toBe(plate);
+  });
+
+  it('stands the jungle’s exhibit inside its easel, and no easel anywhere else', () => {
+    const environment = new JungleEnvironment({ reducedMotion: () => true });
+    const target = scene({ project: { ...PROJECT, environment: 'jungle' }, environment });
+    const ctx = stubContext();
+    target.init(ctx);
+
+    const easel = ctx.scene.getObjectByName('exhibit-easel')!;
+    const exhibit = target.landmarks[0];
+    expect(easel).toBeDefined();
+    expect(easel.position.x).toBeCloseTo(exhibit.position.x, 6);
+    expect(easel.position.z).toBeCloseTo(exhibit.position.z, 6);
+    expect(easel.rotation.y).toBeCloseTo(exhibit.rotationY, 6);
+    expect(easel.scale.x).toBeCloseTo(EASEL_WIDEN, 6);
+    expect((ctx.assets as StubAssets).requested).toContain(EXHIBIT_EASEL_MODEL);
+    target.dispose();
+
+    const plain = scene();
+    const plainCtx = stubContext();
+    plain.init(plainCtx);
+    expect(plainCtx.scene.getObjectByName('exhibit-easel')).toBeUndefined();
+    plain.dispose();
+  });
+
+  it('flies the jungle’s fireflies over the exhibit glade whatever the stars', () => {
+    const environment = new JungleEnvironment({ reducedMotion: () => true });
+    const target = scene({ project: { ...PROJECT, stars: 0, environment: 'jungle' }, environment });
+    const ctx = stubContext();
+    target.init(ctx);
+
+    const swarm = ctx.scene.getObjectByName('star-lanterns') as Points;
+    expect(swarm.geometry.getAttribute('position').count).toBe(14);
     target.dispose();
   });
 
