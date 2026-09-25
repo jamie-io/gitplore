@@ -9,7 +9,7 @@ import {
   Vector3,
   Vector4,
 } from 'three';
-import { BOWL } from '../jungle-layout';
+import { BOWL } from '../jungle-bowl';
 import type { ClearingUniforms } from './clearing-ring';
 
 /**

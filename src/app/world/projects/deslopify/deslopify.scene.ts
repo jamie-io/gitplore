@@ -20,7 +20,7 @@ import type {
   StationSpec,
   StationStand,
 } from '@engine/stations/station';
-import type { WorldContext } from '@engine/world-object';
+import type { TestSpot, WorldContext } from '@engine/world-object';
 import type { Project } from '@content/project.model';
 import {
   formatReleaseLine,
@@ -169,6 +169,14 @@ export class DeslopifyScene extends ProjectScene {
   readonly vines: SlopVines;
   readonly tags: SlopTags;
   readonly ring: Mesh<CylinderGeometry, MeshBasicMaterial>;
+  /**
+   * The e2e arch walk starts on the top steps, 3 m south of the arch and facing it: a few steps
+   * from the trigger even at SwiftShader's frame rate in CI, where every frame advances at most
+   * `ENGINE_MAX_FRAME_SECONDS`. Dropped from the top step's height, so it lands on the flight.
+   */
+  readonly testSpots: Readonly<Record<string, TestSpot>> = {
+    'deslopify:bridge-south': { x: ARCH.x, y: STEPS.top, z: ARCH.z + 3, yaw: 0 },
+  };
 
   private readonly sceneOptions: ProjectSceneOptions;
   private readonly air: SlopAir | null;

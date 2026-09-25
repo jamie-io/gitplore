@@ -35,6 +35,14 @@ export interface Tickable {
   update(dt: number): void;
 }
 
+/** A spot a browser test can put the visitor on: the ground under their feet, and their facing. */
+export interface TestSpot {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+  readonly yaw: number;
+}
+
 /**
  * A scene the player can walk around in: it owns the ground, the things to bump into and the
  * things to use.
@@ -67,4 +75,9 @@ export interface WorldScene extends WorldObject {
   glidePath?(from: GroundPoint, to: GroundPoint): readonly GroundPoint[];
   /** The plate for a find at (x, z) that is not a station, e.g. the portal; `null` for none. */
   plateAt?(x: number, z: number): StationPlate | null;
+  /**
+   * Named spots a browser test can start a walk from, when it has to start short of a trigger
+   * rather than in front of an interactable. Only the `?stats=1` test hook reads them.
+   */
+  readonly testSpots?: Readonly<Record<string, TestSpot>>;
 }

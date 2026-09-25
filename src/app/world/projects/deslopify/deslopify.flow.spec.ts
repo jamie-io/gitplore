@@ -452,9 +452,22 @@ describe('DeslopifyFlow', () => {
       run(target, 2, inside);
       expect(falls()).toHaveLength(1);
 
-      run(target, 0.5, { x: 0, z: -22 });
+      run(target, 0.5, { x: 0, z: -17 });
       run(target, 0.5, inside);
       expect(falls()).toHaveLength(2);
+    });
+
+    it('counts the whole cave as behind the falls, so leaving it says nothing', () => {
+      const onToast = vi.fn();
+      const target = flow({ onToast });
+      const falls = () => onToast.mock.calls.filter(([text]) => text === TOASTS.falls);
+
+      run(target, 0.5, { x: 0, z: -17 });
+      run(target, 0.5, { x: 0, z: -19 });
+      run(target, 0.5, { x: 0, z: -23 });
+      run(target, 0.5, { x: 0, z: -19 });
+
+      expect(falls()).toHaveLength(1);
     });
 
     it('says the visitor passed behind the falls when a jump takes the walk through them', () => {

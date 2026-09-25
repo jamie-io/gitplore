@@ -4,7 +4,7 @@ import type { QualitySettings } from '@engine/capability.service';
 import { disposeObject3D } from '@engine/dispose';
 import type { HeightField } from '@engine/player/collision';
 import { WorldContext, WorldObject } from '@engine/world-object';
-import { FIREFLY_GLADE } from '../jungle-layout';
+import { FIREFLY_GLADE } from '../jungle-bowl';
 import { GALERIE } from '../mood';
 import { Motes } from '../motes';
 import { between, seededRandom } from '../random';

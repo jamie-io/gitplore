@@ -313,6 +313,8 @@ describe('jungle layout', () => {
   it('keeps the walk behind the falls between the pool and the cave', () => {
     expect(BEHIND_FALLS.x0).toBeLessThan(WATERFALL.x0);
     expect(BEHIND_FALLS.x1).toBeGreaterThan(WATERFALL.x1);
+    // The cave counts too, back to its end wall, so walking out of it is not a new arrival.
+    expect(BEHIND_FALLS.z0).toBe(CAVE.z0);
     const path = glidePath(STATION_STANDS.wand, STATION_STANDS.hoehle);
     expect(path).toContainEqual({ x: 2.4, z: -19.2 });
   });

@@ -16,15 +16,12 @@ import { WorldStore } from '@ui/store/world.store';
 import { HubScene } from '@world/hub/hub.scene';
 import { createEnvironment } from '@world/environments/create-environment';
 import type { Environment } from '@world/environments/environment';
-import { ARCH, STEPS } from '@world/environments/jungle-layout';
 import { createProjectScene } from '@world/project/create-project-scene';
 import { InWorldDemo, ProjectScene } from '@world/project/project.scene';
 import { StationDirector } from './station-director';
 
 /** How long a toast stays up after the last one was shown. */
 const TOAST_MS = 2200;
-/** The portal plate wins within this radius when the portal overlaps a station trigger. */
-const PORTAL_PLATE_PRIORITY_RADIUS = 1;
 
 /** The session key that remembers a world's arrival camera has played. */
 const arrivalKey = (sceneId: string) => `gitplore.arrival.${sceneId}`;
@@ -58,8 +55,6 @@ export class SceneDirector {
 
   /** Tracks the current world's stations; `null` in a world without any. */
   private stations: StationDirector | null = null;
-  /** Whether the current player position is close enough to prefer a world's portal plate. */
-  private atPortal = false;
   /** A world placed before the visitor clicked through the start gate, whose arrival is owed. */
   private pendingArrival: WorldScene | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -262,15 +257,13 @@ export class SceneDirector {
     }, TOAST_MS);
   }
 
-  /** Places a browser test visitor in front of a current-world interactable. */
+  /** Places a browser test visitor on a spot the world names, or in front of an interactable. */
   teleportToInteractableForTest(id: string): boolean {
-    if (id === 'deslopify:bridge-south' && this.current?.id === 'project:deslopify') {
-      // On the top steps, 3 m south of the arch and facing it: a few steps from the trigger even at
-      // SwiftShader's frame rate in CI, where every frame advances at most
-      // `ENGINE_MAX_FRAME_SECONDS`. Dropped from the top step's height, so it lands on the flight.
+    const spot = this.current?.testSpots?.[id];
+    if (spot) {
       this.engine.player.teleport(
-        new Vector3(ARCH.x, STEPS.top + PLAYER_EYE_HEIGHT, ARCH.z + 3),
-        0,
+        new Vector3(spot.x, spot.y + PLAYER_EYE_HEIGHT, spot.z),
+        spot.yaw,
       );
       return true;
     }
@@ -414,25 +407,14 @@ export class SceneDirector {
 
   private updateStations(): void {
     const stations = this.stations;
-    const scene = this.current;
-    if (!stations || !scene) {
+    if (!stations) {
       return;
     }
     const { x, z } = this.engine.player.position;
-    const stationsChanged = stations.update(x, z);
-    const portal = scene.portalStand;
-    const atPortal =
-      portal !== undefined && Math.hypot(x - portal.x, z - portal.z) < PORTAL_PLATE_PRIORITY_RADIUS;
-    const portalChanged = atPortal !== this.atPortal;
-    if (stationsChanged) {
+    if (stations.update(x, z)) {
       this.store.stations.set(stations.chips());
+      this.store.plate.set(stations.plate());
     }
-    if (stationsChanged || portalChanged) {
-      this.store.plate.set(
-        atPortal ? (scene.plateAt?.(x, z) ?? stations.plate()) : stations.plate(),
-      );
-    }
-    this.atPortal = atPortal;
   }
 
   /**
@@ -444,7 +426,6 @@ export class SceneDirector {
     this.engine.cancelGlide();
     this.pendingArrival = null;
     this.stations?.reset();
-    this.atPortal = false;
     if (this.stations) {
       this.store.stations.set(this.stations.chips());
     }

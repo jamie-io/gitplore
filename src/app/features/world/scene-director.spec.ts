@@ -8,6 +8,7 @@ import { DEVICE_CAPABILITIES } from '@engine/capability.service';
 import { CAPABLE, stubContext } from '@engine/testing/world-context';
 import { StubEngine } from '@engine/testing/stub-engine';
 import { MOMENT } from '@engine/camera/camera-shot';
+import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
 import type { GroundPoint, StationSpec } from '@engine/stations/station';
 import type { WorldScene } from '@engine/world-object';
 import { CONTENT_SOURCE } from '@content/content-source';
@@ -698,6 +699,17 @@ describe('SceneDirector', () => {
     expect(engine.player.position.x).toBeCloseTo(scene.seedLever!.position.x, 6);
     expect(engine.player.position.z).toBeCloseTo(scene.seedLever!.position.z + 1.5, 6);
     expect(engine.player.yaw).toBe(0);
+  });
+
+  it('places a browser test visitor on a spot the world names for tests', async () => {
+    await director.show('deslopify');
+    const spot = engine.world!.testSpots!['deslopify:bridge-south'];
+
+    expect(director.teleportToInteractableForTest('deslopify:bridge-south')).toBe(true);
+    expect(engine.player.position.x).toBeCloseTo(spot.x, 6);
+    expect(engine.player.position.y).toBeCloseTo(spot.y + PLAYER_EYE_HEIGHT, 6);
+    expect(engine.player.position.z).toBeCloseTo(spot.z, 6);
+    expect(engine.player.yaw).toBe(spot.yaw);
   });
 
   it('opens the current project panel instead of navigating to the same world', async () => {

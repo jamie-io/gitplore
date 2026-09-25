@@ -14,6 +14,8 @@
  * (sin yaw, cos yaw). A visitor looks straight at a prop's front when the two yaws are equal.
  */
 
+import { beyondBowl } from './jungle-bowl';
+
 /** A point on the ground plane, in metres. */
 export interface Pt {
   readonly x: number;
@@ -43,19 +45,8 @@ function smoothstep(edge0: number, edge1: number, value: number): number {
   return t * t * (3 - 2 * t);
 }
 
-/** The bowl: the ellipse centred on the arch that everything walkable stands in. */
-export const BOWL = { rx: 29.2, rz: 21.4 } as const;
-
-/** Whether (x, z) lies inside the bowl's ellipse. */
-export function inBowl(x: number, z: number): boolean {
-  return (x / BOWL.rx) ** 2 + (z / BOWL.rz) ** 2 < 1;
-}
-
-/** Metres (x, z) lies beyond the bowl's edge, measured along the ray from the arch; negative inside. */
-export function beyondBowl(x: number, z: number): number {
-  const e = Math.hypot(x / BOWL.rx, z / BOWL.rz);
-  return e > 1e-9 ? ((e - 1) * Math.hypot(x, z)) / e : -Math.min(BOWL.rx, BOWL.rz);
-}
+// The bowl and the firefly glade live in `jungle-bowl.ts`, which shared code imports on its own.
+export { BOWL, FIREFLY_GLADE, beyondBowl, inBowl } from './jungle-bowl';
 
 /** Where arriving visitors appear, on the ledge, looking north along the axis through the arch. */
 export const PORTAL: Placed = placed(0, 20.6, 0);
@@ -238,8 +229,12 @@ const PATH_SEGMENTS: Float64Array = (() => {
   return Float64Array.from(values);
 })();
 
-/** The strip in front of the cave where the visitor passes behind the falling water. */
-export const BEHIND_FALLS = { x0: -1.2, x1: 1.2, z0: -21, z1: -18.2 } as const;
+/**
+ * Behind the falling water: the strip in front of the cave and the cave itself, back to its end
+ * wall at `CAVE.z0`, so the visitor arrives behind the falls once and walking out of the cave is
+ * not a second arrival.
+ */
+export const BEHIND_FALLS = { x0: -1.2, x1: 1.2, z0: -23.4, z1: -18.2 } as const;
 
 /** The nearest point to (x, z) on a polyline, how far from it, and how far along the line. */
 export function nearestOnPath(
@@ -471,14 +466,6 @@ export const STELE: Placed = placed(0, -22, 0);
 export const CAIRN: Pt = pt(3.6, -8);
 /** The liana lever east of the feed wall, turned west to the visitor coming from the wall. */
 export const LIANA: Placed = placed(12.6, -10.6, -Math.PI / 2);
-/** The firefly swarm over the exhibit glade: its centre and its radii. */
-export const FIREFLY_GLADE: Pt & { readonly rx: number; readonly rz: number } = Object.freeze({
-  x: 0,
-  z: -11.6,
-  rx: 5,
-  rz: 3,
-});
-
 /** The four bamboo stalks of the languages at the deck's corners, largest share first. */
 export const BAMBOO: readonly Pt[] = Object.freeze([
   pt(-2, -1.4),
