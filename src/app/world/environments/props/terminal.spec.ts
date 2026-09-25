@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { TestBed } from '@angular/core/testing';
 import {
   BoxGeometry,
@@ -14,7 +15,9 @@ import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import type { Project } from '@content/project.model';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
-import { DSCHUNGEL } from '../mood';
+import { markerPosition } from '../model-geometry';
+import { DSCHUNGEL, PLAZA } from '../mood';
+import { ModelFiles, loadModelFile } from '../testing/model-files';
 import { HazedCopies } from '../shaders/hazed-copies';
 import { SharedUniforms } from '../shaders/shared-uniforms';
 import {
@@ -24,6 +27,7 @@ import {
   TERMINAL_LINES_PER_PAGE,
   TERMINAL_RELEASE_PROMPT,
   STELE_MODEL,
+  PLAZA_TERMINAL_MODEL,
   terminalFooter,
   wrapLine,
 } from './terminal';
@@ -590,6 +594,91 @@ describe('Terminal', () => {
     expect(dispose).toHaveBeenCalledOnce();
     expect((screen.material as MeshBasicMaterial).map).toBe(texture);
     expect(ctx.scene.children).toHaveLength(0);
+    context.mockRestore();
+  });
+
+  it('dresses the Plaza terminal as the kiosk model around the default screen', async () => {
+    const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const read = (path: string) => readFileSync(path);
+    const assets = new ModelFiles(read);
+    const haze = new HazedCopies(new SharedUniforms(PLAZA));
+    const target = new Terminal({
+      id: 'test:plaza',
+      position: new Vector3(0, 0, -2),
+      ground,
+      project: PROJECT,
+      skin: 'plaza',
+      haze,
+    });
+    const ctx = stubContext(assets);
+
+    target.init(ctx);
+    expect(assets.requested).toEqual([PLAZA_TERMINAL_MODEL]);
+    expect(ctx.scene.getObjectByName('test:plaza:body')).toBeDefined();
+    expect(ctx.scene.getObjectByName('test:plaza:post')).toBeDefined();
+    await assets.settled();
+
+    expect(ctx.scene.getObjectByName('test:plaza:body')).toBeUndefined();
+    expect(ctx.scene.getObjectByName('test:plaza:post')).toBeUndefined();
+    const kiosk = ctx.scene.getObjectByName('test:plaza:kiosk') as Mesh;
+    expect(kiosk).toBeInstanceOf(Mesh);
+    expect((kiosk.material as MeshStandardMaterial).customProgramCacheKey()).toContain(
+      'atmosphere',
+    );
+    // The screen hangs where the kiosk's `screen` empty marks it.
+    const model = await loadModelFile(read, `public/${PLAZA_TERMINAL_MODEL}`);
+    const expected = markerPosition(model, 'screen')!;
+    const screen = ctx.scene.getObjectByName('test:plaza:screen')!;
+    expect(screen.position.x).toBeCloseTo(expected.x, 3);
+    expect(screen.position.y).toBeCloseTo(expected.y, 3);
+    expect(screen.position.z).toBeCloseTo(expected.z, 3);
+    // The counter and the stone feet block, not only the case.
+    const [collider] = target.colliders;
+    expect(collider.kind).toBe('aabb');
+    if (collider.kind === 'aabb') {
+      expect(collider.maxX - collider.minX).toBeCloseTo(3.1, 6);
+      expect(collider.maxZ - collider.minZ).toBeCloseTo(0.65, 6);
+    }
+
+    target.dispose();
+    expect(assets.releasedModels).toEqual([PLAZA_TERMINAL_MODEL]);
+    expect(ctx.scene.children).toHaveLength(0);
+    haze.dispose();
+    context.mockRestore();
+  });
+
+  it('keeps the Plaza terminal’s case when the kiosk fails, and hands back a late kiosk', async () => {
+    const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const read = (path: string) => readFileSync(path);
+    const failing = new ModelFiles(read, () => true);
+    const kept = new Terminal({
+      id: 'test:plaza-failed',
+      position: new Vector3(0, 0, -2),
+      ground,
+      project: PROJECT,
+      skin: 'plaza',
+    });
+    const keptContext = stubContext(failing);
+    kept.init(keptContext);
+    await failing.settled();
+    expect(keptContext.scene.getObjectByName('test:plaza-failed:body')).toBeDefined();
+    expect(failing.releasedModels).toEqual([]);
+    kept.dispose();
+
+    const late = new ModelFiles(read);
+    const gone = new Terminal({
+      id: 'test:plaza-late',
+      position: new Vector3(0, 0, -2),
+      ground,
+      project: PROJECT,
+      skin: 'plaza',
+    });
+    const lateContext = stubContext(late);
+    gone.init(lateContext);
+    gone.dispose();
+    await late.settled();
+    expect(late.releasedModels).toEqual([PLAZA_TERMINAL_MODEL]);
+    expect(lateContext.scene.children).toHaveLength(0);
     context.mockRestore();
   });
 });

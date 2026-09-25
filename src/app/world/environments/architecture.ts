@@ -193,14 +193,15 @@ export const FOUNTAIN = {
 } as const;
 
 /**
- * The Plaza's own, smaller fountain: its kerb, the levels and radii of its two basins and its
- * spout. The collider is `radius + 0.2`. These are the plan's figures; the fountain model's own
- * measurements replace them once it ships.
+ * The Plaza's own, smaller fountain: its kerb, the levels, radii and floors of its two basins, and
+ * its spout, measured on the fountain model (scripts/blender/models/plaza_fountain.py). The water is
+ * laid before the model arrives, so these must match it from the start. The collider is
+ * `radius + 0.2`, which clears the plinth at 3.12 m.
  */
 export const PLAZA_FOUNTAIN = {
   radius: 3,
-  lower: { level: 0.5, radius: 2.6 },
-  upper: { level: 2.1, radius: 0.95 },
+  lower: { level: 0.46, radius: 2.6, floor: 0.06 },
+  upper: { level: 2.03, radius: 0.9, floor: 1.86 },
   spout: [0, 3.0, 0],
 } as const;
 

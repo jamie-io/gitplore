@@ -1,21 +1,45 @@
-import { Box3, Mesh, MeshStandardMaterial, Object3D, Scene, Texture, Vector3 } from 'three';
+import { readFileSync } from 'node:fs';
+import {
+  Box3,
+  BoxGeometry,
+  BufferAttribute,
+  Color,
+  InstancedMesh,
+  Mesh,
+  MeshStandardMaterial,
+  Object3D,
+  Scene,
+  Texture,
+  Vector3,
+} from 'three';
 import { Collider } from '@engine/player/collision';
+import { qualitySettings } from '@engine/capability.service';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import { SPAWN_DISTANCE } from '../landmarks/base/landmark';
-import { PlazaEnvironment } from './plaza';
+import { PLAZA_FOUNTAIN } from './architecture';
+import { bakeGeometry, markerPosition } from './model-geometry';
+import { PlazaEnvironment, TOWN_BLOCKS } from './plaza';
 import {
   ARCH,
+  CORNERS,
   FACADE,
   GLIDE_RADIUS,
+  HouseSpot,
   RIDGE,
   SPAWN,
   STATIONS,
   STATION_RADIUS,
+  VARIANTS,
   houseRow,
 } from './plaza-layout';
+import { PLAZA_MODELS, TownModel, dressedHouse, townModel } from './plaza-models';
+import { PLAZA_TERMINAL_MODEL } from './props/terminal';
+import { PLAZA_STEP_MODEL } from './data/commit-ridge';
+import { PLAZA_PILLAR_MODEL } from './data/language-pillars';
 import { clearance } from './testing/clearance';
+import { ModelFiles, loadModelFile } from './testing/model-files';
 import { ProjectScene, ProjectSceneOptions } from '../project/project.scene';
 
 const plaza = (reducedMotion = false) =>
@@ -41,6 +65,28 @@ function projectScene(environment: PlazaEnvironment, project: Partial<Project> =
     textures: { load: () => new Texture(), release: () => undefined },
   };
   return new ProjectScene(options);
+}
+
+const read = (path: string) => readFileSync(path);
+
+/** A context whose asset service serves the published models, or fails every request. */
+function modelContext(failing = false) {
+  const assets = new ModelFiles(read, () => failing);
+  return { ctx: stubContext(assets), assets };
+}
+
+function vertices(mesh: Object3D | undefined): number {
+  expect(mesh).toBeInstanceOf(Mesh);
+  return (mesh as Mesh).geometry.getAttribute('position').count;
+}
+
+/** Vertices of the named nodes of a published model. */
+async function modelVertices(url: string, names: readonly string[]): Promise<number> {
+  const model = await loadModelFile(read, `public/${url}`);
+  return names.reduce((sum, name) => {
+    const node = model.getObjectByName(name);
+    return sum + (node ? bakeGeometry(node)!.getAttribute('position').count : 0);
+  }, 0);
 }
 
 function sceneBounds(scene: Scene, name: string): Box3 {
@@ -261,6 +307,363 @@ describe('PlazaEnvironment', () => {
 
     expect(missing).toEqual([]);
     environment.dispose();
+  });
+
+  it('stands the town in blocks of neighbours, so a block out of view is culled whole', () => {
+    const environment = plaza();
+    const ctx = stubContext();
+    environment.init(ctx);
+
+    const spots = TOWN_BLOCKS.flatMap((block) => block.spots);
+    expect(spots).toEqual([
+      ...houseRow('north', 81, false),
+      ...houseRow('south', 82, true),
+      ...houseRow('west', 83, false),
+      ...houseRow('east', 84, false),
+    ]);
+    // Every corner block stands in exactly one block, beside houses of its own row.
+    const corners = TOWN_BLOCKS.flatMap((block) => block.corners);
+    expect([...corners].sort()).toEqual(CORNERS.map((_, index) => index));
+    for (const block of TOWN_BLOCKS) {
+      expect(block.spots.length).toBeGreaterThan(0);
+      expect(block.spots.length).toBeLessThanOrEqual(2);
+      // A block stands in one row, and never spans the street.
+      const rows = new Set(
+        block.spots.map(
+          (spot) => `${spot.rotationY}:${spot.rotationY === Math.PI ? Math.sign(spot.x) : 0}`,
+        ),
+      );
+      expect(rows.size).toBe(1);
+      for (const index of block.corners) {
+        const corner = CORNERS[index];
+        const nearest = Math.min(
+          ...block.spots.map((spot) => Math.hypot(spot.x - corner.x, spot.z - corner.z)),
+        );
+        expect(nearest).toBeLessThan(6);
+      }
+      expect(ctx.scene.getObjectByName(block.name)).toBeInstanceOf(Mesh);
+    }
+    expect(new Set(TOWN_BLOCKS.map((block) => block.name)).size).toBe(TOWN_BLOCKS.length);
+    expect(ctx.scene.getObjectByName('plaza-corners')).toBeUndefined();
+
+    environment.dispose();
+  });
+
+  it('swaps every proxy for its Blender model and keeps one mesh per block of the town', async () => {
+    const { ctx, assets } = modelContext();
+    const environment = plaza();
+    environment.init(ctx);
+    const proxies = TOWN_BLOCKS.map(
+      (block) => (ctx.scene.getObjectByName(block.name) as Mesh).geometry,
+    );
+    await assets.settled();
+
+    const corner = await modelVertices(PLAZA_MODELS.corner, ['stucco', 'shutters', 'trim']);
+    for (const [index, block] of TOWN_BLOCKS.entries()) {
+      let expected = corner * block.corners.length;
+      for (const spot of block.spots) {
+        expected += await modelVertices(PLAZA_MODELS.house(spot.variant), [
+          'stucco',
+          'shutters',
+          'trim',
+          'awning',
+        ]);
+      }
+      const mesh = ctx.scene.getObjectByName(block.name) as Mesh;
+      expect(mesh.geometry).not.toBe(proxies[index]);
+      expect(vertices(mesh)).toBe(expected);
+      expect(ctx.scene.children.filter((object) => object.name === block.name)).toHaveLength(1);
+    }
+    expect(vertices(ctx.scene.getObjectByName('fountain'))).toBe(
+      await modelVertices(PLAZA_MODELS.fountain, ['fountain']),
+    );
+    expect(vertices(ctx.scene.getObjectByName('plaza-arch'))).toBe(
+      await modelVertices(PLAZA_MODELS.arch, ['arch']),
+    );
+    expect(vertices(ctx.scene.getObjectByName('plaza-board'))).toBe(
+      await modelVertices(PLAZA_MODELS.board, ['board']),
+    );
+    for (const [name, url, node] of [
+      ['masts', PLAZA_MODELS.mast, 'mast'],
+      ['benches', PLAZA_MODELS.bench, 'bench'],
+      ['cypresses', PLAZA_MODELS.cypress, 'cypress'],
+    ] as const) {
+      const mesh = ctx.scene.getObjectByName(name);
+      expect(mesh).toBeInstanceOf(InstancedMesh);
+      expect(vertices(mesh)).toBe(await modelVertices(url, [node]));
+    }
+
+    environment.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('keeps the procedural square when the models fail to load', async () => {
+    const { ctx, assets } = modelContext(true);
+    const environment = plaza();
+    environment.init(ctx);
+    const proxies = TOWN_BLOCKS.map(
+      (block) => (ctx.scene.getObjectByName(block.name) as Mesh).geometry,
+    );
+    await assets.settled();
+
+    expect(assets.requested.length).toBeGreaterThan(0);
+    TOWN_BLOCKS.forEach((block, index) => {
+      expect((ctx.scene.getObjectByName(block.name) as Mesh).geometry).toBe(proxies[index]);
+    });
+    for (const name of ['fountain', 'plaza-arch', 'plaza-board', 'masts']) {
+      expect(ctx.scene.getObjectByName(name)).toBeDefined();
+    }
+    expect(assets.releasedModels).toEqual([]);
+    expect(() => environment.dispose()).not.toThrow();
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('asks only for the models the square uses, and hands every one back', async () => {
+    const { ctx, assets } = modelContext();
+    const environment = plaza();
+    environment.init(ctx);
+    await assets.settled();
+
+    const variants = [
+      ...new Set(TOWN_BLOCKS.flatMap((block) => block.spots.map((s) => s.variant))),
+    ];
+    expect([...assets.requested].sort()).toEqual(
+      [
+        ...variants.map(PLAZA_MODELS.house),
+        PLAZA_MODELS.corner,
+        PLAZA_MODELS.fountain,
+        PLAZA_MODELS.arch,
+        PLAZA_MODELS.board,
+        PLAZA_MODELS.mast,
+        PLAZA_MODELS.bench,
+        PLAZA_MODELS.cypress,
+      ].sort(),
+    );
+    expect([...assets.releasedModels].sort()).toEqual([...assets.requested].sort());
+    environment.dispose();
+  });
+
+  it('hands back models that arrive after the square has gone, without standing them', async () => {
+    const { ctx, assets } = modelContext();
+    const environment = plaza();
+    environment.init(ctx);
+    const north = ctx.scene.getObjectByName(TOWN_BLOCKS[0].name) as Mesh;
+    const proxy = north.geometry;
+    environment.dispose();
+    await assets.settled();
+
+    expect(north.geometry).toBe(proxy);
+    expect([...assets.releasedModels].sort()).toEqual([...assets.requested].sort());
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('tints each house with its own stucco, shutter and awning colours', () => {
+    const grey = (value: number) => {
+      const geometry = new BoxGeometry(1, 1, 1);
+      const count = geometry.getAttribute('position').count;
+      geometry.setAttribute(
+        'color',
+        new BufferAttribute(new Float32Array(count * 3).fill(value), 3),
+      );
+      return geometry;
+    };
+    const model: TownModel = {
+      stucco: grey(0.5),
+      shutters: grey(0.25),
+      trim: grey(1),
+      awning: grey(0.75),
+      lamp: null,
+    };
+    const spot: HouseSpot = TOWN_BLOCKS[0].spots[0];
+    const painted = { ...spot, options: { ...spot.options, awning: 0x2f6f9f } };
+
+    const house = dressedHouse(painted, model);
+
+    const colour = house.getAttribute('color');
+    const at = (vertex: number) =>
+      new Color(colour.getX(vertex), colour.getY(vertex), colour.getZ(vertex));
+    const stucco = new Color(spot.options.stucco).multiplyScalar(0.5);
+    const shutters = new Color(spot.options.shutters).multiplyScalar(0.25);
+    const awning = new Color(0x2f6f9f).multiplyScalar(0.75);
+    // Merged in order: stucco, shutters, trim, awning, 24 vertices each.
+    for (const [vertex, expected] of [
+      [0, stucco],
+      [24, shutters],
+      [48, new Color(1, 1, 1)],
+      [72, awning],
+    ] as const) {
+      expect(at(vertex).r).toBeCloseTo(expected.r, 5);
+      expect(at(vertex).g).toBeCloseTo(expected.g, 5);
+      expect(at(vertex).b).toBeCloseTo(expected.b, 5);
+    }
+  });
+
+  it('stretches a house over its spot and turns its front to the fountain', async () => {
+    const spot = TOWN_BLOCKS.flatMap((block) => block.spots).find((s) => s.stretch > 1.01);
+    expect(spot).toBeDefined();
+    const model = await loadModelFile(read, `public/${PLAZA_MODELS.house(spot!.variant)}`);
+    const house = dressedHouse(spot!, townModel(model)!);
+    house.computeBoundingBox();
+    const bounds = house.boundingBox!;
+    const facesZ = spot!.rotationY === 0 || spot!.rotationY === Math.PI;
+    const along = facesZ ? bounds.max.x - bounds.min.x : bounds.max.z - bounds.min.z;
+
+    // The walls fill the stretched width; only the eaves and the verges may reach a little past.
+    expect(along).toBeGreaterThanOrEqual(spot!.options.width - 0.01);
+    expect(along).toBeLessThan(spot!.options.width + 1);
+    expect(bounds.max.y).toBeGreaterThan(VARIANTS[spot!.variant].height);
+    // The front stands on the facade line, towards the fountain; only the awning reaches past.
+    const front = facesZ
+      ? Math.min(Math.abs(bounds.min.z), Math.abs(bounds.max.z))
+      : Math.min(Math.abs(bounds.min.x), Math.abs(bounds.max.x));
+    expect(front).toBeGreaterThan(FACADE - 1.5);
+    expect(front).toBeLessThanOrEqual(FACADE + 0.01);
+  });
+
+  it('lights a bulb in every wall lamp once the houses arrive', async () => {
+    const { ctx, assets } = modelContext();
+    const environment = plaza();
+    environment.init(ctx);
+    const before = vertices(ctx.scene.getObjectByName('bulbs'));
+    await assets.settled();
+
+    const lamps = TOWN_BLOCKS.flatMap((block) => block.spots).filter(
+      (spot) => VARIANTS[spot.variant].lamp,
+    ).length;
+    expect(lamps).toBeGreaterThan(0);
+    const after = vertices(ctx.scene.getObjectByName('bulbs'));
+    expect((after - before) % lamps).toBe(0);
+    expect(after).toBeGreaterThan(before);
+
+    environment.dispose();
+  });
+
+  it('sets the water in the fountain model’s basins, below their kerbs', async () => {
+    const model = await loadModelFile(read, `public/${PLAZA_MODELS.fountain}`);
+    const fountain = bakeGeometry(model.getObjectByName('fountain')!)!;
+    const position = fountain.getAttribute('position');
+    const { lower, upper } = PLAZA_FOUNTAIN;
+    let kerb = 0;
+    let outer = 0;
+    for (let i = 0; i < position.count; i++) {
+      const r = Math.hypot(position.getX(i), position.getZ(i));
+      const y = position.getY(i);
+      outer = Math.max(outer, r);
+      // Between the pedestal and the kerb, the stone lies under the lower pool.
+      if (r > 1.2 && r < lower.radius - 0.1) {
+        expect(y).toBeLessThan(lower.level);
+      }
+      // The kerb rises over the water it holds.
+      if (r >= lower.radius - 0.1 && r <= PLAZA_FOUNTAIN.radius + 0.15) {
+        kerb = Math.max(kerb, y);
+      }
+    }
+    expect(kerb).toBeGreaterThan(lower.level);
+    expect(outer).toBeLessThanOrEqual(PLAZA_FOUNTAIN.radius + 0.2);
+    expect(upper.level).toBeLessThan(PLAZA_FOUNTAIN.spout[1]);
+    expect(lower.level).toBeCloseTo(0.46, 5);
+    expect(upper.level).toBeCloseTo(2.03, 5);
+    expect(upper.radius).toBeCloseTo(0.9, 5);
+  });
+
+  it('leaves the arch’s opening clear for the portal, centred where it hangs', async () => {
+    const model = await loadModelFile(read, `public/${PLAZA_MODELS.arch}`);
+    const portal = markerPosition(model, 'portal')!;
+    expect(portal.x).toBeCloseTo(0, 3);
+    expect(portal.y).toBeCloseTo(1.8, 3);
+    expect(portal.z).toBeCloseTo(0, 3);
+
+    const { ctx, assets } = modelContext();
+    const environment = plaza();
+    environment.init(ctx);
+    await assets.settled();
+    const arch = ctx.scene.getObjectByName('plaza-arch') as Mesh;
+    const position = arch.geometry.getAttribute('position');
+    for (let i = 0; i < position.count; i++) {
+      const [x, y, z] = [position.getX(i), position.getY(i), position.getZ(i)];
+      // Stood on the street at the arch, its cornice overhanging the piers a little.
+      expect(Math.abs(z - ARCH.z)).toBeLessThan(ARCH.depth / 2 + 0.2);
+      // The veil is 2.6 × 3.4 m about the portal: nothing of the arch stands in it.
+      if (Math.abs(x - ARCH.x) < 1.3) {
+        expect(y).toBeGreaterThan(portal.y + 1.7);
+      }
+    }
+    environment.dispose();
+  });
+
+  it('frames the exhibit with the notice board, its face on the exhibit’s screen', async () => {
+    const model = await loadModelFile(read, `public/${PLAZA_MODELS.board}`);
+    const face = markerPosition(model, 'face')!;
+    // The screen landmark draws its surface 1.9 m up, 9 cm in front of its centre.
+    expect(face.y).toBeCloseTo(1.9, 3);
+    expect(face.z).toBeCloseTo(0.09, 3);
+
+    const environment = plaza();
+    const ctx = stubContext();
+    environment.init(ctx);
+    const board = ctx.scene.getObjectByName('plaza-board')!;
+    const [anchor] = environment.anchors(1);
+    expect(board.position.toArray()).toEqual([...anchor.position]);
+    expect(board.rotation.y).toBeCloseTo(anchor.rotationY, 9);
+    environment.dispose();
+  });
+
+  it('dresses the project’s toys, exhibit and portal for the Plaza', async () => {
+    const { ctx, assets } = modelContext();
+    const environment = plaza();
+    const target = projectScene(environment);
+    target.init(ctx);
+
+    expect(target.terminal.skin).toBe('plaza');
+    expect(assets.requested).toContain(PLAZA_TERMINAL_MODEL);
+    expect(assets.requested).toContain(PLAZA_STEP_MODEL);
+    expect(assets.requested).toContain(PLAZA_PILLAR_MODEL);
+    // The board is the exhibit's frame, and the arch the portal's: neither draws its own stone.
+    const landmarks = ctx.scene.children.filter(
+      (object) => object.name === `landmark:${PLAZA_PROJECT.slug}`,
+    );
+    expect(landmarks).toHaveLength(2);
+    for (const landmark of landmarks) {
+      for (const part of ['post', 'body', 'proxy']) {
+        expect(landmark.getObjectByName(part)).toBeUndefined();
+      }
+    }
+    const portalColliders = target.colliders.filter(
+      (collider) =>
+        collider.kind === 'cylinder' &&
+        Math.abs(collider.z - SPAWN.z) < 0.01 &&
+        Math.abs(Math.abs(collider.x) - 1.4) < 0.01,
+    );
+    expect(portalColliders).toEqual([]);
+
+    await assets.settled();
+    expect([...assets.releasedModels].sort()).toEqual([...assets.requested].sort());
+    target.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('leaves the square’s own surfaces to the plain fog on the lowest tier, as it does the floor', () => {
+    const hazed = (quality: 'low' | 'medium') => {
+      const environment = plaza();
+      const ctx = { ...stubContext(), quality: qualitySettings(quality) };
+      environment.init(ctx);
+      const keys = [
+        'plaza-arch',
+        'fountain',
+        'cypresses',
+        'plaza-medallions',
+        TOWN_BLOCKS[0].name,
+      ].map((name) =>
+        (
+          (ctx.scene.getObjectByName(name) as Mesh).material as MeshStandardMaterial
+        ).customProgramCacheKey(),
+      );
+      environment.dispose();
+      return keys.map((key) => key.includes('atmosphere'));
+    };
+
+    expect(hazed('low')).toEqual([false, false, false, false, false]);
+    expect(hazed('medium')).toEqual([true, true, true, true, true]);
   });
 
   it('holds the fountain and everything else still under reduced motion', () => {

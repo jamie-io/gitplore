@@ -24,6 +24,12 @@ export interface ScreenLandmarkOptions extends LandmarkOptions {
   readonly englishSummary?: string;
   readonly kicker?: string;
   readonly prompt?: string;
+  /**
+   * Whether the landmark stands its own post and case around the screen. An environment that
+   * frames the exhibit itself (the Plaza's notice board) turns it off, and the face and the label
+   * then stand alone where its frame expects them.
+   */
+  readonly frame?: boolean;
 }
 
 /**
@@ -36,9 +42,11 @@ export class ScreenLandmark extends Landmark {
   private readonly englishSummary?: string;
   private readonly kicker?: string;
   private readonly prompt?: string;
+  private readonly frame: boolean;
 
   constructor(options: ScreenLandmarkOptions) {
     super(options);
+    this.frame = options.frame ?? true;
     this.comparison = options.comparison;
     this.englishSummary = options.englishSummary;
     this.kicker = options.kicker;
@@ -61,6 +69,23 @@ export class ScreenLandmark extends Landmark {
   }
 
   protected build(ctx: WorldContext): void {
+    if (this.frame) {
+      this.buildFrame(ctx);
+    }
+
+    const surface = new Mesh(new PlaneGeometry(SCREEN_WIDTH, SCREEN_HEIGHT), this.screenMaterial());
+    surface.name = 'surface';
+    surface.position.set(0, SCREEN_CENTRE, SCREEN_DEPTH / 2 + 0.01);
+    this.group.add(surface);
+
+    const label = createLabel(this.project.title, this.project.theme.primary);
+    if (label) {
+      label.position.set(0, SCREEN_CENTRE + SCREEN_HEIGHT / 2 + 0.55, 0.05);
+      this.group.add(label);
+    }
+  }
+
+  private buildFrame(ctx: WorldContext): void {
     const frame = new MeshStandardMaterial({ color: 0x2b2f36, roughness: 0.6, metalness: 0.2 });
 
     const bodyHeight = SCREEN_HEIGHT + 0.2;
@@ -76,17 +101,6 @@ export class ScreenLandmark extends Landmark {
     body.position.set(0, SCREEN_CENTRE, 0);
     body.castShadow = ctx.quality.shadows;
     this.group.add(body);
-
-    const surface = new Mesh(new PlaneGeometry(SCREEN_WIDTH, SCREEN_HEIGHT), this.screenMaterial());
-    surface.name = 'surface';
-    surface.position.set(0, SCREEN_CENTRE, SCREEN_DEPTH / 2 + 0.01);
-    this.group.add(surface);
-
-    const label = createLabel(this.project.title, this.project.theme.primary);
-    if (label) {
-      label.position.set(0, SCREEN_CENTRE + SCREEN_HEIGHT / 2 + 0.55, 0.05);
-      this.group.add(label);
-    }
   }
 
   override dispose(): void {

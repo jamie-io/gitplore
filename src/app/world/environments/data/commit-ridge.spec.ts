@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs';
 import { Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 import { stubContext } from '@engine/testing/world-context';
+import { PLAZA } from '../mood';
+import { HazedCopies } from '../shaders/hazed-copies';
+import { SharedUniforms } from '../shaders/shared-uniforms';
+import { ModelFiles } from '../testing/model-files';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import {
@@ -7,6 +12,7 @@ import {
   JUNGLE_BOARDWALK_PLANK_COUNT,
   JUNGLE_RAIL_POST_COUNT,
   JUNGLE_WOOD_COLOURS,
+  PLAZA_STEP_MODEL,
   RIDGE_SLAB_COUNT,
 } from './commit-ridge';
 
@@ -218,6 +224,58 @@ describe('CommitRidge', () => {
     expect((ctx.scene.getObjectByName('commit-ridge') as Mesh).userData['plankCount']).toBe(
       JUNGLE_BOARDWALK_PLANK_COUNT,
     );
+    ridge.dispose();
+  });
+
+  it('builds the Plaza ridge from the step model, every step as high as its slab', async () => {
+    const project: Project = {
+      ...PROJECT,
+      commitBuckets: Array.from({ length: RIDGE_SLAB_COUNT }, (_, index) => index % 7),
+    };
+    const plain = meshFor(project);
+    const assets = new ModelFiles((path) => readFileSync(path));
+    const ctx = stubContext(assets);
+    const haze = new HazedCopies(new SharedUniforms(PLAZA));
+    const ridge = new CommitRidge({ project, from: FROM, to: TO, ground, skin: 'plaza', haze });
+
+    ridge.init(ctx);
+    expect(assets.requested).toEqual([PLAZA_STEP_MODEL]);
+    await assets.settled();
+
+    const mesh = ctx.scene.getObjectByName('commit-ridge') as Mesh;
+    expect(mesh.geometry).not.toBe(plain.mesh.geometry);
+    expect(mesh.geometry.getAttribute('color')).toBeDefined();
+    for (let index = 0; index < RIDGE_SLAB_COUNT; index++) {
+      expect(slabHeight(mesh, index)).toBeCloseTo(slabHeight(plain.mesh, index), 4);
+    }
+    mesh.geometry.computeBoundingBox();
+    const bounds = mesh.geometry.boundingBox!;
+    expect(bounds.min.y).toBeCloseTo(0, 3);
+    expect(bounds.max.x).toBeLessThan(0);
+    const material = mesh.material as MeshStandardMaterial;
+    expect(material.vertexColors).toBe(true);
+    expect(material.color.getHex()).toBe(new Color(PROJECT.theme.primary).getHex());
+    expect(material.customProgramCacheKey()).toContain('atmosphere');
+
+    ridge.dispose();
+    plain.ridge.dispose();
+    expect(assets.releasedModels).toEqual([PLAZA_STEP_MODEL]);
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('keeps the plain slabs when the step model fails', async () => {
+    const assets = new ModelFiles(
+      (path) => readFileSync(path),
+      () => true,
+    );
+    const ctx = stubContext(assets);
+    const ridge = new CommitRidge({ project: PROJECT, from: FROM, to: TO, ground, skin: 'plaza' });
+    ridge.init(ctx);
+    const geometry = (ctx.scene.getObjectByName('commit-ridge') as Mesh).geometry;
+    await assets.settled();
+
+    expect((ctx.scene.getObjectByName('commit-ridge') as Mesh).geometry).toBe(geometry);
+    expect(assets.releasedModels).toEqual([]);
     ridge.dispose();
   });
 });

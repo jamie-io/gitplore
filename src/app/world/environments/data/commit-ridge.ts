@@ -1,5 +1,6 @@
 import {
   BoxGeometry,
+  BufferGeometry,
   CylinderGeometry,
   Group,
   Mesh,
@@ -15,6 +16,8 @@ import { WorldContext, WorldObject } from '@engine/world-object';
 import { createLabel } from '../../landmarks/base/label';
 import type { HeightField } from '@engine/player/collision';
 import { assemble, paint } from '../flora';
+import { bakeGeometry, borrowModels, mergeBaked } from '../model-geometry';
+import type { HazedCopies } from '../shaders/hazed-copies';
 import { createPlankSign } from './plank-sign';
 
 /** The sync shape is fixed: one slab per lifetime bucket. */
@@ -30,6 +33,11 @@ const MAX_HEIGHT = 2.86;
 // Kept separate from the 52-bucket resolution so a change there does not rescale every ridge.
 const SLAB_UNIT = (MAX_HEIGHT - BASE_HEIGHT) / Math.sqrt(RIDGE_PEAK_COMMITS);
 const SLAB_DEPTH = 0.9;
+/**
+ * The Plaza's ridge step (scripts/blender/models/plaza_step.py): a white, bevelled block with its
+ * pivot at the bottom centre, stretched to each slab.
+ */
+export const PLAZA_STEP_MODEL = 'assets/models/plaza-step.glb';
 const SLAB_GAP = 0.3;
 const RIDGE_PATH_GAP = 0.5;
 
@@ -41,7 +49,7 @@ export const JUNGLE_BOARDWALK_PLANK_COUNT = 108;
 export const JUNGLE_RAIL_POST_COUNT = 22;
 export const JUNGLE_WOOD_COLOURS = [0x6a4a30, 0x5a3d27, 0x70523a, 0x4f3622, 0x634630] as const;
 
-type ToySkin = 'default' | 'jungle';
+type ToySkin = 'default' | 'jungle' | 'plaza';
 
 export interface CommitRidgeOptions {
   readonly project: Project;
@@ -50,6 +58,8 @@ export interface CommitRidgeOptions {
   readonly ground: HeightField;
   readonly skin?: ToySkin;
   readonly reducedMotion?: () => boolean;
+  /** Hazes the Plaza's steps into the square's air; the other skins keep their plain material. */
+  readonly haze?: HazedCopies;
 }
 
 interface RailResources {
@@ -72,20 +82,25 @@ export class CommitRidge implements WorldObject {
   private rail?: Group;
   private railCaps: Mesh[] = [];
   private railResources?: RailResources;
+  private disposed = false;
 
   constructor(private readonly options: CommitRidgeOptions) {}
 
   init(ctx: WorldContext): void {
+    this.disposed = false;
     const jungle = this.options.skin === 'jungle';
     const geometry = jungle ? buildBoardwalkGeometry(this.options) : buildGeometry(this.options);
+    const material = new MeshStandardMaterial({
+      color: jungle ? 0xffffff : this.options.project.theme.primary,
+      vertexColors: jungle,
+      roughness: 0.72,
+      metalness: 0.08,
+    });
     const mesh = new Mesh(
       geometry,
-      new MeshStandardMaterial({
-        color: jungle ? 0xffffff : this.options.project.theme.primary,
-        vertexColors: jungle,
-        roughness: 0.72,
-        metalness: 0.08,
-      }),
+      this.options.skin === 'plaza' && this.options.haze
+        ? this.options.haze.own(material)
+        : material,
     );
     mesh.name = this.id;
     if (jungle) {
@@ -95,6 +110,9 @@ export class CommitRidge implements WorldObject {
     mesh.receiveShadow = ctx.quality.shadows;
     this.mesh = mesh;
     ctx.scene.add(mesh);
+    if (this.options.skin === 'plaza') {
+      this.loadSteps(ctx, mesh);
+    }
 
     if (jungle) {
       const rail = buildRail(this.options, this.railCaps);
@@ -161,6 +179,7 @@ export class CommitRidge implements WorldObject {
   }
 
   dispose(): void {
+    this.disposed = true;
     if (this.label) {
       disposeObject3D(this.label);
       this.label = undefined;
@@ -179,6 +198,32 @@ export class CommitRidge implements WorldObject {
     }
     this.railCaps = [];
     this.railResources = undefined;
+  }
+
+  /**
+   * Swaps the plain slabs for the Plaza's steps once the model arrives: each slab's box becomes the
+   * step stretched to it, white with its ambient occlusion under the project's colour. Without the
+   * model the slabs stay.
+   */
+  private loadSteps(ctx: WorldContext, mesh: Mesh): void {
+    borrowModels(
+      ctx.assets,
+      [PLAZA_STEP_MODEL],
+      () => this.disposed,
+      (models) => {
+        const node = models.get(PLAZA_STEP_MODEL)!.getObjectByName('step');
+        const step = node ? bakeGeometry(node) : null;
+        if (!step) {
+          return;
+        }
+        mesh.geometry.dispose();
+        mesh.geometry = buildStepGeometry(this.options, step);
+        step.dispose();
+        const material = mesh.material as MeshStandardMaterial;
+        material.vertexColors = true;
+        material.needsUpdate = true;
+      },
+    );
   }
 }
 
@@ -301,7 +346,17 @@ function pathFrame(
   };
 }
 
-function buildGeometry(options: CommitRidgeOptions) {
+interface Slab {
+  /** Where the slab stands: the centre of its foot, on the ground. */
+  readonly foot: Vector3;
+  readonly width: number;
+  readonly height: number;
+  /** Its turn about Y, so its width runs along the ridge. */
+  readonly angle: number;
+}
+
+/** The 52 slabs of the ridge, laid beside the walking line, each as high as its bucket. */
+function slabs(options: CommitRidgeOptions): Slab[] {
   const from = new Vector3(options.from.x, 0, options.from.z);
   const to = new Vector3(options.to.x, 0, options.to.z);
   const direction = to.clone().sub(from);
@@ -313,20 +368,41 @@ function buildGeometry(options: CommitRidgeOptions) {
   const usable = Math.max(distance - inset * 2, 0);
   const width = Math.max(0.08, Math.min(0.65, (usable / RIDGE_SLAB_COUNT) * (1 - SLAB_GAP)));
   const buckets = options.project.commitBuckets;
-  const parts = [];
 
-  for (let index = 0; index < RIDGE_SLAB_COUNT; index++) {
-    const value = buckets?.[index];
-    const height = slabHeight(value);
-    const point = from
+  return Array.from({ length: RIDGE_SLAB_COUNT }, (_, index) => {
+    const foot = from
       .clone()
       .addScaledVector(axis, inset + ((index + 0.5) / RIDGE_SLAB_COUNT) * usable)
       .addScaledVector(side, -RIDGE_OFFSET);
-    const slab = new BoxGeometry(width, height, SLAB_DEPTH)
+    foot.y = options.ground.heightAt(foot.x, foot.z);
+    return { foot, width, height: slabHeight(buckets?.[index]), angle };
+  });
+}
+
+/**
+ * The ridge from the Plaza's step: the model, pivot at its bottom centre, stretched to each slab's
+ * width, height and depth, turned and stood on its foot. One geometry, kept in slab order.
+ */
+function buildStepGeometry(options: CommitRidgeOptions, step: BufferGeometry): BufferGeometry {
+  step.computeBoundingBox();
+  const size = step.boundingBox!.getSize(new Vector3());
+  return mergeBaked(
+    slabs(options).map(({ foot, width, height, angle }) =>
+      step
+        .clone()
+        .scale(width / size.x, height / size.y, SLAB_DEPTH / size.z)
+        .rotateY(angle)
+        .translate(foot.x, foot.y, foot.z),
+    ),
+  );
+}
+
+function buildGeometry(options: CommitRidgeOptions) {
+  const parts = slabs(options).map(({ foot, width, height, angle }) =>
+    new BoxGeometry(width, height, SLAB_DEPTH)
       .rotateY(angle)
-      .translate(point.x, options.ground.heightAt(point.x, point.z) + height / 2, point.z);
-    parts.push(slab);
-  }
+      .translate(foot.x, foot.y + height / 2, foot.z),
+  );
 
   const merged = mergeGeometries(parts, false);
   parts.forEach((part) => part.dispose());
