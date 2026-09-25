@@ -1,5 +1,6 @@
 import { Color, Vector3 } from 'three';
 import { Mood, sunDirection } from '../mood';
+import type { GroundHaze } from './ground-haze';
 
 /**
  * The uniforms every world shader shares, held once per world and handed to each patched material
@@ -19,8 +20,13 @@ export class SharedUniforms {
   /** x strength, y gust scale, z direction (radians). */
   readonly wind: { value: Vector3 };
   readonly playerPosition = { value: new Vector3() };
+  /**
+   * The slop's ground haze, where the world has one (the jungle): every material the atmosphere
+   * patches takes it too. `null` everywhere else, which leaves the atmosphere as it always was.
+   */
+  readonly groundHaze: GroundHaze | null;
 
-  constructor(mood: Mood) {
+  constructor(mood: Mood, options: { readonly groundHaze?: GroundHaze } = {}) {
     const { fog, wind } = mood;
     // `new Color(hex)` converts the mood's sRGB values into the linear working space, which is
     // what every material's uniforms expect.
@@ -29,6 +35,7 @@ export class SharedUniforms {
     this.fogColor = { value: new Color(fog.color) };
     this.heightFog = { value: new Vector3(fog.heightDensity, fog.heightFalloff, fog.sunScatter) };
     this.wind = { value: new Vector3(wind.strength, wind.gustScale, wind.direction) };
+    this.groundHaze = options.groundHaze ?? null;
   }
 
   /** Advances `time` unless motion is reduced; tracks the player for grass bending. */

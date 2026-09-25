@@ -65,6 +65,8 @@ const RING_GLOW = 0.35;
 /** The jungle's side of the flow: the violet air and the clearing uniforms. */
 interface SlopAir {
   setSlop(value: number): void;
+  /** Where the lantern's light clears the ground haze; radius 0 while it is dark. */
+  setHazeLight?(x: number, z: number, radius: number): void;
   readonly clearing: {
     readonly origin: { readonly value: Vector3 };
     readonly radius: { value: number };
@@ -289,6 +291,8 @@ export class DeslopifyScene extends ProjectScene {
       if (this.air.clearing.glow) {
         this.air.clearing.glow.value = this.flow.ringOpacity;
       }
+      const light = this.flowFrame.light;
+      this.air.setHazeLight?.(light?.x ?? 0, light?.z ?? 0, light?.radius ?? 0);
     }
     this.drawRing();
 

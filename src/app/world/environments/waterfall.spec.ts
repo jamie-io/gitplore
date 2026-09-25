@@ -4,7 +4,9 @@ import { PlayerController } from '@engine/player/player-controller';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
 import { DSCHUNGEL } from './mood';
+import { jungleHeightAt } from './jungle-layout';
 import { ATMOSPHERE_FOG_GLSL } from './shaders/atmosphere';
+import { GroundHaze } from './shaders/ground-haze';
 import { SharedUniforms } from './shaders/shared-uniforms';
 import { Waterfall, WaterfallOptions } from './waterfall';
 
@@ -164,6 +166,28 @@ describe('Waterfall', () => {
       expect(material.transparent).toBe(true);
       expect(material.depthWrite).toBe(false);
     }
+  });
+
+  it('stands its foot in the ground haze where the world has one, in linear light', () => {
+    const haze = new GroundHaze({
+      heightAt: jungleHeightAt,
+      clearing: { origin: { value: new Vector3() }, radius: { value: 0 } },
+    });
+    const hazed = stubContext();
+    const plain = stubContext();
+    new Waterfall(options(new SharedUniforms(DSCHUNGEL, { groundHaze: haze }))).init(hazed);
+    new Waterfall(options()).init(plain);
+
+    for (const mesh of [sheetIn(hazed), foamIn(hazed)]) {
+      const material = mesh.material as ShaderMaterial;
+      expect(material.defines['GROUND_HAZE']).toBe('');
+      expect(material.defines['HAZE_LINEAR']).toBe('');
+      expect(material.uniforms['uHazeAmount']).toBe(haze.uniforms.uHazeAmount);
+    }
+    for (const mesh of [sheetIn(plain), foamIn(plain)]) {
+      expect((mesh.material as ShaderMaterial).defines['GROUND_HAZE']).toBeUndefined();
+    }
+    haze.dispose();
   });
 
   it('spends fewer rows and noise layers on the low tier', () => {

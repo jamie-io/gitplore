@@ -37,6 +37,7 @@ import {
   POOL_LEVEL,
   RILL_LEVEL,
   SLOP_AIR,
+  SLOP_TINT,
   STAGE,
   STAGE_FLOOR,
   ROCKS_MODEL,
@@ -780,24 +781,32 @@ describe('JungleEnvironment', () => {
     const hex = (colour: Color) => colour.getHex();
     const mix = (from: number, to: number, t: number) => new Color(from).lerp(new Color(to), t);
 
-    it('starts fully slopped: violet fog, closer and thicker, over the south of the bowl', () => {
+    const lerp = (from: number, to: number, t: number) => from + (to - from) * t;
+
+    it('starts fully slopped: the air only lightly tinted, the slop lying on the ground', () => {
       const { ctx, environment, fog } = slopped();
 
+      expect(SLOP_TINT).toBeLessThanOrEqual(0.25);
       expect(environment.slop).toBe(1);
       expect(environment.haze).toBe(1);
-      expect(hex(fog.color)).toBe(new Color(SLOP_AIR.fog.color).getHex());
-      expect(fog.near).toBe(SLOP_AIR.fog.near);
-      expect(fog.far).toBe(SLOP_AIR.fog.far);
-      expect(environment.shared.heightFog.value.x).toBe(SLOP_AIR.fog.heightDensity);
+      expect(environment.groundHaze.uniforms.uHazeAmount.value).toBe(1);
+      expect(hex(fog.color)).toBe(hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, SLOP_TINT)));
+      expect(fog.near).toBeCloseTo(lerp(DSCHUNGEL.fog.near, SLOP_AIR.fog.near, SLOP_TINT), 10);
+      expect(environment.shared.heightFog.value.x).toBeCloseTo(
+        lerp(DSCHUNGEL.fog.heightDensity, SLOP_AIR.fog.heightDensity, SLOP_TINT),
+        10,
+      );
       expect(hex(environment.backdrop.airlight.value)).toBe(hex(fog.color));
       const hemisphere = ctx.scene.getObjectByName('sky-light') as HemisphereLight;
-      expect(hex(hemisphere.color)).toBe(new Color(SLOP_AIR.hemisphere.sky).getHex());
+      expect(hex(hemisphere.color)).toBe(
+        hex(mix(DSCHUNGEL.hemisphere.sky, SLOP_AIR.hemisphere.sky, SLOP_TINT)),
+      );
       const sun = ctx.scene.getObjectByName('sun') as DirectionalLight;
-      expect(hex(sun.color)).toBe(new Color(SLOP_AIR.sun).getHex());
+      expect(hex(sun.color)).toBe(hex(mix(DSCHUNGEL.sun.color, SLOP_AIR.sun, SLOP_TINT)));
       environment.dispose();
     });
 
-    it('lerps the fog, the light and the sky back to DSCHUNGEL as the slop goes', () => {
+    it('lerps the tint back to DSCHUNGEL and thins the ground haze as the slop goes', () => {
       const { ctx, environment, fog } = slopped();
 
       environment.setSlop(0);
@@ -808,15 +817,47 @@ describe('JungleEnvironment', () => {
       expect(hex(environment.shared.sunColor.value)).toBe(new Color(DSCHUNGEL.sun.color).getHex());
       const hemisphere = ctx.scene.getObjectByName('sky-light') as HemisphereLight;
       expect(hex(hemisphere.groundColor)).toBe(new Color(DSCHUNGEL.hemisphere.ground).getHex());
+      expect(environment.groundHaze.uniforms.uHazeAmount.value).toBe(0);
 
       environment.setSlop(0.5);
       environment.update(1 / 60, ctx);
-      expect(hex(fog.color)).toBe(hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, 0.5)));
-      expect(environment.shared.heightFog.value.x).toBeCloseTo(
-        (DSCHUNGEL.fog.heightDensity + SLOP_AIR.fog.heightDensity) / 2,
-        10,
+      expect(hex(fog.color)).toBe(
+        hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, 0.5 * SLOP_TINT)),
       );
+      expect(environment.groundHaze.uniforms.uHazeAmount.value).toBe(0.5);
       environment.dispose();
+    });
+
+    it('sets the ground haze directly, and writes the lantern light where it clears', () => {
+      const environment = jungle();
+
+      environment.setGroundHaze(0.3);
+      expect(environment.groundHaze.uniforms.uHazeAmount.value).toBe(0.3);
+      environment.setHazeLight(-2, 12, 8);
+      expect(environment.groundHaze.uniforms.uHazeLight.value.toArray()).toEqual([-2, 12, 8]);
+      environment.setHazeLight(-2, 12, 0);
+      expect(environment.groundHaze.uniforms.uHazeLight.value.z).toBe(0);
+      environment.dispose();
+    });
+
+    it('lays the ground haze over every surface the atmosphere reaches, cleared by the ring', () => {
+      for (const [tier, steps] of [
+        ['low', 6],
+        ['medium', 10],
+        ['high', 16],
+      ] as const) {
+        const ctx = contextAt(tier);
+        const environment = jungle();
+        environment.init(ctx);
+        const mesh = ctx.scene.getObjectByName('jungle-floor') as Mesh;
+        const shader = compile(mesh.material as MeshStandardMaterial);
+
+        expect(environment.shared.groundHaze).toBe(environment.groundHaze);
+        expect(shader.fragmentShader).toContain(`#define HAZE_STEPS ${steps}`);
+        expect(shader.uniforms['uHazeClearOrigin']).toBe(environment.clearing.origin);
+        expect(shader.uniforms['uHazeClearRadius']).toBe(environment.clearing.radius);
+        environment.dispose();
+      }
     });
 
     it('clamps the slop to 0 … 1', () => {
@@ -832,7 +873,7 @@ describe('JungleEnvironment', () => {
       const north = slopped(ARCH.z - DECK.halfLength - 1);
       expect(north.environment.haze).toBeCloseTo(NORTH_BANK_HAZE, 10);
       expect(hex(north.fog.color)).toBe(
-        hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, NORTH_BANK_HAZE)),
+        hex(mix(DSCHUNGEL.fog.color, SLOP_AIR.fog.color, NORTH_BANK_HAZE * SLOP_TINT)),
       );
       north.environment.dispose();
 
