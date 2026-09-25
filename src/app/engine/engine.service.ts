@@ -9,7 +9,7 @@ import { Collider, HeightField, floorHeightAt } from './player/collision';
 import { MoveIntent, PlayerController } from './player/player-controller';
 import { CameraShot, SKIP_SECONDS, ShotKind, blendCamera, smoothstep } from './camera/camera-shot';
 import { ThirdPersonRig } from './player/third-person-rig';
-import { Glide, sampleGlide, turn } from './stations/glide';
+import { Glide, GlideSample, sampleGlide, turn } from './stations/glide';
 import { InputService } from './input.service';
 import { Interactable } from './interaction/interactable';
 import { InteractionSystem } from './interaction/interaction.system';
@@ -114,6 +114,9 @@ export class EngineService {
 
   /** The glide carrying the player, how far into it they are, and where they faced at its start. */
   private glideState: { glide: Glide; time: number; startYaw: number } | null = null;
+
+  /** Where the glide has the player this frame, written in place rather than allocated. */
+  private readonly glideSample: GlideSample = { x: 0, z: 0, yaw: 0 };
 
   /** Whether a glide is carrying the player right now. */
   readonly gliding = (): boolean => this.glideState !== null;
@@ -449,7 +452,7 @@ export class EngineService {
   private advanceGlide(dt: number, ground: HeightField, colliders: readonly Collider[]): void {
     const state = this.glideState!;
     state.time += dt;
-    const sample = sampleGlide(state.glide, state.time);
+    const sample = sampleGlide(state.glide, state.time, this.glideSample);
     const player = this.player;
     // Last frame's footing, so a deck is climbed onto a step at a time just as it is walked onto.
     const feetY = player.position.y - player.eyeHeight;

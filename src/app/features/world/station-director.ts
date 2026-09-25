@@ -70,13 +70,15 @@ export class StationDirector {
   private stationAt(x: number, z: number): number {
     let found = -1;
     let nearest = Infinity;
-    this.stations.forEach((station, index) => {
+    // Every frame: an indexed loop, with no callback to allocate.
+    for (let index = 0; index < this.stations.length; index++) {
+      const station = this.stations[index]!;
       const distance = Math.hypot(x - station.stand.x, z - station.stand.z);
       if (distance <= station.trigger && distance < nearest) {
         found = index;
         nearest = distance;
       }
-    });
+    }
     return found;
   }
 

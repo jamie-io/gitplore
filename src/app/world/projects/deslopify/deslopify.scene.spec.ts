@@ -619,6 +619,8 @@ describe('DeslopifyScene', () => {
       const total = project.commitBuckets!.reduce((sum, value) => sum + value, 0);
 
       expect(target.stations[2].plate()).toEqual(PLATES.stufen(total));
+      // Built once: the plate is read every frame the visitor stands on the steps.
+      expect(target.stations[2].plate()).toBe(target.stations[2].plate());
     });
 
     it('shows the wall’s plate for the state Deslopify is in', () => {

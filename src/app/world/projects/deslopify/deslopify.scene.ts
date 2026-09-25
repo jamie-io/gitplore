@@ -728,12 +728,16 @@ function commitTotal(project: Project): number {
   );
 }
 
-/** The seven stations of the tour, their plates read from the flow and the project each time. */
+/**
+ * The seven stations of the tour, their plates read each time they are asked for: the wall's from
+ * the flow, the steps' built once from the project's commits.
+ */
 function stations(flow: DeslopifyFlow, commits: number): readonly StationSpec[] {
+  const stufen = PLATES.stufen(commits);
   const plates: Record<(typeof TOUR)[number], () => StationPlate> = {
     laterne: () => PLATES.laterne,
     pfad: () => PLATES.pfad,
-    stufen: () => PLATES.stufen(commits),
+    stufen: () => stufen,
     bogen: () => PLATES.bogen,
     exponat: () => PLATES.exponat,
     wand: () => (flow.wallAvailable ? PLATES.wandOn : PLATES.wandOff),

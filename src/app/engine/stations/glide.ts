@@ -55,16 +55,31 @@ export function planGlide(points: readonly GroundPoint[], endYaw: number): Glide
   return { points: kept, length, duration, endYaw };
 }
 
+/** Where a glide has the player at one moment, and which way they face. */
+export interface GlideSample {
+  x: number;
+  z: number;
+  yaw: number;
+}
+
 /**
- * Where the glide has the player `t` seconds in, and which way they face. The distance covered is
+ * Where the glide has the player `t` seconds in, and which way they face, written into `out` (a
+ * fresh sample by default; the engine hands the same one every frame). The distance covered is
  * eased in and out; the heading follows the stretch being travelled (yaw 0 faces −z), turns
  * smoothly through each bend and settles on `endYaw` as the glide arrives.
  */
-export function sampleGlide(glide: Glide, t: number): { x: number; z: number; yaw: number } {
+export function sampleGlide(
+  glide: Glide,
+  t: number,
+  out: GlideSample = { x: 0, z: 0, yaw: 0 },
+): GlideSample {
   const { points, length, duration, endYaw } = glide;
   if (t >= duration) {
     const end = points[points.length - 1];
-    return { x: end.x, z: end.z, yaw: endYaw };
+    out.x = end.x;
+    out.z = end.z;
+    out.yaw = endYaw;
+    return out;
   }
 
   const covered = ease(Math.max(t, 0) / duration) * length;
@@ -112,7 +127,10 @@ export function sampleGlide(glide: Glide, t: number): { x: number; z: number; ya
     yaw = turn(yaw, endYaw, smoothstep((settle - left) / settle));
   }
 
-  return { x, z, yaw };
+  out.x = x;
+  out.z = z;
+  out.yaw = yaw;
+  return out;
 }
 
 /** `t < .5 ? 2t² : 1 − (−2t + 2)² / 2`: starts gently, lands gently. */

@@ -141,6 +141,22 @@ describe('glides', () => {
     expect(sampleGlide(glide, glide.duration + 5)).toEqual({ x: 2, z: -7, yaw: 0.5 });
   });
 
+  it('writes into the sample it is handed, so a frame allocates nothing', () => {
+    const glide = planGlide(
+      [
+        { x: 2, z: 3 },
+        { x: 2, z: -7 },
+      ],
+      0.5,
+    )!;
+    const out = { x: 0, z: 0, yaw: 0 };
+
+    expect(sampleGlide(glide, glide.duration / 2, out)).toBe(out);
+    expect(out).toMatchObject({ x: 2, z: -2 });
+    expect(sampleGlide(glide, glide.duration + 1, out)).toBe(out);
+    expect(out).toEqual({ x: 2, z: -7, yaw: 0.5 });
+  });
+
   it('ignores repeated points, so every stretch has a heading', () => {
     const glide = planGlide(
       [
