@@ -10,6 +10,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   PerspectiveCamera,
+  Raycaster,
   Scene,
   ShaderLib,
   Vector3,
@@ -44,7 +45,7 @@ import {
   jungleHeightAt,
 } from './jungle';
 import { MARKER_OFFSET } from './data/release-markers';
-import { ARCH_GLOW_MATERIAL, ARCH_MODEL } from './jungle-bridge';
+import { ARCH_GLOW_MATERIAL, ARCH_MODEL, PILLAR_X } from './jungle-bridge';
 import { CAVE_CLIFF_MODEL } from './jungle-cave';
 import {
   ARCH,
@@ -490,6 +491,56 @@ describe('JungleEnvironment', () => {
     environment.dispose();
     expect(assets.releasedModels).toEqual([ARCH_MODEL]);
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('stands the arch pillars where the model has them, 1.4 m either side of the axis', () => {
+    const environment = jungle();
+    const pillars = environment.bridge.colliders.filter((c) => c.kind === 'cylinder');
+
+    expect(PILLAR_X).toBe(1.4);
+    expect(pillars).toHaveLength(2);
+    for (const [index, side] of [-1, 1].entries()) {
+      const pillar = pillars[index];
+      expect(pillar.kind === 'cylinder' && [pillar.x, pillar.z, pillar.radius]).toEqual([
+        ARCH.x + side * PILLAR_X,
+        ARCH.z,
+        0.38,
+      ]);
+    }
+    // Between them there is still room to walk through beside the axis.
+    const offAxis = standAt(ARCH.x + 0.6, ARCH.z + 1.2, DECK.height);
+    walk(offAxis, environment, [{ x: ARCH.x + 0.6, z: ARCH.z - 1.2 }]);
+  });
+
+  it('stops the rails short of the pillar drums, and the proxy pillars stand in the model’s', () => {
+    const ctx = stubContext();
+    const environment = jungle();
+    environment.init(ctx);
+
+    // Nothing of the deck rises into a drum (0.6 m across, 0.62 m deep, on a plinth 0.9 deep):
+    // rays across the deck at rail heights meet no rail or post before they are past the stone.
+    const deck = ctx.scene.getObjectByName('bridge') as Mesh;
+    const ray = new Raycaster();
+    for (const side of [-1, 1]) {
+      for (const along of [-0.42, 0, 0.42]) {
+        for (const height of [0.2, 0.5, 0.97]) {
+          ray.set(
+            new Vector3(ARCH.x, DECK.height + height, ARCH.z + along),
+            new Vector3(side, 0, 0),
+          );
+          ray.far = PILLAR_X + 0.35;
+          expect(ray.intersectObject(deck), `${side}, ${along}, ${height}`).toEqual([]);
+        }
+      }
+    }
+
+    const proxy = ctx.scene.getObjectByName('arch-proxy') as Mesh;
+    proxy.geometry.computeBoundingBox();
+    const bounds = proxy.geometry.boundingBox!;
+    expect(bounds.max.x).toBeCloseTo(-bounds.min.x, 5);
+    expect(bounds.max.x).toBeLessThan(PILLAR_X + 0.5);
+    expect(bounds.min.y).toBeCloseTo(0, 5);
+    environment.dispose();
   });
 
   it('hazes the arch glow copy and changes its intensity with the clearing', async () => {

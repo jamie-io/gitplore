@@ -35,15 +35,19 @@ export const WOOD_TONES: readonly number[] = [0x6a4a30, 0x5a3d27, 0x70523a, 0x4f
 const PLANK = { thickness: 0.07, width: 0.27, pitch: 0.32 } as const;
 /** Metres from the deck's centre line to each rail. */
 const RAIL_X = DECK.halfWidth - 0.08;
-/** A proxy pillar's radius. */
-const PILLAR_RADIUS = 0.35;
 /**
- * Metres from the deck's centre line to each arch pillar's centre: the pillars stand just off the
- * deck's sides, 3.2 m clear between them.
+ * Metres from the deck's centre line to each arch pillar's centre, where the model
+ * (scripts/blender/models/arch.py) stands them: on the deck's edges, over the rails.
  */
-export const PILLAR_X = 1.6 + PILLAR_RADIUS;
-/** A pillar's radius plus a hand's width, so the visitor brushes past rather than into the stone. */
-const PILLAR_REACH = PILLAR_RADIUS + 0.03;
+export const PILLAR_X = 1.4;
+/** The model's pillar drums: 0.6 m across and 0.62 m deep, on plinths 0.9 m deep. */
+const DRUM = { width: 0.6, depth: 0.62, plinthDepth: 0.9 } as const;
+/** From a pillar's centre past its drums, so the visitor brushes past rather than into the stone. */
+const PILLAR_REACH = 0.38;
+/** The clear height under the model's arch, which the proxy's lintel keeps. */
+const ARCH_CLEAR = 3.92;
+/** Metres either side of the arch where the rails break for the pillars' plinths. */
+const RAIL_GAP = DRUM.plinthDepth / 2 + 0.05;
 const RAIL_HEIGHT = 1;
 
 export interface JungleBridgeOptions {
@@ -54,9 +58,9 @@ export interface JungleBridgeOptions {
  * The only way over the rill: a plank deck 2.4 m up on two stringers and four piles, railed on both
  * sides, with the Deslopify arch standing across its middle. The commit steps climb to its south
  * end and a ramp of ground meets its north end. The deck is a collider with a walkable top, so the
- * visitor walks level across; the arch's pillars stand either side of it. The arch is the hub
- * portal's own model, loaded when the world is built; a stone proxy of the same shape stands in
- * until it arrives, and for good if it never does.
+ * visitor walks level across between the arch's pillars, which stand on its edges. The arch is the
+ * hub portal's own model, loaded when the world is built; a stone proxy of the same shape stands
+ * in until it arrives, and for good if it never does.
  */
 export class JungleBridge implements WorldObject {
   readonly id = 'bridge';
@@ -260,17 +264,24 @@ function bridgeGeometry(): BufferGeometry {
     }
   }
 
-  // Rail posts every metre or so, inside the arch's pillars, with a top rail.
-  const posts = Math.max(1, Math.floor(length / 1.05));
+  // Rails either side, each in two runs that stop short of the arch's pillars, which stand on the
+  // deck's edges: a post at both ends of a run, a top rail and a middle one between them.
+  const near = RAIL_GAP;
+  const far = DECK.halfLength - 0.1;
+  const run = far - near;
   for (const side of [-1, 1]) {
-    for (let i = 0; i <= posts; i++) {
-      const z = -DECK.halfLength + 0.15 + (i * (length - 0.3)) / posts;
-      parts.push(post(side * RAIL_X, z, 0, RAIL_HEIGHT, 0.06, WOOD_TONES[i % 2 === 0 ? 1 : 3]));
+    for (const along of [-1, 1]) {
+      const middle = (along * (near + far)) / 2;
+      for (const [i, z] of [near + 0.06, far - 0.05].entries()) {
+        parts.push(
+          post(side * RAIL_X, along * z, 0, RAIL_HEIGHT, 0.06, WOOD_TONES[i % 2 === 0 ? 1 : 3]),
+        );
+      }
+      parts.push(
+        box([0.08, 0.07, run], [side * RAIL_X, RAIL_HEIGHT - 0.035, middle], WOOD_TONES[0]),
+      );
+      parts.push(box([0.05, 0.05, run], [side * RAIL_X, 0.5, middle], WOOD_TONES[2]));
     }
-    parts.push(
-      box([0.08, 0.07, length - 0.2], [side * RAIL_X, RAIL_HEIGHT - 0.035, 0], WOOD_TONES[0]),
-    );
-    parts.push(box([0.05, 0.05, length - 0.2], [side * RAIL_X, 0.5, 0], WOOD_TONES[2]));
   }
 
   const geometry = assemble(parts);
@@ -280,15 +291,15 @@ function bridgeGeometry(): BufferGeometry {
 }
 
 /**
- * The arch's stand-in, in the model's own frame (the deck's top at y = 0): two stone pillars
- * 3.2 m clear of each other, rising from the rill's bed beside the deck, under a lintel: the shape
- * the model has, in its greys.
+ * The arch's stand-in, in the model's own frame (the deck's top at y = 0): two stone pillars on the
+ * deck's edges where the model's stand, under a lintel as high as the model's arch is clear: the
+ * shape the model has, in its greys.
  */
 function archProxyGeometry(): BufferGeometry {
-  const foot = RILL_BED - DECK.height;
+  const radius = DRUM.width / 2;
   return assemble([
-    post(-PILLAR_X, 0, foot, 3.6, PILLAR_RADIUS, 0x80848f),
-    post(PILLAR_X, 0, foot, 3.6, PILLAR_RADIUS, 0x80848f),
-    box([PILLAR_X * 2 + 1, 0.55, 0.8], [0, 4.2, 0], 0x707480),
+    post(-PILLAR_X, 0, 0, ARCH_CLEAR, radius, 0x80848f),
+    post(PILLAR_X, 0, 0, ARCH_CLEAR, radius, 0x80848f),
+    box([PILLAR_X * 2 + DRUM.width, 0.55, DRUM.depth], [0, ARCH_CLEAR + 0.275, 0], 0x707480),
   ]);
 }
