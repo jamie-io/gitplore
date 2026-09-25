@@ -353,3 +353,33 @@ The explorer stays procedural. Terrain, flora, vines, tags and the waterfall sta
   high tier.
 - Baseline: pre-existing test failures on `main` (the `localStorage.clear` failures under Node 25)
   are recorded before work starts, and no new failures may be added.
+
+## 10. As built (decisions taken during implementation)
+
+These override the sections above where they differ.
+
+- **Tour and legs.** Keeping every path at least a player radius clear of the feed wall, the pool, the
+  cave's jambs and the exhibit easel lengthens the tour to about 61 m (bound 62 m) and the wand →
+  höhle leg to about 14.7 m (bound 16 m). The north loop forks in front of the exhibit and passes
+  round both sides of the easel, and reaches the feed wall by a short spur from its west end.
+- **Stands.** Laterne (−1.3, 17.3), turned 50° up the walk so the lantern post stays in frame and
+  the spawn lies outside its trigger; wand (8.4, −12.0); the lantern post at (−2.6, 18.5), off the
+  walk line.
+- **Return portal.** Stands in a niche cut into the south rim at (0, 23.6), behind the arrival point
+  (0, 20.6), through the optional `Environment.returnPortal`. The spawn is outside every station
+  trigger, so the portal plate shows on arrival and turning round shows "Zurück".
+- **Overview.** (0, 30, 27) → (0, 0, −4), used by both the arrival and the moment shot. The canopy
+  keeps a clear view corridor of 4 m either side of the axis, and nothing tall stands behind a
+  station's camera.
+- **Skipping shots.** A shot is skipped only by input that starts after it began (a new key press or
+  a movement start), so walking through the arch with W held still shows the install moment. Esc
+  during a shot skips it and then leaves the world as usual.
+- **Reduced motion.** A glide is a teleport, and its route along the paths is still checked for the
+  arch, the lantern, the commit steps and the falls, so the same things happen as on a full glide.
+- **Feed wall.** The Blender wall holds the four cards at 0.52 scale on a 5.6 m wall; the cards wipe
+  at the flow's own rates.
+- **Arch.** The model is unchanged: a 3.92 m clear height with its pillars at ±1.4 m on the 2.9 m
+  deck; the colliders stand on those pillars.
+- **Ground haze.** Marches 4 steps on the low tier (about 16 % of a SwiftShader frame), 10 on medium,
+  16 on high. The bowl's radii live in a small module of their own, so other worlds do not load the
+  jungle layout.
