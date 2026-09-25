@@ -1,3 +1,6 @@
+import type { AssetLike } from '@engine/asset.service';
+import type { Material } from 'three';
+import type { HazedCopies } from '../../environments/shaders/hazed-copies';
 import {
   CanvasTexture,
   CylinderGeometry,
@@ -12,6 +15,12 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { disposeObject3D } from '@engine/dispose';
 import type { FeedCardData } from './deslopify.data';
 import { BADGE, FEED_CARDS, PALETTE } from './deslopify.data';
+
+/**
+ * The card's timber stand, modelled in Blender (scripts/blender/models/card_frame.py): posts,
+ * rails, backing boards and a little gable round the face, which stays this card's own.
+ */
+export const CARD_FRAME_MODEL = 'assets/models/card-frame.glb';
 
 const FRAME_WIDTH = 2.1;
 const FRAME_HEIGHT = 1.98;
@@ -63,6 +72,10 @@ export class FeedCard {
   private target = 0;
   private delay = 0;
   private disposed = false;
+  /** The procedural frame and posts, until the stand model replaces them. */
+  private proxy: Mesh[] = [];
+  private frameModel: Group | null = null;
+  private assets: AssetLike | null = null;
 
   constructor(data: FeedCardData, options: FeedCardOptions = {}) {
     this.reducedMotion = options.reducedMotion ?? (() => false);
@@ -75,6 +88,7 @@ export class FeedCard {
     frame.name = 'feed-card-frame';
     frame.position.y = FACE_Y;
     this.object.add(frame);
+    this.proxy.push(frame);
 
     const postGeometry = new CylinderGeometry(0.07, 0.09, POST_HEIGHT, 12);
     const postMaterial = new MeshStandardMaterial({
@@ -87,6 +101,7 @@ export class FeedCard {
       post.name = `feed-card-post-${index}`;
       post.position.set(x, POST_Y, POST_Z);
       this.object.add(post);
+      this.proxy.push(post);
     });
 
     this.slopTexture = createCardTexture(data, false);
@@ -100,6 +115,49 @@ export class FeedCard {
     face.name = 'feed-card-face';
     face.position.set(0, FACE_Y, FACE_Z);
     this.object.add(face);
+  }
+
+  /**
+   * Asks for the stand model and swaps it in for the procedural frame when it arrives, hazed into
+   * the environment's air when `haze` is given. Without the model the procedural frame stays.
+   */
+  loadFrame(assets: AssetLike, castShadow = false, haze?: HazedCopies): void {
+    if (this.disposed || this.assets) {
+      return;
+    }
+    this.assets = assets;
+    assets.model(CARD_FRAME_MODEL).then(
+      (model) => {
+        if (this.disposed || this.frameModel) {
+          assets.releaseModel(CARD_FRAME_MODEL);
+          return;
+        }
+        this.frameModel = model;
+        model.name = 'feed-card-stand';
+        model.traverse((object) => {
+          if (object instanceof Mesh) {
+            object.castShadow = castShadow;
+            object.receiveShadow = castShadow;
+            if (haze) {
+              object.material = haze.of(object.material as Material);
+            }
+          }
+        });
+        // The two posts share one geometry and material: free them once.
+        const [frame, ...posts] = this.proxy;
+        frame?.removeFromParent();
+        frame?.geometry.dispose();
+        (frame?.material as MeshStandardMaterial | undefined)?.dispose();
+        for (const post of posts) {
+          post.removeFromParent();
+        }
+        posts[0]?.geometry.dispose();
+        (posts[0]?.material as MeshStandardMaterial | undefined)?.dispose();
+        this.proxy = [];
+        this.object.add(model);
+      },
+      () => undefined,
+    );
   }
 
   get original(): boolean {
@@ -153,6 +211,12 @@ export class FeedCard {
       return;
     }
     this.disposed = true;
+    if (this.frameModel) {
+      // The asset service owns the stand's resources; `disposeObject3D` leaves them alone.
+      this.frameModel = null;
+      this.assets?.releaseModel(CARD_FRAME_MODEL);
+    }
+    this.proxy = [];
     // `disposeObject3D` sees the original map through MeshBasicMaterial.map. The translated map is
     // deliberately stored in userData for the shader, so release it explicitly here.
     this.slopTexture.dispose();

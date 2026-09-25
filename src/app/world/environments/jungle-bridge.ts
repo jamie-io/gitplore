@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   CylinderGeometry,
   Group,
+  Material,
   Mesh,
   MeshStandardMaterial,
 } from 'three';
@@ -13,10 +14,19 @@ import { assemble, paint } from './flora';
 import { ARCH, BRIDGE, STREAM, WATER_LEVEL } from './jungle-layout';
 import { seededRandom } from './random';
 import { withAtmosphere } from './shaders/atmosphere';
+import { HazedCopies } from './shaders/hazed-copies';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
-/** The Deslopify arch the hub's portal wears, set on the bridge as the gate between the banks. */
-export const ARCH_MODEL = 'assets/models/arch.glb';
+/**
+ * The Deslopify arch on the bridge, the gate between the banks: modelled in Blender
+ * (scripts/blender/models/arch.py) to the hub portal's footprint, in the jungle's mossy stone.
+ */
+export const ARCH_MODEL = 'assets/models/jungle-arch.glb';
+
+/** The material of the amber line round the arch, which glows as the slop lifts. */
+export const ARCH_GLOW_MATERIAL = 'arch-glow';
+/** The line's glow in the slop, and once the haze has gone. */
+const ARCH_GLOW = { slop: 0.35, clear: 2.4 } as const;
 
 /** The boardwalk's five plank tones, so the bridge reads as the same timber as the trail. */
 export const WOOD_TONES: readonly number[] = [0x6a4a30, 0x5a3d27, 0x70523a, 0x4f3622, 0x634630];
@@ -66,6 +76,10 @@ export class JungleBridge implements WorldObject {
   private deck: Mesh | null = null;
   private proxy: Mesh | null = null;
   private model: Group | null = null;
+  /** The model's materials hazed like the rest of the jungle; the amber line's glow among them. */
+  private haze: HazedCopies | null = null;
+  private glow: MeshStandardMaterial | null = null;
+  private glowAmount = 0;
   private assets: WorldContext['assets'] | null = null;
   private disposed = false;
 
@@ -112,6 +126,14 @@ export class JungleBridge implements WorldObject {
     // Timber and stone: nothing moves.
   }
 
+  /** How far Deslopify has cleared the air, 0 … 1: the arch's amber line glows with it. */
+  setGlow(amount: number): void {
+    this.glowAmount = amount;
+    if (this.glow) {
+      this.glow.emissiveIntensity = ARCH_GLOW.slop + (ARCH_GLOW.clear - ARCH_GLOW.slop) * amount;
+    }
+  }
+
   dispose(): void {
     this.disposed = true;
     if (this.deck) {
@@ -128,6 +150,9 @@ export class JungleBridge implements WorldObject {
       this.model = null;
       this.assets?.releaseModel(ARCH_MODEL);
     }
+    this.haze?.dispose();
+    this.haze = null;
+    this.glow = null;
     this.arch.removeFromParent();
   }
 
@@ -137,12 +162,19 @@ export class JungleBridge implements WorldObject {
       ctx.assets.releaseModel(ARCH_MODEL);
       return;
     }
+    const haze = (this.haze = new HazedCopies(this.options.shared));
     model.traverse((object) => {
       if (object instanceof Mesh) {
         object.castShadow = ctx.quality.shadows;
         object.receiveShadow = ctx.quality.shadows;
+        const copy = haze.of(object.material as Material);
+        if (copy.name === ARCH_GLOW_MATERIAL && copy instanceof MeshStandardMaterial) {
+          this.glow = copy;
+        }
+        object.material = copy;
       }
     });
+    this.setGlow(this.glowAmount);
     model.name = 'arch-model';
     this.model = model;
     this.arch.add(model);

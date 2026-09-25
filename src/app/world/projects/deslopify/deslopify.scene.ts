@@ -141,6 +141,7 @@ export class DeslopifyScene extends ProjectScene {
       position: this.onGround(LANTERN_POST),
       rotationY: LANTERN_YAW,
       reducedMotion,
+      haze: this.haze ?? undefined,
     });
 
     this.cards = FEED_CARDS.map((data, index) => {
@@ -245,6 +246,9 @@ export class DeslopifyScene extends ProjectScene {
     this.lantern.attachTo(this.explorer.hand, this.explorer.handLight);
     for (const card of this.cards) {
       ctx.scene.add(card.object);
+    }
+    for (const card of this.allCards) {
+      card.loadFrame(ctx.assets, ctx.quality.shadows, this.haze ?? undefined);
     }
     ctx.scene.add(this.wall.object, this.vines.object, this.tags.object, this.ring);
     this.air?.setSlop(this.flow.haze);

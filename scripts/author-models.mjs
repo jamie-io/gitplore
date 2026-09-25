@@ -1,10 +1,16 @@
 /**
- * Builds the hero glTF models in code (IMPLEMENTATION_PLAN.md §8 conventions: +Y up, metres,
- * origin at the ground centre, one material per part, transforms applied). There is no Blender on
- * this machine; `npm run assets:optimize` then compresses the output like any authored file.
+ * Builds the glTF models (IMPLEMENTATION_PLAN.md §8 conventions: +Y up, metres, origin at the
+ * ground centre, one material per part, transforms applied); `npm run assets:optimize` then
+ * compresses the output like any authored file.
+ *
+ * The hub's monument and portal arch are built here in code. The Deslopify jungle's props (its
+ * bridge arch, lantern, stele and feed-card frame) are modelled in Blender by the scripts in
+ * scripts/blender, run headless; set BLENDER to the binary if it is not on the PATH. Without
+ * Blender those sources are left as committed.
  *
  * Output: assets-src/models/<name>.glb — the uncompressed sources that are committed.
  */
+import { execFileSync } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { Document, NodeIO } from '@gltf-transform/core';
@@ -246,4 +252,30 @@ for (const [name, build] of [
   const path = `${OUT_DIR}${name}.glb`;
   await (await import('node:fs/promises')).writeFile(path, glb);
   console.log(`✓ ${name}.glb  ${glb.byteLength} bytes`);
+}
+
+const BLENDER = process.env['BLENDER'] ?? 'blender';
+const AUTHOR = fileURLToPath(new URL('./blender/author.py', import.meta.url));
+let output = null;
+try {
+  output = execFileSync(
+    BLENDER,
+    ['-b', '--factory-startup', '--python-exit-code', '1', '--python', AUTHOR, '--', OUT_DIR],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 64 * 1024 * 1024 },
+  );
+} catch (error) {
+  if (error.code !== 'ENOENT') {
+    throw error;
+  }
+  console.warn(`! ${BLENDER} not found: the Blender-authored sources stay as committed`);
+}
+if (output !== null) {
+  const line = output.split('\n').find((l) => l.startsWith('AUTHORED '));
+  if (!line) {
+    throw new Error('Blender finished without reporting the models it authored');
+  }
+  const report = JSON.parse(line.slice('AUTHORED '.length));
+  for (const [name, { triangles, bytes }] of Object.entries(report)) {
+    console.log(`✓ ${name}.glb  ${bytes} bytes  ${triangles} triangles  (Blender)`);
+  }
 }

@@ -6,9 +6,44 @@
       "group": "deslopify"
     },
     {
+      "url": "assets/models/cairn.glb",
+      "bytes": 38008,
+      "group": "jungle"
+    },
+    {
+      "url": "assets/models/card-frame.glb",
+      "bytes": 21336,
+      "group": "jungle"
+    },
+    {
+      "url": "assets/models/jungle-arch.glb",
+      "bytes": 41860,
+      "group": "jungle"
+    },
+    {
+      "url": "assets/models/jungle-rocks.glb",
+      "bytes": 19464,
+      "group": "jungle"
+    },
+    {
+      "url": "assets/models/lantern.glb",
+      "bytes": 15676,
+      "group": "jungle"
+    },
+    {
+      "url": "assets/models/liana-lever.glb",
+      "bytes": 24752,
+      "group": "jungle"
+    },
+    {
       "url": "assets/models/monument.glb",
       "bytes": 5272,
       "group": "core"
+    },
+    {
+      "url": "assets/models/stele.glb",
+      "bytes": 20152,
+      "group": "jungle"
     },
     {
       "url": "assets/screens/novaverta.webp",

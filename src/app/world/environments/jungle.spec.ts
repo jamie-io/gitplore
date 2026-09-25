@@ -1,4 +1,5 @@
 import {
+  BoxGeometry,
   Color,
   DirectionalLight,
   Fog,
@@ -37,9 +38,10 @@ import {
   SLOP_AIR,
   STAGE,
   STAGE_FLOOR,
+  ROCKS_MODEL,
   jungleHeightAt,
 } from './jungle';
-import { ARCH_MODEL } from './jungle-bridge';
+import { ARCH_GLOW_MATERIAL, ARCH_MODEL } from './jungle-bridge';
 import {
   ARCH,
   BRIDGE,
@@ -439,6 +441,89 @@ describe('JungleEnvironment', () => {
     environment.dispose();
     expect(assets.releasedModels).toEqual([ARCH_MODEL]);
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('hazes the arch glow copy and changes its intensity with the clearing', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const environment = jungle();
+    const original = new MeshStandardMaterial({ name: ARCH_GLOW_MATERIAL });
+    const originalIntensity = original.emissiveIntensity;
+    const glow = new Mesh(new BoxGeometry(0.2, 0.2, 0.2), original);
+    const model = new Group();
+    model.add(glow);
+    environment.init(ctx);
+
+    await assets.resolve(model);
+
+    expect(glow.material).toBeInstanceOf(MeshStandardMaterial);
+    expect(glow.material).not.toBe(original);
+    expect(original.customProgramCacheKey()).not.toContain('atmosphere');
+    expect((glow.material as MeshStandardMaterial).customProgramCacheKey()).toContain('atmosphere');
+
+    environment.setSlop(1);
+    const slopIntensity = (glow.material as MeshStandardMaterial).emissiveIntensity;
+    environment.setSlop(0);
+    const clearIntensity = (glow.material as MeshStandardMaterial).emissiveIntensity;
+    expect(slopIntensity).toBeLessThan(clearIntensity);
+    expect(original.emissiveIntensity).toBe(originalIntensity);
+
+    environment.dispose();
+  });
+
+  it('requests and swaps the authored boulders, then releases their model', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const environment = jungle();
+    environment.init(ctx);
+
+    expect(assets.requested).toContain(ROCKS_MODEL);
+    expect(assets.requested.indexOf(ARCH_MODEL)).toBeLessThan(
+      assets.requested.indexOf(ROCKS_MODEL),
+    );
+    await assets.resolve(new Group());
+
+    const boulders = ['boulder-0', 'boulder-1'].map((name) => instanced(ctx, name));
+    const oldGeometries = boulders.map((mesh) => mesh.geometry);
+    const oldDisposals = oldGeometries.map((geometry) => vi.spyOn(geometry, 'dispose'));
+    const counts = boulders.map((mesh) => mesh.count);
+    const model = new Group();
+    for (const name of ['boulder-0', 'boulder-1']) {
+      const mesh = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial());
+      mesh.name = name;
+      model.add(mesh);
+    }
+
+    await assets.resolve(model);
+
+    expect(boulders.map((mesh) => mesh.count)).toEqual(counts);
+    expect(boulders.map((mesh, index) => mesh.geometry === oldGeometries[index])).toEqual([
+      false,
+      false,
+    ]);
+    expect(oldDisposals.map((dispose) => dispose.mock.calls.length)).toEqual([1, 1]);
+    expect(assets.releasedModels).toEqual([ROCKS_MODEL]);
+    environment.dispose();
+  });
+
+  it('releases boulders that arrive after jungle disposal without swapping them', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const environment = jungle();
+    environment.init(ctx);
+    await assets.resolve(new Group());
+    const boulder = instanced(ctx, 'boulder-0');
+    const oldGeometry = boulder.geometry;
+
+    environment.dispose();
+    const model = new Group();
+    const mesh = new Mesh(new BoxGeometry(1, 1, 1), new MeshStandardMaterial());
+    mesh.name = 'boulder-0';
+    model.add(mesh);
+    await assets.resolve(model);
+
+    expect(boulder.geometry).toBe(oldGeometry);
+    expect(assets.releasedModels).toContain(ROCKS_MODEL);
   });
 
   it('builds the cave and disposes it with the jungle', () => {

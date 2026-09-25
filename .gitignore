@@ -56,3 +56,6 @@ Thumbs.db
 # Temp file from scripts/sync-repos.mjs and scripts/sync-readmes.mjs's atomic
 # write-then-rename to public/content/repos.json; only survives a failed run.
 public/content/*.tmp-*
+
+# Blender scripts run with Python
+__pycache__/

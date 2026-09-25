@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   ConeGeometry,
   CylinderGeometry,
+  Group,
   Material,
   Mesh,
   MeshStandardMaterial,
@@ -11,8 +12,11 @@ import {
   TorusGeometry,
   Vector3,
 } from 'three';
-import { stubContext } from '@engine/testing/world-context';
-import { Lantern } from './lantern';
+import { StubAssets, stubContext } from '@engine/testing/world-context';
+import { DSCHUNGEL } from '../../environments/mood';
+import { HazedCopies } from '../../environments/shaders/hazed-copies';
+import { SharedUniforms } from '../../environments/shaders/shared-uniforms';
+import { LANTERN_GLASS_MATERIAL, LANTERN_MODEL, Lantern } from './lantern';
 
 const POSITION = new Vector3(2.3, 0, 4.2);
 
@@ -98,6 +102,105 @@ describe('Lantern', () => {
       .applyAxisAngle(new Vector3(0, 1, 0), 0.35)
       .add(POSITION);
     expect(lantern.worldPosition(new Vector3())).toEqual(expectedPosition);
+  });
+
+  it('replaces procedural parts with the lantern model and keeps its lit glass and light', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));
+    const lantern = new Lantern({
+      position: POSITION,
+      rotationY: 0.35,
+      haze,
+    });
+    lantern.init(ctx);
+
+    const proceduralPost = part(ctx, 'lantern-post');
+    const proceduralGlass = part(ctx, 'lantern-glass');
+    const litMaterial = proceduralGlass.material;
+    const model = new Group();
+    const post = new Group();
+    post.name = 'lantern-post';
+    const postMaterial = new MeshStandardMaterial({ name: 'lantern-wood' });
+    const postMesh = new Mesh(new BoxGeometry(0.1, 0.1, 0.1), postMaterial);
+    post.add(postMesh);
+    const body = new Group();
+    body.name = 'lantern-body';
+    // Authored where the body hangs, (-0.42, 1.5, 0), plus an optimiser's dequantising offset.
+    body.position.set(-0.42 + 0.1, 1.5 + 0.2, 0.05);
+    const glassMaterial = new MeshStandardMaterial({ name: LANTERN_GLASS_MATERIAL });
+    const glass = new Mesh(new CylinderGeometry(0.1, 0.1, 0.2), glassMaterial);
+    glass.name = 'lantern-glass';
+    const woodMaterial = new MeshStandardMaterial({ name: 'lantern-wood' });
+    const wood = new Mesh(new BoxGeometry(0.2, 0.2, 0.2), woodMaterial);
+    body.add(glass, wood);
+    model.add(post, body);
+
+    expect(assets.requested).toEqual([LANTERN_MODEL]);
+    await assets.resolve(model);
+
+    const lanternRoot = root(ctx);
+    const movingBody = lanternRoot.children.find(
+      (child): child is Group => child instanceof Group && child.name === 'lantern-body',
+    );
+    expect(proceduralPost.parent).toBeNull();
+    expect(proceduralGlass.parent).toBeNull();
+    expect(lanternRoot.getObjectByName('lantern-arm')).toBeUndefined();
+    expect(lanternRoot.getObjectByName('lantern-base')).toBeUndefined();
+    expect(post.parent).toBe(lanternRoot);
+    expect(body.parent).toBe(movingBody);
+    // Only the authored placement comes off; the dequantising offset stays.
+    expect(body.position.x).toBeCloseTo(0.1, 6);
+    expect(body.position.y).toBeCloseTo(0.2, 6);
+    expect(body.position.z).toBeCloseTo(0.05, 6);
+    expect(glass.material).toBe(litMaterial);
+    expect(wood.material).toBe(haze.of(woodMaterial));
+    expect(lanternRoot.getObjectByName('lantern-light')).toBeInstanceOf(PointLight);
+
+    lantern.ignite();
+    lantern.update(0.35);
+    expect((glass.material as MeshStandardMaterial).emissiveIntensity).toBeCloseTo(1.6, 6);
+    lantern.update(0.35);
+    expect((glass.material as MeshStandardMaterial).emissiveIntensity).toBe(3.2);
+
+    lantern.dispose();
+    lantern.dispose();
+    expect(assets.releasedModels).toEqual([LANTERN_MODEL]);
+  });
+
+  it('releases a lantern model missing either required node and keeps the procedural lantern', async () => {
+    for (const present of ['lantern-post', 'lantern-body']) {
+      const assets = new StubAssets();
+      const ctx = stubContext(assets);
+      const lantern = new Lantern({ position: POSITION, rotationY: 0.35 });
+      lantern.init(ctx);
+      const model = new Group();
+      const node = new Group();
+      node.name = present;
+      model.add(node);
+
+      await assets.resolve(model);
+
+      expect(assets.releasedModels).toEqual([LANTERN_MODEL]);
+      expect(part(ctx, 'lantern-post')).toBeInstanceOf(Mesh);
+      expect(part(ctx, 'lantern-arm')).toBeInstanceOf(Mesh);
+      lantern.dispose();
+    }
+  });
+
+  it('releases a lantern model that arrives after dispose without adding it', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const lantern = new Lantern({ position: POSITION, rotationY: 0.35 });
+    lantern.init(ctx);
+    lantern.dispose();
+
+    const model = new Group();
+    await assets.resolve(model);
+
+    expect(assets.releasedModels).toEqual([LANTERN_MODEL]);
+    expect(model.parent).toBeNull();
+    expect(ctx.scene.children).toEqual([]);
   });
 
   it('eases ignition glow from zero to one over 0.7 seconds on the post', () => {

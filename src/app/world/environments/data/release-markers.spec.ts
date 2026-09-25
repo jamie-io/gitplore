@@ -1,8 +1,20 @@
-import { Color, Group, Mesh, Vector3 } from 'three';
-import { stubContext } from '@engine/testing/world-context';
+import {
+  BufferGeometry,
+  Color,
+  Float32BufferAttribute,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Vector3,
+} from 'three';
+import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
+import { DSCHUNGEL } from '../mood';
+import { HazedCopies } from '../shaders/hazed-copies';
+import { SharedUniforms } from '../shaders/shared-uniforms';
 import {
+  CAIRN_MODEL,
   JUNGLE_MOSS_COLOUR,
   MARKER_OFFSET,
   ReleaseMarkers,
@@ -16,6 +28,50 @@ const options = (project: Project) => ({
   to: new Vector3(0, 0, -17),
   ground: { heightAt: () => 0 },
 });
+
+function releases(count: number): Project {
+  return {
+    ...PROJECT,
+    createdAt: '2025-01-01T00:00:00Z',
+    pushedAt: '2026-01-01T00:00:00Z',
+    releases: Array.from({ length: count }, (_, index) => ({
+      name: `v${index + 1}.0.0`,
+      date: `2025-${String(index + 1).padStart(2, '0')}-01T00:00:00Z`,
+    })),
+  };
+}
+
+function cairnModel(counts: readonly number[], missing?: number): Group {
+  const model = new Group();
+  counts.forEach((count, variant) => {
+    if (variant === missing) {
+      return;
+    }
+    const geometry = new BufferGeometry().setAttribute(
+      'position',
+      new Float32BufferAttribute(
+        Array.from({ length: count * 3 }, (_, index) => index),
+        3,
+      ),
+    );
+    const node = new Mesh(geometry, new MeshStandardMaterial());
+    node.name = `cairn-${variant}`;
+    model.add(node);
+  });
+  return model;
+}
+
+function labelCanvas() {
+  return vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    fillRect: vi.fn(),
+    fillText: vi.fn(),
+    measureText: vi.fn(() => ({ width: 300 })),
+    fillStyle: '',
+    font: '',
+    textAlign: 'left',
+    textBaseline: 'alphabetic',
+  } as unknown as CanvasRenderingContext2D);
+}
 
 describe('ReleaseMarkers', () => {
   it('stacks the largest cairn stone at the bottom', () => {
@@ -195,5 +251,70 @@ describe('ReleaseMarkers', () => {
     markers.dispose();
     canvasContext.mockRestore();
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('requests cairn models only for jungle releases', () => {
+    const defaultAssets = new StubAssets();
+    const defaultMarkers = new ReleaseMarkers(options(releases(1)));
+    defaultMarkers.init(stubContext(defaultAssets));
+
+    const jungleAssets = new StubAssets();
+    const jungleMarkers = new ReleaseMarkers({ ...options(releases(1)), skin: 'jungle' });
+    jungleMarkers.init(stubContext(jungleAssets));
+
+    const emptyAssets = new StubAssets();
+    const emptyMarkers = new ReleaseMarkers({ ...options(PROJECT), skin: 'jungle' });
+    emptyMarkers.init(stubContext(emptyAssets));
+
+    expect(defaultAssets.requested).toEqual([]);
+    expect(jungleAssets.requested).toEqual([CAIRN_MODEL]);
+    expect(emptyAssets.requested).toEqual([]);
+    defaultMarkers.dispose();
+    jungleMarkers.dispose();
+    emptyMarkers.dispose();
+  });
+
+  it('merges authored cairn variants, keeps labels, releases model, and hazes material', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const project = releases(4);
+    const canvas = labelCanvas();
+    const markers = new ReleaseMarkers({
+      ...options(project),
+      skin: 'jungle',
+      haze: new HazedCopies(new SharedUniforms(DSCHUNGEL)),
+    });
+    markers.init(ctx);
+    const mesh = ctx.scene.getObjectByName('release-markers') as Mesh;
+    const model = cairnModel([3, 4, 5]);
+
+    await assets.resolve(model);
+
+    expect(mesh.geometry.getAttribute('position').count).toBe(3 + 4 + 5 + 3);
+    expect((mesh.material as MeshStandardMaterial).customProgramCacheKey()).toContain('atmosphere');
+    expect(
+      mesh.children.filter((child) => child.name.startsWith('release-marker-version-')),
+    ).toHaveLength(4);
+    expect(mesh.children.every((child) => child.parent === mesh)).toBe(true);
+    expect(assets.releasedModels).toEqual([CAIRN_MODEL]);
+    markers.dispose();
+    canvas.mockRestore();
+  });
+
+  it('keeps procedural geometry when a cairn variant is missing', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const canvas = labelCanvas();
+    const markers = new ReleaseMarkers({ ...options(releases(2)), skin: 'jungle' });
+    markers.init(ctx);
+    const mesh = ctx.scene.getObjectByName('release-markers') as Mesh;
+    const procedural = mesh.geometry;
+
+    await assets.resolve(cairnModel([3, 4, 5], 1));
+
+    expect(mesh.geometry).toBe(procedural);
+    expect(assets.releasedModels).toEqual([CAIRN_MODEL]);
+    markers.dispose();
+    canvas.mockRestore();
   });
 });

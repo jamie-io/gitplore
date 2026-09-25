@@ -3,12 +3,15 @@
  * (IMPLEMENTATION_PLAN.md §8): meshopt geometry, WebP textures capped at 1024 px.
  *
  * Group rule: a model named after a project slug belongs to that project's group and loads lazily
- * when the player is near; everything else is `core` and preloads behind the loading screen.
+ * when the player is near; an environment's own props (`ENVIRONMENT_MODELS`) belong to that
+ * environment and load when it is built; everything else is `core` and preloads behind the
+ * loading screen.
  */
 import { execFile } from 'node:child_process';
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { ENVIRONMENT_MODELS } from './lib/environment-models.mjs';
 import { mergedProjects } from './lib/portfolio.mjs';
 
 const run = promisify(execFile);
@@ -20,10 +23,14 @@ const CLI = fileURLToPath(new URL('../node_modules/.bin/gltf-transform', import.
 
 const PROJECTS = mergedProjects();
 
-/** Which project (if any) a model belongs to; a model no project names is `core`. */
-const GROUPS = Object.fromEntries(
-  PROJECTS.filter((p) => p.landmark.model).map((p) => [p.landmark.model.split('/').pop(), p.slug]),
-);
+/** Which environment or project (if any) a model belongs to; a model neither names is `core`. */
+const GROUPS = Object.fromEntries([
+  ...Object.entries(ENVIRONMENT_MODELS),
+  ...PROJECTS.filter((p) => p.landmark.model).map((p) => [
+    p.landmark.model.split('/').pop(),
+    p.slug,
+  ]),
+]);
 
 await mkdir(OUT, { recursive: true });
 const assets = [];
@@ -40,6 +47,15 @@ for (const file of (await readdir(SRC)).filter((f) => f.endsWith('.glb')).sort()
     'webp',
     '--texture-size',
     '1024',
+    // The game finds parts by node and material name (the lantern's body and glass, the arch's
+    // glow), so named nodes stay apart and materials are not merged into a palette. The models
+    // are authored low-poly; simplifying would only chip at their silhouettes and colour seams.
+    '--join-named',
+    'false',
+    '--palette',
+    'false',
+    '--simplify',
+    'false',
   ]);
   const { size } = await stat(out);
   const before = (await stat(`${SRC}${file}`)).size;

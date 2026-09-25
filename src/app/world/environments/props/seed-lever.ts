@@ -3,6 +3,7 @@ import {
   CylinderGeometry,
   DodecahedronGeometry,
   Group,
+  Material,
   Mesh,
   MeshStandardMaterial,
   SphereGeometry,
@@ -12,6 +13,8 @@ import { disposeObject3D } from '@engine/dispose';
 import { Collider, HeightField } from '@engine/player/collision';
 import { Interactable } from '@engine/interaction/interactable';
 import { WorldContext, WorldObject } from '@engine/world-object';
+import { adoptNode } from '../model-geometry';
+import type { HazedCopies } from '../shaders/hazed-copies';
 
 const INTERACT_RADIUS = 2.8;
 const BASE_RADIUS = 0.42;
@@ -27,6 +30,12 @@ const JUNGLE_TRUNK_HEIGHT = 1.8;
 /** What the HUD offers at the lever. */
 export const SEED_LEVER_PROMPT = 'Dekoration neu würfeln';
 export const JUNGLE_SEED_LEVER_PROMPT = 'Liane ziehen';
+/**
+ * The jungle lever, modelled in Blender (scripts/blender/models/liana_lever.py): a `liana-lever`
+ * node (root rock, trunk and branch) and a `liana-handle` node built around the pivot the handle
+ * swings on. The procedural lever stands until it arrives, and for good if it never does.
+ */
+export const LIANA_LEVER_MODEL = 'assets/models/liana-lever.glb';
 
 export interface SeedLeverOptions {
   readonly id: string;
@@ -37,6 +46,8 @@ export interface SeedLeverOptions {
   /** Called with 1 on the first pull, 2 on the second, and so on; never stored anywhere. */
   readonly onReseed: (offset: number) => void;
   readonly reducedMotion?: () => boolean;
+  /** Hazes the jungle lever model into the environment's air; without it it stays plain. */
+  readonly haze?: HazedCopies;
 }
 
 /**
@@ -54,6 +65,11 @@ export class SeedLever implements WorldObject {
   private readonly group = new Group();
   private readonly options: SeedLeverOptions;
   private handle: Group | null = null;
+  /** The jungle lever's procedural parts, until the model replaces them. */
+  private jungleProxy: Mesh[] = [];
+  private model: Group | null = null;
+  private assets: WorldContext['assets'] | null = null;
+  private disposed = false;
   private pullCount = 0;
   private angle = 0;
   private hold = 0;
@@ -165,6 +181,46 @@ export class SeedLever implements WorldObject {
     this.handle = handle;
     this.group.add(rock, trunk, branch, handle);
     ctx.scene.add(this.group);
+    this.jungleProxy = [rock, trunk, branch, liana, grip];
+    this.loadJungleModel(ctx);
+  }
+
+  /**
+   * Swaps the procedural stump and liana for the model's: the stump into the lever's group, the
+   * liana into the handle group, so it still swings about the same pivot.
+   */
+  private loadJungleModel(ctx: WorldContext): void {
+    this.disposed = false;
+    this.assets = ctx.assets;
+    ctx.assets.model(LIANA_LEVER_MODEL).then(
+      (model) => {
+        const stump = model.getObjectByName('liana-lever');
+        const liana = model.getObjectByName('liana-handle');
+        if (this.disposed || this.model || !this.handle || !stump || !liana) {
+          ctx.assets.releaseModel(LIANA_LEVER_MODEL);
+          return;
+        }
+        this.model = model;
+        this.jungleProxy.forEach(disposeObject3D);
+        this.jungleProxy = [];
+        const haze = this.options.haze;
+        for (const node of [stump, liana]) {
+          node.traverse((object) => {
+            if (object instanceof Mesh) {
+              object.castShadow = ctx.quality.shadows;
+              if (haze) {
+                object.material = haze.of(object.material as Material);
+              }
+            }
+          });
+        }
+        // The stump is authored at the lever's foot, the liana at the pivot the handle swings on.
+        this.group.add(stump);
+        this.handle.add(adoptNode(liana, this.handle.position));
+      },
+      // A missing model is no error worth showing: the procedural lever stays.
+      () => undefined,
+    );
   }
 
   /** How often the lever has been pulled in this world. */
@@ -187,6 +243,13 @@ export class SeedLever implements WorldObject {
   }
 
   dispose(): void {
+    this.disposed = true;
+    if (this.model) {
+      // The asset service owns the model's resources; `disposeObject3D` leaves them alone.
+      this.model = null;
+      this.assets?.releaseModel(LIANA_LEVER_MODEL);
+    }
+    this.jungleProxy = [];
     disposeObject3D(this.group);
     this.group.clear();
     this.handle = null;

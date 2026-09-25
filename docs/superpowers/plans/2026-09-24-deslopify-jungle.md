@@ -128,3 +128,16 @@ Each task runs in its own git worktree on a branch `lane/dj-<task>` off `feat/de
 ### Task 10 — Optional authored models (MID, optional)
 
 Author the lantern, stele, arch-bridge and card frame through `npm run assets:author` → `assets:optimize` only if the pipeline supports it within budget. Keep the procedural fallback.
+
+- [x] Modelled in Blender, headless: `scripts/blender/kit.py` (the modelling kit), one script per model in `scripts/blender/models/`, `scripts/blender/author.py` (bakes ambient occlusion into the vertex colours and exports), `scripts/blender/preview.py` (a four-view contact sheet for review). `npm run assets:author` runs them when Blender is on the PATH (or `BLENDER` names it) and leaves the committed sources alone otherwise.
+- [x] Budget: `jungle-arch.glb` 1954 triangles / 42 KB, `lantern.glb` 604 / 16 KB, `stele.glb` 888 / 20 KB, `card-frame.glb` 1268 / 21 KB after meshopt; no textures, one to three materials each. They are grouped under `jungle` in the manifest, so the hub never preloads them. The hub portal keeps its own `arch.glb`.
+- [x] Each prop keeps its procedural build until the model arrives (and for good if it never does); model materials are hazed with the jungle's atmosphere through `HazedCopies`, and the arch's amber line glows up as the slop lifts.
+
+### Task 11 — Second wave of authored models (follow-up to Task 10)
+
+Modelled live over the Blender MCP server (`scripts/blender/live.py` rebuilds one model in the open Blender), then committed as scripts like the first wave.
+
+- [x] `jungle-rocks.glb` (two boulder variants, 826 triangles, 19 KB): each variant's instanced mesh takes a baked copy of its node, keeping placements, tints and colliders.
+- [x] `cairn.glb` (three variants to the procedural stack's measurements, 1662 triangles, 38 KB): baked, moved and merged, still one draw call for every cairn; the moss cap no longer overhangs the version label.
+- [x] `liana-lever.glb` (stump and swinging liana, 1152 triangles, 25 KB): the liana joins the handle group, so it swings about the same pivot.
+- [x] `bakeGeometry` and `adoptNode` (`world/environments/model-geometry.ts`) account for the dequantising transform the optimiser puts on every node; this also fixed the first wave's lantern post, which had been sunk by that offset.
