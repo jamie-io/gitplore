@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { ComponentFixture } from '@angular/core/testing';
+import { CapabilityService } from '@engine/capability.service';
 import { EMPTY_ENGINE_STATS, ENGINE, EngineService } from '@engine/engine.service';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { CONTENT_SOURCE } from '@content/content-source';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
+import type { StationChip } from '@engine/stations/station';
 import { Hud } from './hud';
 import { WorldStore } from '../store/world.store';
 
@@ -30,6 +32,10 @@ const stubEngine = {
   }),
 } as unknown as EngineService;
 
+const stubCapability = {
+  reducedMotion: () => false,
+};
+
 describe('Hud', () => {
   let fixture: ComponentFixture<Hud>;
   let store: WorldStore;
@@ -44,6 +50,7 @@ describe('Hud', () => {
       imports: [Hud],
       providers: [
         { provide: ENGINE, useValue: stubEngine },
+        { provide: CapabilityService, useValue: stubCapability },
         { provide: ActivatedRoute, useValue: routeWithQuery({ stats: '1' }) },
         stubContentSource,
       ],
@@ -90,6 +97,14 @@ describe('Hud', () => {
     expect(query('[aria-live]')?.getAttribute('aria-live')).toBe('polite');
   });
 
+  it('keeps a persistent live region around the transient toast', async () => {
+    store.markReady();
+    await fixture.whenStable();
+
+    expect(query('.toast-region[aria-live="polite"]')).not.toBeNull();
+    expect(query('.toast[aria-live]')).toBeNull();
+  });
+
   it('hides the crosshair while the world is paused', async () => {
     store.markReady();
     store.markStarted();
@@ -132,6 +147,7 @@ describe('Hud stats overlay', () => {
       imports: [Hud],
       providers: [
         { provide: ENGINE, useValue: stubEngine },
+        { provide: CapabilityService, useValue: stubCapability },
         { provide: ActivatedRoute, useValue: routeWithQuery(query) },
         stubContentSource,
       ],
@@ -175,6 +191,7 @@ describe('Hud interaction prompt and navigation', () => {
       imports: [Hud],
       providers: [
         { provide: ENGINE, useValue: stubEngine },
+        { provide: CapabilityService, useValue: stubCapability },
         { provide: ActivatedRoute, useValue: routeWithQuery({}) },
         stubContentSource,
       ],
@@ -220,6 +237,121 @@ describe('Hud interaction prompt and navigation', () => {
 
     expect(link?.getAttribute('href')).toBe('/projects');
   });
+
+  it('shows the station bar when the world provides stations', async () => {
+    const chips: readonly StationChip[] = [
+      { index: 1, id: 'lantern', name: 'Laterne', state: 'next' },
+    ];
+    store.stations.set(chips);
+    await fixture.whenStable();
+
+    expect(host().querySelector('[data-role="station-chip"]')?.textContent).toContain('Laterne');
+  });
+
+  it('holds the station bar hidden for the first 2.6 seconds of arrival', async () => {
+    vi.useFakeTimers();
+    try {
+      const chips: readonly StationChip[] = [
+        { index: 1, id: 'lantern', name: 'Laterne', state: 'next' },
+      ];
+      store.stations.set(chips);
+      store.shot.set('arrival');
+      TestBed.tick();
+
+      const bar = host().querySelector('app-station-bar');
+      expect(bar?.classList.contains('hidden')).toBe(true);
+
+      vi.advanceTimersByTime(2599);
+      TestBed.tick();
+      expect(bar?.classList.contains('hidden')).toBe(true);
+
+      vi.advanceTimersByTime(1);
+      TestBed.tick();
+      expect(bar?.classList.contains('hidden')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows a toast and moment banner from store state', async () => {
+    store.showToast('Die Laterne leuchtet auf');
+    store.banner.set('Deslopify installiert');
+    await fixture.whenStable();
+
+    expect(host().querySelector('[data-role="toast"]')?.textContent).toContain(
+      'Die Laterne leuchtet auf',
+    );
+    expect(host().querySelector('[data-role="moment-banner"]')?.textContent).toContain(
+      'Deslopify installiert',
+    );
+  });
+
+  it('recreates a toast when the same text arrives with a new id', async () => {
+    store.showToast('Die Laterne leuchtet auf');
+    await fixture.whenStable();
+    const firstToast = host().querySelector('[data-role="toast"]');
+
+    store.showToast('Die Laterne leuchtet auf');
+    await fixture.whenStable();
+    const secondToast = host().querySelector('[data-role="toast"]');
+
+    expect(secondToast).not.toBe(firstToast);
+  });
+
+  it('offsets toast while the moment banner is active', async () => {
+    store.showToast('Toast');
+    store.banner.set('Banner');
+    await fixture.whenStable();
+
+    const banner = host().querySelector('[data-role="moment-banner"]');
+    expect(banner?.classList.contains('banner-enter')).toBe(true);
+    expect(host().querySelector('[data-role="toast"]')?.classList.contains('banner-active')).toBe(
+      true,
+    );
+
+    vi.useFakeTimers();
+    try {
+      store.banner.set(null);
+      TestBed.tick();
+
+      expect(
+        host().querySelector('[data-role="moment-banner"]')?.classList.contains('banner-leave'),
+      ).toBe(true);
+
+      vi.advanceTimersByTime(300);
+      TestBed.tick();
+      expect(host().querySelector('[data-role="moment-banner"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('moves the prompt class when stations exist', async () => {
+    store.stations.set([{ index: 1, id: 'lantern', name: 'Laterne', state: 'here' }]);
+    await fixture.whenStable();
+
+    expect(host().querySelector('.prompt')?.classList.contains('with-stations')).toBe(true);
+  });
+
+  it('shows arrival pitch only during an arrival shot', async () => {
+    store.pitch.set({ title: 'Deslopify', line: 'YouTube ohne KI-Übersetzung' });
+    store.shot.set('arrival');
+    await fixture.whenStable();
+    expect(host().querySelector('[data-role="pitch"]')?.textContent).toContain('Deslopify');
+
+    store.shot.set('moment');
+    await fixture.whenStable();
+    expect(host().querySelector('[data-role="pitch"]')).toBeNull();
+  });
+
+  it('requests a glide when a station chip is clicked', async () => {
+    store.stations.set([{ index: 3, id: 'steps', name: 'Commit-Stufen', state: 'next' }]);
+    await fixture.whenStable();
+
+    (host().querySelector('[data-role="station-chip"]') as HTMLButtonElement).click();
+
+    expect(store.glideRequest()).toBe(3);
+  });
 });
 
 describe('Hud during an in-world demo', () => {
@@ -229,6 +361,7 @@ describe('Hud during an in-world demo', () => {
       imports: [Hud],
       providers: [
         { provide: ENGINE, useValue: stubEngine },
+        { provide: CapabilityService, useValue: stubCapability },
         { provide: ActivatedRoute, useValue: routeWithQuery({}) },
         stubContentSource,
       ],
@@ -251,6 +384,7 @@ describe('Hud during captured input', () => {
       imports: [Hud],
       providers: [
         { provide: ENGINE, useValue: stubEngine },
+        { provide: CapabilityService, useValue: stubCapability },
         { provide: ActivatedRoute, useValue: routeWithQuery({}) },
         stubContentSource,
       ],
