@@ -143,6 +143,23 @@ describe('FountainJets', () => {
     expect(uniforms['sunColor']).toBe(shared.sunColor);
   });
 
+  it('never raises a negative base to a power, which multisampling would shade to NaN', () => {
+    // With MSAA a fragment on a triangle's edge interpolates its varyings at the pixel centre,
+    // which can lie outside the triangle, so a 0–1 varying overshoots. `pow` of a negative base
+    // is NaN, and the strongest tier's bloom spreads one NaN pixel across the whole view.
+    const ctx = stubContext();
+
+    new FountainJets(options()).init(ctx);
+
+    for (const name of ['fountain-jets', 'fountain-splash']) {
+      const { fragmentShader } = meshNamed(ctx, name).material as ShaderMaterial;
+      const bases = fragmentShader.match(/pow\([a-z]*/g) ?? [];
+      for (const base of bases) {
+        expect(['pow(max', 'pow(clamp'], `${name}: ${base}`).toContain(base);
+      }
+    }
+  });
+
   it('draws additively without writing depth, so the ambient occlusion never sees it', () => {
     const ctx = stubContext();
 
