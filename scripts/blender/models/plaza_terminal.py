@@ -23,6 +23,7 @@ from plaza_props import (
     TIMBER,
     TIMBER_DARK,
     gable,
+    gable_end,
     marker,
     painted,
     stone,
@@ -113,11 +114,8 @@ def build(seed=21):
     gable(part, -POST_X - 0.3, POST_X + 0.3, EAVE_Y, 0.62, RIDGE_Y, tiles=16, z=0.02, rng=rng)
     # Gable ends: a painted triangle each side, under the tiles.
     for side in (-1, 1):
-        x = side * (POST_X + 0.06)
         tri = [(EAVE_Y, -0.55), (EAVE_Y, 0.59), (RIDGE_Y - 0.02, 0.02)]
-        verts = [(x + dx, y, z) for dx in (-0.02, 0.02) for y, z in tri]
-        part.mesh(verts, [[0, 1, 2], [5, 4, 3], [0, 3, 4, 1], [1, 4, 5, 2], [2, 5, 3, 0]],
-                  color=painted(rng, KIOSK_DARK))
+        gable_end(part, side * (POST_X + 0.06), tri, color=painted(rng, KIOSK_DARK))
 
     marker("screen", (0, SCREEN_Y, SCREEN_Z))
     return [part.build()]

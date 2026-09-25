@@ -91,6 +91,16 @@ def gable(part, x0, x1, y_eave, half_depth, y_ridge, tiles, z=0.0, rng=None, cap
                rot=(0, 0, -math.pi / 2), color=cap or tone(TERRACOTTA[1], rng), smooth_angle=70)
 
 
+def gable_end(part, x, tri, color, thickness=0.02):
+    """
+    The board closing one end of a gable under its tiles: the triangle `tri` of three (y, z)
+    points, `2 * thickness` thick about the plane at `x`, as a closed wedge so its faces point out.
+    """
+    verts = [(x + dx, y, z) for dx in (-thickness, thickness) for y, z in tri]
+    faces = [[0, 1, 2], [5, 4, 3], [0, 3, 4, 1], [1, 4, 5, 2], [2, 5, 3, 0]]
+    return part.mesh(verts, faces, color=color)
+
+
 def stone(rng, dark=False):
     return tone(STONE_DARK if dark else STONE, rng, 0.05)
 

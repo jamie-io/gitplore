@@ -13,7 +13,7 @@ moulded frame, a chalk ledge under the face, the name board, and a small barrel-
 """
 
 from kit import Part, material, mix, tone
-from plaza_props import DOOR, TIMBER, TIMBER_DARK, gable, marker, stone
+from plaza_props import DOOR, TIMBER, TIMBER_DARK, gable, gable_end, marker, stone
 
 FACE_W = 3.2
 FACE_H = 2.0
@@ -73,11 +73,8 @@ def build(seed=31):
     # Barrel-tiled gable.
     gable(part, -POST_X - 0.3, POST_X + 0.3, EAVE_Y, 0.52, RIDGE_Y, tiles=15, rng=rng)
     for side in (-1, 1):
-        x = side * (POST_X + 0.08)
         tri = [(EAVE_Y, -0.48), (EAVE_Y, 0.48), (RIDGE_Y - 0.02, 0.0)]
-        verts = [(x + dx, y, z) for dx in (-0.02, 0.02) for y, z in tri]
-        part.mesh(verts, [[0, 1, 2], [5, 4, 3], [0, 3, 4, 1], [1, 4, 5, 2], [2, 5, 3, 0]],
-                  color=tone(TIMBER_DARK, rng))
+        gable_end(part, side * (POST_X + 0.08), tri, color=tone(TIMBER_DARK, rng))
 
     marker("face", (0, FACE_Y, FACE_Z))
     return [part.build()]
