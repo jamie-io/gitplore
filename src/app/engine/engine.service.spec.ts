@@ -16,6 +16,7 @@ import { PlayerVisual } from './player/player-visual';
 import { BOOM_HEIGHT, BOOM_LENGTH } from './player/third-person-rig';
 import { WorldScene } from './world-object';
 import { CAPABLE } from './testing/world-context';
+import { arrivalShot, momentShot } from './camera/camera-shot';
 
 class StubRenderer implements RendererLike {
   loop: ((time: number) => void) | null = null;
@@ -476,6 +477,183 @@ describe('EngineService', () => {
       tick(16);
 
       expect(engine.camera.position.z).toBeLessThan(2);
+    });
+  });
+
+  describe('camera shots', () => {
+    const overview = { position: { x: 0, y: 24, z: 36 }, target: { x: 0, y: 0, z: -6 }, fov: 50 };
+    const press = (code: string) => document.dispatchEvent(new KeyboardEvent('keydown', { code }));
+    const release = (code: string) => document.dispatchEvent(new KeyboardEvent('keyup', { code }));
+
+    /** Ticks from `from` to `to` milliseconds in `step` ms frames, both ends included. */
+    const run = (from: number, to: number, step = 16) => {
+      for (let time = from; time <= to; time += step) {
+        tick(time);
+      }
+    };
+
+    it('reports an arrival as it starts', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+
+      engine.playShot(arrivalShot(overview, false));
+
+      expect(seen).toEqual(['arrival']);
+    });
+
+    it('places the camera on the shot after the rig has placed it', () => {
+      engine.playShot(arrivalShot(overview, false));
+
+      tick(0);
+      tick(16);
+
+      expect(engine.camera.position.toArray()).toEqual([0, 24, 36]);
+      expect(engine.camera.fov).toBe(50);
+    });
+
+    it('reports the end once, when the timeline runs out, and hands the camera back', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+
+      run(0, 3200);
+
+      expect(seen).toEqual(['arrival', null]);
+      expect(engine.camera.position.y).toBeCloseTo(PLAYER_EYE_HEIGHT + BOOM_HEIGHT, 6);
+      expect(engine.camera.position.z).toBeCloseTo(BOOM_LENGTH, 6);
+    });
+
+    it('stays silent while the shot runs', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+
+      run(0, 2000);
+
+      expect(seen).toEqual(['arrival']);
+    });
+
+    it('restores the rig field of view and its projection after the shot', () => {
+      const fov = engine.camera.fov;
+      const projection = engine.camera.projectionMatrix.clone();
+      engine.playShot(arrivalShot(overview, false));
+
+      run(0, 2000);
+      expect(engine.camera.fov).not.toBe(fov);
+      run(2016, 3200);
+
+      expect(engine.camera.fov).toBe(fov);
+      expect(engine.camera.projectionMatrix.equals(projection)).toBe(true);
+    });
+
+    it('skips to the rig within 0.3 s when the player moves', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+      run(0, 320);
+      expect(engine.camera.position.y).toBe(24);
+
+      press('KeyW');
+      run(336, 336 + 300);
+      release('KeyW');
+
+      expect(seen).toEqual(['arrival', null]);
+      expect(engine.camera.fov).toBe(70);
+    });
+
+    it('eases a skip rather than cutting it', () => {
+      engine.playShot(arrivalShot(overview, false));
+      run(0, 320);
+
+      press('Space');
+      tick(336);
+      release('Space');
+
+      // Part of the way down from the overview, but nowhere near the shoulder yet.
+      expect(engine.camera.position.y).toBeLessThan(24);
+      expect(engine.camera.position.y).toBeGreaterThan(12);
+    });
+
+    it('skips at once under reduced motion', () => {
+      TestBed.inject(CapabilityService).overrideReducedMotion(true);
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(momentShot(overview, true));
+      run(0, 320);
+
+      engine.skipShot();
+
+      expect(seen).toEqual(['moment', null]);
+    });
+
+    it('does not skip on looking around alone', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+
+      tick(0);
+      document.dispatchEvent(new MouseEvent('mousemove', { movementX: 40 }));
+      tick(16);
+
+      expect(seen).toEqual(['arrival']);
+    });
+
+    it('stops a shot at once on endShot', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+      run(0, 320);
+
+      engine.endShot();
+
+      expect(seen).toEqual(['arrival', null]);
+      expect(engine.camera.fov).toBe(70);
+      tick(336);
+      expect(engine.camera.position.z).toBeCloseTo(BOOM_LENGTH, 6);
+    });
+
+    it('lets a new shot replace a running one', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+      run(0, 320);
+
+      engine.playShot(momentShot({ ...overview, fov: 40 }, false));
+      run(336, 336 + 2700);
+
+      expect(seen).toEqual(['arrival', 'moment', null]);
+      // The rig's own field of view, not the arrival's, is what comes back.
+      expect(engine.camera.fov).toBe(70);
+    });
+
+    it('ignores skip and end when no shot runs', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+
+      engine.skipShot();
+      engine.endShot();
+
+      expect(seen).toEqual([]);
+    });
+
+    it('stops listening once a listener unsubscribes', () => {
+      const seen: (string | null)[] = [];
+      const off = engine.onShotChange((kind) => seen.push(kind));
+      off();
+
+      engine.playShot(arrivalShot(overview, false));
+
+      expect(seen).toEqual([]);
+    });
+
+    it('ends a running shot when the world is swapped', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      engine.playShot(arrivalShot(overview, false));
+
+      engine.setScene(stubScene('other'));
+
+      expect(seen).toEqual(['arrival', null]);
     });
   });
 
