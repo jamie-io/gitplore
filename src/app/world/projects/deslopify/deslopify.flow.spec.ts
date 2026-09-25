@@ -262,6 +262,32 @@ describe('DeslopifyFlow', () => {
       }
     });
 
+    it('lights the lantern and the commit steps a jump’s walk passes, as a glide would', () => {
+      // Reduced motion puts a glide straight down at its stand: the portal to the steps' foot in
+      // one frame passes the lantern post on the way, and on south of the arch, installing nothing.
+      const toSteps = flow();
+      toSteps.update(1 / 60, { player: PORTAL, light: null });
+      toSteps.update(1 / 60, { player: STATION_STANDS.stufen, light: null });
+      expect(toSteps.installed).toBe(false);
+      expect(toSteps.lantern).toBe('lit');
+
+      // And from the portal to the exhibit, up every step.
+      const toExhibit = flow();
+      toExhibit.update(1 / 60, { player: PORTAL, light: null });
+      toExhibit.update(1 / 60, { player: STATION_STANDS.exponat, light: null });
+      expect(STEPS.map((_, i) => toExhibit.stepLit(i))).toEqual(STEPS.map(() => true));
+    });
+
+    it('lights nothing a jump’s walk stays clear of', () => {
+      const target = flow();
+      target.update(1 / 60, { player: STATION_STANDS.exponat, light: null });
+
+      target.update(1 / 60, { player: STATION_STANDS.hoehle, light: null });
+
+      expect(target.lantern).toBe('unlit');
+      expect(STEPS.some((_, i) => target.stepLit(i))).toBe(false);
+    });
+
     it('does not install for a jump that stays on one side of the arch', () => {
       const target = flow();
       target.update(1 / 60, { player: PORTAL, light: null });

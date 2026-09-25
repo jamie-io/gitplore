@@ -303,10 +303,11 @@ export class DeslopifyFlow {
     const { player } = frame;
     this.light = frame.light && frame.light.radius > 0 ? frame.light : null;
 
-    const post = this.options.lanternPost;
+    // A jump is the glide it stands for: what that walk would have passed lights just the same.
+    const route = this.route(player);
     if (
       this.lanternPhase === 'unlit' &&
-      Math.hypot(player.x - post.x, player.z - post.z) < FLOW.ignitionRadius
+      passesNear(this.options.lanternPost, FLOW.ignitionRadius, player, route)
     ) {
       this.igniteLantern();
     }
@@ -317,12 +318,11 @@ export class DeslopifyFlow {
       }
     }
 
-    const route = this.route(player);
     if (!this.installedFlag && this.reachedArch(player, route)) {
       this.install(this.options.arch);
       this.options.onArchInstall?.();
     }
-    this.lightSteps(player);
+    this.lightSteps(player, route);
     this.watchFalls(player, route);
     this.previous.x = player.x;
     this.previous.z = player.z;
@@ -466,11 +466,10 @@ export class DeslopifyFlow {
     this.ringRadius = 0;
   }
 
-  private lightSteps(player: FlowPoint): void {
+  private lightSteps(player: FlowPoint, route: readonly FlowPoint[] | null): void {
     const steps = this.options.steps ?? [];
     for (let index = 0; index < steps.length; index++) {
-      const step = steps[index]!;
-      if (!this.lit[index] && Math.hypot(player.x - step.x, player.z - step.z) < FLOW.stepReach) {
+      if (!this.lit[index] && passesNear(steps[index]!, FLOW.stepReach, player, route)) {
         this.lit[index] = true;
       }
     }
@@ -497,6 +496,38 @@ export class DeslopifyFlow {
     }
     this.behindFalls = inside;
   }
+}
+
+/**
+ * Whether the player stands within `reach` of `point`, or a jump's walk (`route`, leg by leg)
+ * came within it on the way.
+ */
+function passesNear(
+  point: FlowPoint,
+  reach: number,
+  player: FlowPoint,
+  route: readonly FlowPoint[] | null,
+): boolean {
+  if (Math.hypot(player.x - point.x, player.z - point.z) < reach) {
+    return true;
+  }
+  if (route) {
+    for (let i = 1; i < route.length; i++) {
+      if (distanceToLeg(point, route[i - 1]!, route[i]!) < reach) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/** Metres from `point` to the nearest point of the segment from `a` to `b`. */
+function distanceToLeg(point: FlowPoint, a: FlowPoint, b: FlowPoint): number {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  const length = dx * dx + dz * dz;
+  const t = length > 0 ? clamp01(((point.x - a.x) * dx + (point.z - a.z) * dz) / length) : 0;
+  return Math.hypot(point.x - (a.x + dx * t), point.z - (a.z + dz * t));
 }
 
 /** Whether the segment from `a` to `b` touches the box (Liang–Barsky). */
