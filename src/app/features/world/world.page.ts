@@ -226,10 +226,15 @@ export class WorldPage {
       this.store.glideRequest.set(null);
       if (untracked(() => this.store.inputMode()) === 'world') {
         this.director.glideTo(index);
+        // The chip that asked keeps the focus otherwise, and Space or Enter would click it again
+        // and restart the glide instead of jumping or interacting.
+        this.canvas().nativeElement.focus();
       }
     });
 
-    const offActions = this.input.addActionListener((action) => this.onAction(action));
+    const offActions = this.input.addActionListener((action, repeat) =>
+      this.onAction(action, repeat),
+    );
     const offCapture = this.input.addCaptureListener((captured, prompt) =>
       this.store.setCaptured(captured, prompt),
     );
@@ -326,9 +331,12 @@ export class WorldPage {
     }
   }
 
-  private onAction(action: InputAction): void {
-    // Any key skips a running shot (spec §3) and then does what it always does.
-    this.engine.skipShot();
+  private onAction(action: InputAction, repeat: boolean): void {
+    // Any key skips a running shot (spec §3) and then does what it always does. A key held since
+    // before the shot began only arrives as repeats, and those are not a new press.
+    if (!repeat) {
+      this.engine.skipShot();
+    }
 
     if (isStationAction(action)) {
       if (this.store.inputMode() === 'world') {

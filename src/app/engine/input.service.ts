@@ -81,7 +81,8 @@ const CAPTURED_ACTION_KEYS: Record<string, InputAction> = {
 /** Actions that must work whatever has focus, otherwise an overlay could trap the visitor. */
 const GLOBAL_ACTIONS: readonly InputAction[] = ['menu', 'exit'];
 
-export type ActionListener = (action: InputAction) => void;
+/** `repeat` is set when the action came from a held key's auto-repeat rather than a new press. */
+export type ActionListener = (action: InputAction, repeat: boolean) => void;
 export type CaptureListener = (captured: boolean, prompt: string | null) => void;
 
 /** The narrow control surface an in-world prop needs to take and release player input. */
@@ -260,7 +261,7 @@ export class InputService implements InputActionSource {
         const capturedAction = CAPTURED_ACTION_KEYS[event.code];
         if (capturedAction) {
           this.actions.add(capturedAction);
-          this.listeners.forEach((listener) => listener(capturedAction));
+          this.listeners.forEach((listener) => listener(capturedAction, event.repeat));
         }
       }
       return;
@@ -277,7 +278,7 @@ export class InputService implements InputActionSource {
         !event.metaKey &&
         !event.altKey
       ) {
-        this.emit(station);
+        this.emit(station, false);
       }
       return;
     }
@@ -300,7 +301,7 @@ export class InputService implements InputActionSource {
     }
 
     if (action && (this.mode() !== 'ui' || GLOBAL_ACTIONS.includes(action))) {
-      this.emit(action);
+      this.emit(action, event.repeat);
       return;
     }
 
@@ -309,9 +310,9 @@ export class InputService implements InputActionSource {
     }
   }
 
-  private emit(action: InputAction): void {
+  private emit(action: InputAction, repeat: boolean): void {
     this.actions.add(action);
-    this.listeners.forEach((listener) => listener(action));
+    this.listeners.forEach((listener) => listener(action, repeat));
   }
 
   private onMouseMove(event: MouseEvent): void {

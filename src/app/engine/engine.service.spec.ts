@@ -587,6 +587,59 @@ describe('EngineService', () => {
       expect(seen).toEqual(['moment', null]);
     });
 
+    it('a moment played while W is held keeps playing until a new input', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      press('KeyW');
+      run(0, 160);
+
+      // Walked through the arch: the moment starts with the key already down.
+      engine.playShot(momentShot(overview, false));
+      run(176, 176 + 2000);
+      expect(seen).toEqual(['moment']);
+
+      // Letting go and pressing again is a new input, and that one skips.
+      release('KeyW');
+      tick(2192);
+      press('KeyW');
+      run(2208, 2208 + 320);
+      release('KeyW');
+
+      expect(seen).toEqual(['moment', null]);
+    });
+
+    it('keeps a held-key moment for its whole hold under reduced motion', () => {
+      TestBed.inject(CapabilityService).overrideReducedMotion(true);
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      press('KeyW');
+      press('Space');
+      run(0, 160);
+
+      engine.playShot(momentShot(overview, true));
+      run(176, 176 + 2400);
+      release('KeyW');
+      release('Space');
+
+      expect(seen).toEqual(['moment']);
+    });
+
+    it('skips a shot on movement that starts after it began', () => {
+      const seen: (string | null)[] = [];
+      engine.onShotChange((kind) => seen.push(kind));
+      press('KeyW');
+      run(0, 160);
+      engine.playShot(momentShot(overview, false));
+      tick(176);
+
+      press('KeyD');
+      run(192, 192 + 320);
+      release('KeyD');
+      release('KeyW');
+
+      expect(seen).toEqual(['moment', null]);
+    });
+
     it('does not skip on looking around alone', () => {
       const seen: (string | null)[] = [];
       engine.onShotChange((kind) => seen.push(kind));

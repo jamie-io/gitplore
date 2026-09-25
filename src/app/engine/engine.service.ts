@@ -28,6 +28,9 @@ const NO_COLLIDERS: readonly Collider[] = [];
  */
 const SKIP_DONE = 1e-6;
 
+/** The movement axes a shot watches for input that starts after it began. */
+const SHOT_AXES = ['forward', 'strafe', 'jump'] as const;
+
 /**
  * Seconds over which a glide turns the player from where they were facing onto the way it travels,
  * so pressing a number never swings the camera round in a single frame.
@@ -95,6 +98,14 @@ export class EngineService {
   private shotTime = 0;
   /** Seconds since the shot was skipped, or `null` while it plays out in full. */
   private skipTime: number | null = null;
+  /**
+   * What the player was holding down when the shot began, per axis (the sign of each), so only
+   * input that starts after it skips it: a key held through the trigger that played the shot must
+   * not skip it on the very next frame. An axis let go is forgotten, so pressing it again skips.
+   */
+  private readonly heldAtShot = { forward: 0, strafe: 0, jump: 0 };
+  /** The same axes as read on the last frame, for a shot started between frames. */
+  private readonly heldNow = { forward: 0, strafe: 0, jump: 0 };
   /** The rig's field of view when the shot began; each frame's blend starts from it again. */
   private rigFov = 0;
   /** The field of view the projection matrix was last built with during the shot. */
@@ -253,6 +264,7 @@ export class EngineService {
     this.shot = shot;
     this.shotTime = 0;
     this.skipTime = null;
+    Object.assign(this.heldAtShot, this.heldNow);
     this.rigFov = this.camera.fov;
     this.projectedFov = this.camera.fov;
     this.notifyShot(shot.kind);
@@ -260,7 +272,8 @@ export class EngineService {
 
   /**
    * Eases the running shot out over `SKIP_SECONDS`, or ends it at once under reduced motion. The
-   * engine skips on its own when the player moves or jumps; other keys are for the caller to map.
+   * engine skips on its own when the player starts to move or jump after the shot began; other
+   * keys are for the caller to map.
    */
   skipShot(): void {
     if (!this.shot) {
@@ -465,7 +478,11 @@ export class EngineService {
   }
 
   private updateShot(dt: number, intent: MoveIntent): void {
-    if (this.shot && (intent.forward !== 0 || intent.strafe !== 0 || intent.jump)) {
+    const now = this.heldNow;
+    now.forward = Math.sign(intent.forward);
+    now.strafe = Math.sign(intent.strafe);
+    now.jump = intent.jump ? 1 : 0;
+    if (this.shot && this.startedInput()) {
       this.skipShot();
     }
     const shot = this.shot;
@@ -492,6 +509,25 @@ export class EngineService {
       this.camera.updateProjectionMatrix();
     }
     this.projectedFov = this.camera.fov;
+  }
+
+  /**
+   * Whether this frame's input holds anything that was not already held when the shot began. An
+   * axis let go since is cleared, so a release and a fresh press counts as new.
+   */
+  private startedInput(): boolean {
+    const held = this.heldAtShot;
+    const now = this.heldNow;
+    let started = false;
+    for (const axis of SHOT_AXES) {
+      if (now[axis] !== 0 && now[axis] !== held[axis]) {
+        started = true;
+      }
+      if (now[axis] === 0) {
+        held[axis] = 0;
+      }
+    }
+    return started;
   }
 
   /** Hands the rig its own field of view back, if a shot had bent it. */

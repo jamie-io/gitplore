@@ -303,6 +303,19 @@ describe('InputService', () => {
       expect(seen).toEqual(['interact', 'menu']);
     });
 
+    it('tells listeners whether an action is a held key repeating', () => {
+      const seen: [string, boolean][] = [];
+      input.addActionListener((action, repeat) => seen.push([action, repeat]));
+
+      press('KeyE');
+      press('KeyE', { repeat: true });
+
+      expect(seen).toEqual([
+        ['interact', false],
+        ['interact', true],
+      ]);
+    });
+
     it('stops telling a listener once it unsubscribes', () => {
       const seen: string[] = [];
       const off = input.addActionListener((action) => seen.push(action));

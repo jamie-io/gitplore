@@ -230,9 +230,13 @@ describe('WorldPage', () => {
     expect(store.shot()).toBe('arrival');
 
     press('Escape');
+    expect(engine.skips).toBe(1);
     await settle(() => TestBed.inject(Router).url === '/', 'the repo world to close');
 
     expect(TestBed.inject(Router).url).toBe('/');
+    // Skipped on the key, and ended for good with the world it framed.
+    expect(engine.shot).toBeNull();
+    expect(store.shot()).toBeNull();
   });
 
   describe('stations', () => {
@@ -281,6 +285,36 @@ describe('WorldPage', () => {
 
       (fixture.nativeElement as HTMLElement).querySelector('canvas')!.click();
       expect(engine.skips).toBe(2);
+    });
+
+    it('does not skip a running shot on a key the keyboard repeats', async () => {
+      await startedWorld();
+      const repeat = (code: string) =>
+        document.dispatchEvent(new KeyboardEvent('keydown', { code, repeat: true }));
+
+      // A key held down before the shot began only reaches it as repeats.
+      repeat('KeyE');
+      repeat('Enter');
+      expect(engine.skips).toBe(0);
+
+      press('KeyE');
+      expect(engine.skips).toBe(1);
+    });
+
+    it('hands the keyboard back to the world after a chip glide', async () => {
+      await startedWorld();
+      const chip = document.createElement('button');
+      document.body.appendChild(chip);
+      chip.focus();
+
+      store.requestGlide(2);
+      TestBed.tick();
+
+      // Otherwise Space or Enter would click the focused chip again and restart the glide.
+      expect(document.activeElement).toBe(
+        (fixture.nativeElement as HTMLElement).querySelector('canvas'),
+      );
+      chip.remove();
     });
 
     it('stops a glide on Escape instead of leaving the world', async () => {
