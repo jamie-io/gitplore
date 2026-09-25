@@ -3,12 +3,14 @@ import { Collider } from '@engine/player/collision';
 import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
+import { SPAWN_DISTANCE } from '../landmarks/base/landmark';
 import { PlazaEnvironment } from './plaza';
 import {
   ARCH,
   FACADE,
   GLIDE_RADIUS,
   RIDGE,
+  SPAWN,
   STATIONS,
   STATION_RADIUS,
   houseRow,
@@ -75,11 +77,14 @@ describe('PlazaEnvironment', () => {
   it('leaves the arrival point free, and the portal the whole opening of the arch', () => {
     const environment = plaza();
 
-    // The portal stands in the arch at `spawn`; the visitor arrives a few metres in front of it.
+    // The portal stands in the arch at `spawn`; the visitor arrives `SPAWN_DISTANCE` in front of
+    // it, where the nearest thing is the corner of an arch pier, about 2.83 m away.
     expect(
       clearance(environment.spawn.x, environment.spawn.z, environment.colliders),
     ).toBeGreaterThanOrEqual(ARCH.opening / 2 - 1e-9);
-    expect(clearance(0, 13.5, environment.colliders)).toBeGreaterThanOrEqual(3);
+    expect(
+      clearance(SPAWN.x, SPAWN.z - SPAWN_DISTANCE, environment.colliders),
+    ).toBeGreaterThanOrEqual(2.5);
   });
 
   it('looks north at the fountain from the arrival', () => {
@@ -192,6 +197,23 @@ describe('PlazaEnvironment', () => {
   it('builds the same town on every visit', () => {
     expect(houseRow('north', 1, false)).toEqual(houseRow('north', 1, false));
     expect(plaza().colliders).toEqual(plaza().colliders);
+  });
+
+  it('builds its project scene without a seed lever, and takes it all down again', () => {
+    const target = projectScene(plaza());
+    const ctx = stubContext();
+    target.init(ctx);
+
+    expect(plaza().toyLayout().lever).toBeUndefined();
+    expect(target.seedLever).toBeNull();
+    expect(target.interactables.some(({ id }) => id.includes(':seed-lever'))).toBe(false);
+    const names: string[] = [];
+    ctx.scene.traverse((object) => names.push(object.name));
+    expect(names.some((name) => name.includes(':seed-lever'))).toBe(false);
+    expect(names).toContain(target.terminal.id);
+
+    target.dispose();
+    expect(ctx.scene.children).toHaveLength(0);
   });
 
   it('keeps no rooftop, no lamp posts and one medallion per station', () => {

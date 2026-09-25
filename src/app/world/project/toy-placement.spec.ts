@@ -104,12 +104,11 @@ async function expectToysClear(project: Project): Promise<void> {
       expect(toy.position.x, `${where} is not at its spot`).toBeCloseTo(spot.position.x, 5);
       expect(toy.position.z, `${where} is not at its spot`).toBeCloseTo(spot.position.z, 5);
     } else if (project.environment === 'plaza') {
-      // The Plaza stands the terminal at its south-west station; the lever is a stand-in there.
-      if (toy === scene.terminal) {
-        const { prop } = STATIONS[0];
-        expect(toy.position.x, `${where} is not at its station`).toBeCloseTo(prop.x, 5);
-        expect(toy.position.z, `${where} is not at its station`).toBeCloseTo(prop.z, 5);
-      }
+      // The Plaza stands the terminal at its south-west station and builds no seed lever.
+      const { prop } = STATIONS[0];
+      expect(toy, `${where} is not the terminal`).toBe(scene.terminal);
+      expect(toy.position.x, `${where} is not at its station`).toBeCloseTo(prop.x, 5);
+      expect(toy.position.z, `${where} is not at its station`).toBeCloseTo(prop.z, 5);
     } else {
       const from = toy.position.clone().sub(scene.arrival.position).setY(0);
       const along = from.dot(walk);

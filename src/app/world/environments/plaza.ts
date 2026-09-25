@@ -307,7 +307,7 @@ export class PlazaEnvironment implements Environment {
   }
 
   /**
-   * The other three stations: the terminal south-west, the commit ridge north-east with the release
+   * The other three stations, and no seed lever: the terminal south-west, the commit ridge north-east with the release
    * cairns and star lanterns on its line, and the language row south-east along the circle.
    */
   toyLayout(): ToyLayout {
@@ -321,8 +321,6 @@ export class PlazaEnvironment implements Environment {
     };
     return {
       terminal: spot(STATIONS[0]),
-      // Placeholder until the lever becomes optional; the Plaza then leaves it out.
-      lever: { position: new Vector3(0, 0, 12), rotationY: Math.PI },
       ridge,
       languages: spot(STATIONS[3]),
       releases: ridge,
@@ -416,10 +414,10 @@ export class PlazaEnvironment implements Environment {
 
     // Every fourth string bulb is warm white and the others take a festival colour in turn, so
     // the strings still read as lights at noon, when a white bulb is lost against the sky.
-    // Unlit and above 1 in linear, so the strongest tier blooms them a
-    // little; the medium and low tiers draw them as flat, bright dots. One merged mesh rather
-    // than a hundred instances: the software renderer behind the low tier paid about 3 ms a frame
-    // for the instanced draw of these specks, and a single merged mesh costs next to none.
+    // Unlit and above 1 in linear, so the strongest tier blooms them a little; the medium and low
+    // tiers draw them as flat, bright dots. One merged mesh rather than a hundred instances: the
+    // software renderer behind the low tier paid about 3 ms a frame for the instanced draw of
+    // these specks, and a single merged mesh costs next to none.
     // `assemble`, not a bare merge: it restores the normals `paint` strips, which the strongest
     // tier's ambient-occlusion pass reads; without them it blacked the bulbs out.
     const bulbs = new Mesh(
