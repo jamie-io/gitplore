@@ -12,4 +12,11 @@ export const ENVIRONMENT_MODELS = {
   'lantern.glb': 'jungle',
   'liana-lever.glb': 'jungle',
   'stele.glb': 'jungle',
+  'plaza-bench.glb': 'plaza',
+  'plaza-board.glb': 'plaza',
+  'plaza-cypress.glb': 'plaza',
+  'plaza-mast.glb': 'plaza',
+  'plaza-pillar.glb': 'plaza',
+  'plaza-step.glb': 'plaza',
+  'plaza-terminal.glb': 'plaza',
 };

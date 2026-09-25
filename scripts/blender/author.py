@@ -28,6 +28,13 @@ MODELS = {
     "jungle-rocks": ("jungle_rocks", 0.5, 0.6, True),
     "cairn": ("cairn", 0.5, 0.4, True),
     "liana-lever": ("liana_lever", 0.5, 0.4, True),
+    "plaza-terminal": ("plaza_terminal", 0.5, 0.35, True),
+    "plaza-board": ("plaza_board", 0.5, 0.35, True),
+    "plaza-step": ("plaza_step", 0.4, 0.25, True),
+    "plaza-pillar": ("plaza_pillar", 0.45, 0.25, True),
+    "plaza-mast": ("plaza_mast", 0.45, 0.3, True),
+    "plaza-bench": ("plaza_bench", 0.5, 0.3, True),
+    "plaza-cypress": ("plaza_cypress", 0.5, 0.6, True),
 }
 
 
