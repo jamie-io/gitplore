@@ -229,41 +229,18 @@ describe('FeedCard', () => {
     canvas.restore();
   });
 
-  it('wipes from slop to original in 0.36 seconds', () => {
+  it('shows the wipe the flow gives it, clamped, and the original from half way', () => {
     const card = new FeedCard(FEED_CARDS[0]);
+    expect(card.wipe).toBe(0);
 
-    card.setOriginal(true);
-    card.update(0.18);
-    expect(card.wipe).toBeCloseTo(0.5, 8);
+    card.setWipe(0.4);
+    expect(card.wipe).toBe(0.4);
     expect(card.original).toBe(false);
-    card.update(0.18);
-    expect(card.wipe).toBeCloseTo(1, 8);
+    card.setWipe(0.6);
     expect(card.original).toBe(true);
-
-    card.dispose();
-  });
-
-  it('waits through requested delay before starting its wipe', () => {
-    const card = new FeedCard(FEED_CARDS[0]);
-
-    card.setOriginal(true, 0.2);
-    card.update(0.19);
-    expect(card.wipe).toBe(0);
-    card.update(0.01);
-    expect(card.wipe).toBe(0);
-    card.update(0.18);
-    expect(card.wipe).toBeCloseTo(0.5, 8);
-
-    card.dispose();
-  });
-
-  it('snaps immediately under reduced motion, including a delayed request', () => {
-    const card = new FeedCard(FEED_CARDS[0], { reducedMotion: () => true });
-
-    card.setOriginal(true, 10);
+    card.setWipe(3);
     expect(card.wipe).toBe(1);
-    expect(card.original).toBe(true);
-    card.setOriginal(false, 10);
+    card.setWipe(-1);
     expect(card.wipe).toBe(0);
 
     card.dispose();
@@ -331,12 +308,6 @@ describe('FeedWall', () => {
     // The whole row fits on the wall, stands included.
     const span = 1.95 * 2 + 2.1 * 0.52;
     expect(span).toBeLessThan(5.6);
-
-    wall.setOriginal(true, 0.12);
-    wall.update(0.12);
-    expect(wall.cards.map((card) => card.wipe)).toEqual([1 / 3, 0, 0, 0]);
-    wall.update(0.12);
-    expect(wall.cards.map((card) => card.wipe)).toEqual([2 / 3, 1 / 3, 0, 0]);
 
     wall.dispose();
     expect(wall.object.children).toHaveLength(0);

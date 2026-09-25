@@ -42,13 +42,7 @@ import {
 } from './deslopify.data';
 import { FLOW } from './deslopify.flow';
 import { FEED_WALL_MODEL } from './feed-card';
-import {
-  CARD_STAGGER,
-  DEMO_STAND,
-  DeslopifyScene,
-  TAG_HEIGHT,
-  commitPeriods,
-} from './deslopify.scene';
+import { DEMO_STAND, DeslopifyScene, TAG_HEIGHT, commitPeriods } from './deslopify.scene';
 
 const PROJECT = PROJECT_FIXTURES.find((project) => project.slug === 'deslopify')!;
 
@@ -527,7 +521,7 @@ describe('DeslopifyScene', () => {
       expect(built.target.flow.ring.origin.z).toBeCloseTo(WALL.z, 6);
     });
 
-    it('staggers the wall’s cards that turn in the same frame by 120 ms', () => {
+    it('wipes every card at the flow’s own rates, the wall’s one after the other', () => {
       const built = build();
       stand(built.ctx, LANTERN_POST);
       run(built, 1.5);
@@ -535,15 +529,17 @@ describe('DeslopifyScene', () => {
 
       // The lit lantern arrives at the wall in one step: all four cards are in its light at once.
       atWall(built);
-      run(built, 1 / 60, 1 / 60);
-      const before = built.target.wall.cards.map((card) => card.wipe);
-      run(built, CARD_STAGGER, 1 / 60);
-      const after = built.target.wall.cards.map((card) => card.wipe);
+      run(built, 0.2, 1 / 60);
+      const cards = [...built.target.cards, ...built.target.wall.cards];
+      cards.forEach((card, index) => expect(card.wipe).toBe(built.target.flow.cardWipe(index)));
+      const wall = built.target.wall.cards.map((card) => card.wipe);
 
-      expect(before[0]).toBeGreaterThan(0);
-      expect(after[0]).toBeGreaterThan(before[0]);
-      expect(before[3]).toBe(0);
-      expect(after[3]).toBe(0);
+      // In at 2.4 − 0.35 i a second: the left card leads and each next one trails it.
+      expect(wall[0]).toBeGreaterThan(0);
+      expect(wall[0]).toBeCloseTo(FLOW.wallOn(0) * 0.2, 1);
+      expect(wall[1]).toBeLessThan(wall[0]);
+      expect(wall[2]).toBeLessThan(wall[1]);
+      expect(wall[3]).toBeLessThan(wall[2]);
     });
 
     it('leaves station 6’s stand a clear margin off the wall and its ledge', () => {

@@ -48,8 +48,6 @@ const POST_X = 0.85;
 const POST_Y = 0.55;
 const POST_Z = -0.04;
 const POST_HEIGHT = 1.3;
-const WIPE_SECONDS = 0.36;
-const WIPE_RATE = 1 / WIPE_SECONDS;
 /** The wall's measures, in its own frame, as its model builds them. */
 const WALL_SIZE = { width: 5.6, height: 2.6, depth: 0.5, ledgeTop: 0.3, ledgeFront: 0.64 } as const;
 /** Where the cards stand on the ledge: 1.3 m apart, shrunk to fit four across the wall. */
@@ -81,34 +79,33 @@ const CARD_FONTS = [
   '500 24px "IBM Plex Mono"',
 ];
 
-export interface FeedCardOptions {
+export interface FeedWallOptions {
+  /** Whether the lever cuts to its position rather than swinging there. */
   readonly reducedMotion?: () => boolean;
 }
-
-export type FeedWallOptions = FeedCardOptions;
 
 interface WipeUniform {
   value: number;
 }
 
-/** One standing bilingual feed card with a shader wipe between its two canvas faces. */
+/**
+ * One standing bilingual feed card with a shader wipe between its two canvas faces. The wipe is
+ * the flow's for this card, handed over each frame, so it runs at the flow's rates in and out and
+ * snaps with it under reduced motion.
+ */
 export class FeedCard {
   readonly object = new Group();
 
   private readonly slopTexture: CanvasTexture;
   private readonly originalTexture: CanvasTexture;
   private readonly wipeUniform: WipeUniform = { value: 0 };
-  private readonly reducedMotion: () => boolean;
-  private target = 0;
-  private delay = 0;
   private disposed = false;
   /** The procedural frame and posts, until the stand model replaces them. */
   private proxy: Mesh[] = [];
   private frameModel: Group | null = null;
   private assets: AssetLike | null = null;
 
-  constructor(data: FeedCardData, options: FeedCardOptions = {}) {
-    this.reducedMotion = options.reducedMotion ?? (() => false);
+  constructor(data: FeedCardData) {
     this.object.name = 'feed-card';
 
     const frame = new Mesh(
@@ -198,44 +195,6 @@ export class FeedCard {
     return this.wipeUniform.value;
   }
 
-  setOriginal(on: boolean, delaySeconds = 0): void {
-    this.target = on ? 1 : 0;
-    this.delay = Math.max(0, delaySeconds);
-    if (this.reducedMotion()) {
-      this.delay = 0;
-      this.setWipe(this.target);
-    }
-  }
-
-  update(dt: number): void {
-    if (this.reducedMotion()) {
-      this.delay = 0;
-      this.setWipe(this.target);
-      return;
-    }
-
-    let remaining = Math.max(0, dt);
-    if (this.delay > 0) {
-      if (remaining <= this.delay) {
-        this.delay -= remaining;
-        return;
-      }
-      remaining -= this.delay;
-      this.delay = 0;
-    }
-
-    if (remaining === 0 || this.wipeUniform.value === this.target) {
-      return;
-    }
-    const distance = Math.min(
-      remaining * WIPE_RATE,
-      Math.abs(this.target - this.wipeUniform.value),
-    );
-    this.setWipe(
-      this.wipeUniform.value + Math.sign(this.target - this.wipeUniform.value) * distance,
-    );
-  }
-
   dispose(): void {
     if (this.disposed) {
       return;
@@ -254,7 +213,8 @@ export class FeedCard {
     this.object.clear();
   }
 
-  private setWipe(value: number): void {
+  /** Shows the wipe at `value`, 0 slop … 1 original; the seam runs while it is in between. */
+  setWipe(value: number): void {
     this.wipeUniform.value = Math.min(1, Math.max(0, value));
   }
 
@@ -330,7 +290,7 @@ export class FeedWall {
     this.reducedMotion = options.reducedMotion ?? (() => false);
     this.object.name = 'feed-wall';
     this.cards = FEED_CARDS.map((data, index) => {
-      const card = new FeedCard(data, options);
+      const card = new FeedCard(data);
       card.object.position.set(
         (index - (FEED_CARDS.length - 1) / 2) * WALL_CARD.pitch,
         WALL_CARD.y,
@@ -377,12 +337,7 @@ export class FeedWall {
     this.leverTarget = position === 'on' ? LEVER_THROW : position === 'off' ? -LEVER_THROW : 0;
   }
 
-  setOriginal(on: boolean, stagger = 0.12): void {
-    this.cards.forEach((card, index) => card.setOriginal(on, index * Math.max(0, stagger)));
-  }
-
   update(dt: number): void {
-    this.cards.forEach((card) => card.update(dt));
     const angle = this.lever.rotation.x;
     if (angle !== this.leverTarget) {
       const step = this.reducedMotion() ? Infinity : LEVER_RATE * Math.max(0, dt);

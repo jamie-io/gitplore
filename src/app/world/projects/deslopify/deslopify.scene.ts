@@ -74,8 +74,6 @@ import { Lantern } from './lantern';
 import { SlopTags } from './slop-tags';
 import { SlopVines } from './slop-vines';
 
-/** Seconds between two cards starting their wipe when several turn in the same frame. */
-export const CARD_STAGGER = 0.12;
 /** Metres from the post within which E lights the lantern, a little beyond where walking does. */
 export const IGNITE_REACH = 3.5;
 /** Metres ahead of the visitor the carried lantern's switch sits, and how near it must be. */
@@ -191,8 +189,6 @@ export class DeslopifyScene extends ProjectScene {
   private readonly allCards: readonly FeedCard[];
   /** Where each card stands, read by the flow; the wall's move to its model's slots when it comes. */
   private readonly cardAnchors: readonly Vector3[];
-  private readonly cardGroups: readonly (readonly FeedCard[])[];
-  private readonly shownCleared: boolean[];
   private readonly wallCentre: Vector3;
   private readonly lightAt = new Vector3();
   private readonly lightValue = { x: 0, z: 0, radius: 0 };
@@ -239,7 +235,7 @@ export class DeslopifyScene extends ProjectScene {
     });
 
     this.cards = FEED_CARDS.map((data, index) => {
-      const card = new FeedCard(data, { reducedMotion });
+      const card = new FeedCard(data);
       this.stand(card, CARD_SLOTS[index]);
       return card;
     });
@@ -253,8 +249,6 @@ export class DeslopifyScene extends ProjectScene {
 
     this.allCards = [...this.cards, ...this.wall.cards];
     this.cardAnchors = this.allCards.map((card) => card.object.getWorldPosition(new Vector3()));
-    this.cardGroups = [this.cards, this.wall.cards];
-    this.shownCleared = this.allCards.map(() => false);
 
     this.vines = new SlopVines({
       anchors: VINE_SLOTS.map(
@@ -428,9 +422,6 @@ export class DeslopifyScene extends ProjectScene {
     this.lantern.update(dt);
 
     this.syncCards();
-    for (const card of this.cards) {
-      card.update(dt);
-    }
     this.wall.setSwitch(!this.flow.installed ? 'rest' : this.flow.wallOn ? 'on' : 'off');
     this.wall.update(dt);
     this.vines.update(dt, this.cleared);
@@ -504,9 +495,7 @@ export class DeslopifyScene extends ProjectScene {
     this.starLanterns.resetSwarm();
     this.lantern.reset();
     this.lanternIgnited = false;
-    this.shownCleared.fill(false);
-    this.cards.forEach((card) => card.setOriginal(false));
-    this.wall.setOriginal(false);
+    this.syncCards();
     this.vines.reset();
     this.tags.reset();
     this.ringFrom = null;
@@ -587,22 +576,13 @@ export class DeslopifyScene extends ProjectScene {
   }
 
   /**
-   * Starts each card's wipe when the flow turns it. Cards of one group (the trail's, the wall's)
-   * that turn in the same frame go 120 ms apart, so the wall ripples rather than flips.
+   * Shows each card's wipe as the flow has it: in and out at the flow's rates, the wall's cards one
+   * after the other at theirs, snapped under reduced motion.
    */
   private syncCards(): void {
-    let index = 0;
-    for (const group of this.cardGroups) {
-      let rank = 0;
-      for (const card of group) {
-        const anchor = this.cardAnchors[index]!;
-        const cleared = this.flow.isCleared(anchor.x, anchor.z);
-        if (cleared !== this.shownCleared[index]) {
-          this.shownCleared[index] = cleared;
-          card.setOriginal(cleared, rank++ * CARD_STAGGER);
-        }
-        index++;
-      }
+    const cards = this.allCards;
+    for (let index = 0; index < cards.length; index++) {
+      cards[index]!.setWipe(this.flow.cardWipe(index));
     }
   }
 
