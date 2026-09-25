@@ -24,3 +24,13 @@ files. None is hard, but three are semantic, and a mechanical "keep both" would 
 
 Phase B of the Plaza (stations and glides) waits for the Lichtung stations kit on `main` and will
 declare the Plaza's stations through the kit's `WorldScene` hooks.
+
+## Rebase first
+
+`main`'s unpushed history was rewritten on 2026-09-25 to strip attribution trailers, without
+changing any tree. `2dfee3a` ("Zero non-finite pixels before bloom…") is now `e9b91a2`. Before
+merging, move the Lichtung branch (and any lane branch still open) onto the rewritten base:
+
+    git rebase --rebase-merges --onto e9b91a2 2dfee3a feat/deslopify-lichtung
+
+Merging without the rebase would bring the old copies of those five commits back into `main`.
