@@ -6,7 +6,8 @@ import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
 import { ViewMode } from '../shared/view-mode';
 import { CameraRig, FirstPersonRig } from './player/camera-rig';
 import { Collider, HeightField } from './player/collision';
-import { PlayerController } from './player/player-controller';
+import { MoveIntent, PlayerController } from './player/player-controller';
+import { CameraShot, SKIP_SECONDS, ShotKind, blendCamera, smoothstep } from './camera/camera-shot';
 import { ThirdPersonRig } from './player/third-person-rig';
 import { InputService } from './input.service';
 import { Interactable } from './interaction/interactable';
@@ -19,6 +20,12 @@ export const ENGINE_MAX_FRAME_SECONDS = 0.05;
 
 const FLAT_GROUND: HeightField = { heightAt: () => 0 };
 const NO_COLLIDERS: readonly Collider[] = [];
+
+/**
+ * Below this a skipped shot's weight is invisible, so the shot counts as over. Without it a skip
+ * summed from frame times could stop a hair short of `SKIP_SECONDS` and linger one frame more.
+ */
+const SKIP_DONE = 1e-6;
 
 export interface EngineStats {
   readonly fps: number;
@@ -67,6 +74,17 @@ export class EngineService {
   private readonly interaction = new InteractionSystem();
   private readonly tickables = new Set<Tickable>();
 
+  /** The scripted camera move blended over the rig, if one is running. */
+  private shot: CameraShot | null = null;
+  private shotTime = 0;
+  /** Seconds since the shot was skipped, or `null` while it plays out in full. */
+  private skipTime: number | null = null;
+  /** The rig's field of view when the shot began; each frame's blend starts from it again. */
+  private rigFov = 0;
+  /** The field of view the projection matrix was last built with during the shot. */
+  private projectedFov = 0;
+  private readonly shotListeners = new Set<(kind: ShotKind | null) => void>();
+
   /** Fires only when the interactable in front of the player changes (§2), never per frame. */
   onNearbyChange: ((nearby: Interactable | null) => void) | null = null;
 
@@ -104,6 +122,7 @@ export class EngineService {
 
   detach(): void {
     this.renderer?.setAnimationLoop(null);
+    this.endShot();
     this.world?.dispose();
     this.world = null;
 
@@ -129,6 +148,8 @@ export class EngineService {
   }
 
   setScene(world: WorldScene): void {
+    // A shot frames the world it was made for; carried into the next one it would frame nothing.
+    this.endShot();
     this.world?.dispose();
     // Every WorldObject detaches itself on dispose; clearing is the safety net for one that forgets.
     this.scene.clear();
@@ -194,6 +215,57 @@ export class EngineService {
     // The rig coming in last watched the player wherever the view was switched away from it. On a
     // key press that would be one visible swing of the camera, so it is placed rather than eased.
     this.rig.reset();
+  }
+
+  /**
+   * Blends `shot` over the rig from the next frame on, replacing any shot already running. The
+   * rig keeps following the player underneath, so wherever the shot ends the camera is handed
+   * back without a jump.
+   */
+  playShot(shot: CameraShot): void {
+    // A replaced shot has bent the field of view; the rig's own is the one to remember.
+    this.restoreFov();
+    this.shot = shot;
+    this.shotTime = 0;
+    this.skipTime = null;
+    this.rigFov = this.camera.fov;
+    this.projectedFov = this.camera.fov;
+    this.notifyShot(shot.kind);
+  }
+
+  /**
+   * Eases the running shot out over `SKIP_SECONDS`, or ends it at once under reduced motion. The
+   * engine skips on its own when the player moves or jumps; other keys are for the caller to map.
+   */
+  skipShot(): void {
+    if (!this.shot) {
+      return;
+    }
+    if (this.capability.reducedMotion()) {
+      this.endShot();
+      return;
+    }
+    this.skipTime ??= 0;
+  }
+
+  /** Stops the running shot at once, without easing — for a world swap or a restart. */
+  endShot(): void {
+    if (!this.shot) {
+      return;
+    }
+    this.restoreFov();
+    this.shot = null;
+    this.skipTime = null;
+    this.notifyShot(null);
+  }
+
+  /**
+   * Hears when a shot starts (with its kind) and when it ends (with `null`), never per frame, so
+   * the HUD can make way for it. Returns the unsubscribe function.
+   */
+  onShotChange(listener: (kind: ShotKind | null) => void): () => void {
+    this.shotListeners.add(listener);
+    return () => this.shotListeners.delete(listener);
   }
 
   /** Re-applies the current quality settings to the renderer, e.g. after a tier change. */
@@ -267,6 +339,8 @@ export class EngineService {
       colliders,
       reducedMotion: this.capability.reducedMotion(),
     });
+    // Over the pose the rig has just set, and before anything that reads the camera this frame.
+    this.updateShot(dt, intent);
     // After the camera, because the figure is a consequence of the player exactly as the camera is,
     // and both have to be reading the same frame's position.
     this.world?.avatar?.sync(this.player, dt);
@@ -276,6 +350,48 @@ export class EngineService {
     this.tickables.forEach((tickable) => tickable.update(dt));
 
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private updateShot(dt: number, intent: MoveIntent): void {
+    if (this.shot && (intent.forward !== 0 || intent.strafe !== 0 || intent.jump)) {
+      this.skipShot();
+    }
+    const shot = this.shot;
+    if (!shot) {
+      return;
+    }
+
+    this.shotTime += dt;
+    let skip = 1;
+    if (this.skipTime !== null) {
+      this.skipTime += dt;
+      skip = 1 - smoothstep(this.skipTime / SKIP_SECONDS);
+    }
+    if (this.shotTime >= shot.duration || skip <= SKIP_DONE) {
+      this.endShot();
+      return;
+    }
+
+    this.camera.fov = this.rigFov;
+    blendCamera(this.camera, shot.pose, shot.weight(this.shotTime) * skip);
+    // A blend at weight 0 leaves the field of view where the rig has it but does not rebuild the
+    // projection, which may still hold the last frame's.
+    if (this.camera.fov === this.rigFov && this.projectedFov !== this.rigFov) {
+      this.camera.updateProjectionMatrix();
+    }
+    this.projectedFov = this.camera.fov;
+  }
+
+  /** Hands the rig its own field of view back, if a shot had bent it. */
+  private restoreFov(): void {
+    if (this.shot && this.camera.fov !== this.rigFov) {
+      this.camera.fov = this.rigFov;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  private notifyShot(kind: ShotKind | null): void {
+    this.shotListeners.forEach((listener) => listener(kind));
   }
 
   private context(): WorldContext {
