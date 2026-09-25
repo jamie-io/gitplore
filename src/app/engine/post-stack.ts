@@ -15,6 +15,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { gradeOf } from './color-grade';
+import { FinitePass } from './finite.pass';
 import { GradePass } from './grade.pass';
 import type { PostStack } from './renderer.factory';
 
@@ -121,7 +122,8 @@ class SceneOcclusionPass extends GTAOPass {
 
 /**
  * The strongest tier's pass chain: the scene into a multisampled half-float target, ambient
- * occlusion, bloom on the HDR image, then `OutputPass` for tone mapping and sRGB, and last the
+ * occlusion, a guard that zeroes non-finite pixels (one NaN would otherwise bloom over the whole
+ * frame), bloom on the HDR image, then `OutputPass` for tone mapping and sRGB, and last the
  * grade in display space. The grade and the bloom strength come from `scene.userData` every frame,
  * so a world change re-tunes the stack without the engine knowing which world is showing.
  */
@@ -149,6 +151,7 @@ export function createPostStack(
 
   composer.addPass(new RenderPass(scene, camera));
   composer.addPass(occlusion);
+  composer.addPass(new FinitePass());
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   composer.addPass(grade);
