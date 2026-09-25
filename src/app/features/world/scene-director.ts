@@ -23,6 +23,8 @@ import { StationDirector } from './station-director';
 
 /** How long a toast stays up after the last one was shown. */
 const TOAST_MS = 2200;
+/** The portal plate wins within this radius when the portal overlaps a station trigger. */
+const PORTAL_PLATE_PRIORITY_RADIUS = 1;
 
 /** The session key that remembers a world's arrival camera has played. */
 const arrivalKey = (sceneId: string) => `gitplore.arrival.${sceneId}`;
@@ -56,6 +58,8 @@ export class SceneDirector {
 
   /** Tracks the current world's stations; `null` in a world without any. */
   private stations: StationDirector | null = null;
+  /** Whether the current player position is close enough to prefer a world's portal plate. */
+  private atPortal = false;
   /** A world placed before the visitor clicked through the start gate, whose arrival is owed. */
   private pendingArrival: WorldScene | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -410,14 +414,25 @@ export class SceneDirector {
 
   private updateStations(): void {
     const stations = this.stations;
-    if (!stations) {
+    const scene = this.current;
+    if (!stations || !scene) {
       return;
     }
     const { x, z } = this.engine.player.position;
-    if (stations.update(x, z)) {
+    const stationsChanged = stations.update(x, z);
+    const portal = scene.portalStand;
+    const atPortal =
+      portal !== undefined && Math.hypot(x - portal.x, z - portal.z) < PORTAL_PLATE_PRIORITY_RADIUS;
+    const portalChanged = atPortal !== this.atPortal;
+    if (stationsChanged) {
       this.store.stations.set(stations.chips());
-      this.store.plate.set(stations.plate());
     }
+    if (stationsChanged || portalChanged) {
+      this.store.plate.set(
+        atPortal ? (scene.plateAt?.(x, z) ?? stations.plate()) : stations.plate(),
+      );
+    }
+    this.atPortal = atPortal;
   }
 
   /**
@@ -429,6 +444,7 @@ export class SceneDirector {
     this.engine.cancelGlide();
     this.pendingArrival = null;
     this.stations?.reset();
+    this.atPortal = false;
     if (this.stations) {
       this.store.stations.set(this.stations.chips());
     }
