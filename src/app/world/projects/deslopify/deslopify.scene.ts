@@ -16,14 +16,17 @@ import type { WorldContext } from '@engine/world-object';
 import type { Environment } from '../../environments/environment';
 import {
   ARCH,
+  BOARDWALK,
   CARD_SLOTS,
   LANTERN_POST,
-  LANTERN_YAW,
-  SPAWN,
-  Slot,
+  PORTAL,
+  Placed,
+  Pt,
   TAG_SLOTS,
   VINE_SLOTS,
-  WALL_SLOT,
+  WALL,
+  nearestOnPath,
+  pointAlong,
   underArch,
 } from '../../environments/jungle-layout';
 import { InWorldDemo, ProjectScene, ProjectSceneOptions } from '../../project/project.scene';
@@ -51,6 +54,8 @@ const CARD_BLOCKERS = [-0.85, 0, 0.85] as const;
 const CARD_BLOCKER_RADIUS = 0.3;
 /** Metres over the ground the tags' centres hang: eye level, a little different for each. */
 export const TAG_HEIGHT = { min: 2.2, max: 2.9 } as const;
+/** Metres over the ground the vines' tops hang from: the canopy line, a little different for each. */
+export const VINE_HANG = { min: 5.6, max: 6.8 } as const;
 /** The ring is a glowing band this tall, sunk this far under the ground where it starts. */
 const RING_HEIGHT = 4;
 const RING_SINK = 1.5;
@@ -75,10 +80,10 @@ function slopAir(environment: Environment): SlopAir | null {
 }
 
 /**
- * Deslopify's own world, the Turn 2 walk "Der Weg durch den Slop": a lantern at the start of the
- * south trail that the explorer takes along, four feed cards, vines and tags in the violet haze, the
- * arch over the stream that installs the extension with a spreading ring, and the feed wall on the
- * north bank whose switch turns it off and on again. `DeslopifyFlow` holds the rules; this scene
+ * Deslopify's own world, the Turn 2 walk "Der Weg durch den Slop": a lantern on the arrival ledge
+ * that the explorer takes along, four feed cards beside the boardwalk, vines and tags in the violet
+ * haze, the arch over the rill that installs the extension with a spreading ring, and the feed wall
+ * on the glade whose switch turns it off and on again. `DeslopifyFlow` holds the rules; this scene
  * places the things, feeds the flow the player and the light, and draws what it says.
  *
  * Nothing here captures the controls: every switch is an ordinary `Interactable`, and the project
@@ -87,7 +92,7 @@ function slopAir(environment: Environment): SlopAir | null {
 export class DeslopifyScene extends ProjectScene {
   readonly flow: DeslopifyFlow;
   readonly lantern: Lantern;
-  /** The four cards along the south trail. */
+  /** The four cards beside the boardwalk. */
   readonly cards: readonly FeedCard[];
   readonly wall: FeedWall;
   readonly vines: SlopVines;
@@ -139,7 +144,7 @@ export class DeslopifyScene extends ProjectScene {
 
     this.lantern = new Lantern({
       position: this.onGround(LANTERN_POST),
-      rotationY: LANTERN_YAW,
+      rotationY: LANTERN_POST.yaw,
       reducedMotion,
       haze: this.haze ?? undefined,
     });
@@ -151,8 +156,8 @@ export class DeslopifyScene extends ProjectScene {
     });
 
     this.wall = new FeedWall({ reducedMotion });
-    this.wall.object.position.copy(this.onGround(WALL_SLOT.position));
-    this.wall.object.rotation.y = WALL_SLOT.yaw;
+    this.wall.object.position.copy(this.onGround(WALL));
+    this.wall.object.rotation.y = WALL.yaw;
     this.wall.object.updateMatrixWorld(true);
     // Four cards across 9.6 m of uneven bank: each stands on its own patch of ground.
     for (const card of this.wall.cards) {
@@ -168,13 +173,15 @@ export class DeslopifyScene extends ProjectScene {
     this.shownCleared = this.allCards.map(() => false);
 
     this.vines = new SlopVines({
-      anchors: VINE_SLOTS.map(({ position }) => position),
+      anchors: VINE_SLOTS.map(
+        ({ x, z }, index) => new Vector3(x, ground.heightAt(x, z) + vineHang(index), z),
+      ),
       seed: 26,
       reducedMotion,
     });
     this.tags = new SlopTags({
-      anchors: TAG_SLOTS.map(({ position }) => position),
-      yaws: TAG_SLOTS.map(({ yaw }) => yaw),
+      anchors: TAG_SLOTS.map(({ x, y, z }) => new Vector3(x, y, z)),
+      yaws: TAG_SLOTS.map(facingTheWalk),
       ropeLength: (index, anchor) =>
         anchor.y - ground.heightAt(anchor.x, anchor.z) - tagHeight(index),
       reducedMotion,
@@ -191,7 +198,7 @@ export class DeslopifyScene extends ProjectScene {
 
     this.ring = ringMesh();
 
-    const front = new Vector3(Math.sin(WALL_SLOT.yaw), 0, Math.cos(WALL_SLOT.yaw));
+    const front = new Vector3(Math.sin(WALL.yaw), 0, Math.cos(WALL.yaw));
     const wallPrompt = this.wallCentre.clone().addScaledVector(front, WALL_AHEAD);
     this.igniteOffer = offer(
       'ignite',
@@ -330,7 +337,7 @@ export class DeslopifyScene extends ProjectScene {
     this.flow.toggleWall();
   }
 
-  /** Restarts the entire Deslopify journey at the south-bank arrival point. */
+  /** Restarts the entire Deslopify journey at the portal on the arrival ledge. */
   restart(player: PlayerController): void {
     this.flow.reset();
     this.lantern.reset();
@@ -343,11 +350,7 @@ export class DeslopifyScene extends ProjectScene {
     this.ringFrom = null;
     this.ring.visible = false;
     this.air?.setSlop(1);
-    this.air?.clearing.origin.value.set(
-      SPAWN.position.x,
-      this.air.clearing.origin.value.y,
-      SPAWN.position.z,
-    );
+    this.air?.clearing.origin.value.set(PORTAL.x, this.air.clearing.origin.value.y, PORTAL.z);
     if (this.air) {
       this.air.clearing.radius.value = 0;
       if (this.air.clearing.glow) {
@@ -365,10 +368,10 @@ export class DeslopifyScene extends ProjectScene {
   }
 
   private tryAtWall(player: PlayerController): void {
-    const front = new Vector3(Math.sin(WALL_SLOT.yaw), 0, Math.cos(WALL_SLOT.yaw));
+    const front = new Vector3(Math.sin(WALL.yaw), 0, Math.cos(WALL.yaw));
     const stand = this.wallCentre.clone().addScaledVector(front, DEMO_STAND);
     stand.y = this.environment.ground.heightAt(stand.x, stand.z) + PLAYER_EYE_HEIGHT;
-    player.teleport(stand, WALL_SLOT.yaw);
+    player.teleport(stand, WALL.yaw);
     if (!this.flow.install(this.wallCentre) && !this.flow.wallOn) {
       this.flow.toggleWall();
     }
@@ -502,12 +505,12 @@ export class DeslopifyScene extends ProjectScene {
     return highest;
   }
 
-  private onGround(point: Vector3): Vector3 {
+  private onGround(point: Pt): Vector3 {
     return new Vector3(point.x, this.environment.ground.heightAt(point.x, point.z), point.z);
   }
 
-  private stand(card: FeedCard, slot: Slot): void {
-    card.object.position.copy(this.onGround(slot.position));
+  private stand(card: FeedCard, slot: Placed): void {
+    card.object.position.copy(this.onGround(slot));
     card.object.rotation.y = slot.yaw;
     card.object.updateMatrixWorld(true);
   }
@@ -525,6 +528,18 @@ function cardColliders(card: FeedCard): Collider[] {
 export function tagHeight(index: number): number {
   const spread = (index * 0.618034) % 1;
   return TAG_HEIGHT.min + (TAG_HEIGHT.max - TAG_HEIGHT.min) * spread;
+}
+
+/** The height over the ground a vine's top hangs from, spread over `VINE_HANG` by the golden ratio. */
+export function vineHang(index: number): number {
+  const spread = (index * 0.618034 + 0.3) % 1;
+  return VINE_HANG.min + (VINE_HANG.max - VINE_HANG.min) * spread;
+}
+
+/** A tag's turn towards the boardwalk 3 m back towards the portal, where visitors come from. */
+function facingTheWalk(tag: Pt): number {
+  const target = pointAlong(BOARDWALK, nearestOnPath(tag.x, tag.z, BOARDWALK).along - 3);
+  return Math.atan2(target.x - tag.x, target.z - tag.z);
 }
 
 function offer(

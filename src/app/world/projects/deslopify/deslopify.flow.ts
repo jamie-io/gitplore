@@ -1,12 +1,13 @@
-import { MAP_SCALE } from '../../environments/jungle-layout';
+/** Metres per pixel of the top-down flow prototype the ring's sizes were read from. */
+const FLOW_MAP_SCALE = 0.18;
 
 /**
  * The Deslopify walk as a state machine, free of three.js and of the render loop: the lantern, the
  * arch that installs the extension, the ring that spreads the clearing, the haze and the feed
  * cards. The scene feeds it the player and the lantern's light each frame and draws what it says.
  *
- * The rules are the top-down flow prototype's (#2a of the design handoff), converted to metres with
- * the layout's `MAP_SCALE`: ratios, orders and trigger conditions survive, sizes are physical. Two
+ * The rules are the top-down flow prototype's (#2a of the design handoff), converted to metres at
+ * 0.18 m per pixel: ratios, orders and trigger conditions survive, sizes are physical. Two
  * numbers come from the 3D Lookdev instead, because the map's would be far too large in a walked
  * world: the lantern lights within 2.2 m (the map's 44 px would be 8 m), and the ring runs at
  * 8 m/s (the map's 340 px/s would be 61 m/s).
@@ -19,11 +20,11 @@ export const FLOW = {
   /** Metres a second the ring spreads. */
   ringSpeed: 8,
   /** The ring stops growing here (map 1400 px). */
-  ringMax: 1400 * MAP_SCALE,
+  ringMax: 1400 * FLOW_MAP_SCALE,
   /** The ring shows while smaller than this, fading out towards it (map 1300 px). */
-  ringVisible: 1300 * MAP_SCALE,
+  ringVisible: 1300 * FLOW_MAP_SCALE,
   /** The haze is gone once the ring is this wide (map 700 px). */
-  hazeSpan: 700 * MAP_SCALE,
+  hazeSpan: 700 * FLOW_MAP_SCALE,
   /** The haze closes this fraction of its gap to the target per second. */
   hazeEase: 2,
   /** Card wipe progress per second in the light, and back out of it. */

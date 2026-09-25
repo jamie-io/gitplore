@@ -98,8 +98,8 @@ async function expectToysClear(project: Project): Promise<void> {
     if (project.environment === 'jungle') {
       // The jungle lays its toys out itself, at the spots its layout keeps clear for them.
       const spot = toy === scene.terminal ? STELE : LIANA;
-      expect(toy.position.x, `${where} is not at its spot`).toBeCloseTo(spot.position.x, 5);
-      expect(toy.position.z, `${where} is not at its spot`).toBeCloseTo(spot.position.z, 5);
+      expect(toy.position.x, `${where} is not at its spot`).toBeCloseTo(spot.x, 5);
+      expect(toy.position.z, `${where} is not at its spot`).toBeCloseTo(spot.z, 5);
     } else {
       const from = toy.position.clone().sub(scene.arrival.position).setY(0);
       const along = from.dot(walk);
