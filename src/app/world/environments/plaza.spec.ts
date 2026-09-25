@@ -1,4 +1,4 @@
-import { Box3, Mesh, Scene, Texture, Vector3 } from 'three';
+import { Box3, Mesh, MeshStandardMaterial, Scene, Texture, Vector3 } from 'three';
 import { Collider, floorHeightAt, resolveCollisions } from '@engine/player/collision';
 import {
   NO_INTENT,
@@ -374,6 +374,33 @@ describe('PlazaEnvironment', () => {
 
     expect(ctx.scene.getObjectByName('plaza-rooftop')).toBeUndefined();
     expect(ctx.scene.getObjectByName('plaza-rooftop-stairs')).toBeUndefined();
+  });
+
+  it('gives every lit mesh finite normals, so no pixel shades to NaN and blooms over the view', () => {
+    const environment = plaza();
+    const ctx = stubContext();
+    environment.init(ctx);
+
+    const missing: string[] = [];
+    ctx.scene.traverse((object) => {
+      if (!(object instanceof Mesh)) {
+        return;
+      }
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      if (!materials.some((material) => material instanceof MeshStandardMaterial)) {
+        return;
+      }
+      const normals = object.geometry.getAttribute('normal');
+      const finite =
+        normals !== undefined &&
+        Array.from(normals.array as ArrayLike<number>).every((value) => Number.isFinite(value));
+      if (!finite) {
+        missing.push(object.name || object.uuid);
+      }
+    });
+
+    expect(missing).toEqual([]);
+    environment.dispose();
   });
 
   it('holds the fountain and everything else still under reduced motion', () => {

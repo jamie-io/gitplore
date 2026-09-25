@@ -304,11 +304,16 @@ function flatRoofHouse(seed: number, options: HouseOptions): BufferGeometry {
   return assemble(parts);
 }
 
+/**
+ * `assemble`, not a bare merge: `paint` strips the boxes' normals, and a lit material drawn
+ * without them normalises a zero vector into NaN. On the strongest tier the bloom blur then
+ * spreads those NaN pixels until the whole view is lost behind the sky colour.
+ */
 function rooftopGeometry<T extends Extract<Collider, { kind: 'aabb' }>>(
   colliders: readonly T[],
   dimensions: (collider: T) => { readonly base: number; readonly height: number },
 ): BufferGeometry {
-  return merged(
+  return assemble(
     colliders.map((collider) => {
       const { base, height } = dimensions(collider);
       return paint(

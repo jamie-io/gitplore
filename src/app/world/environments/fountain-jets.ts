@@ -121,7 +121,9 @@ void main() {
   float r = vSplash.x;
   float wave = fract(r * 2.5 - time * 1.1 + vSplash.y);
   float ring = smoothstep(0.55, 0.85, wave) * (1.0 - smoothstep(0.85, 1.0, wave));
-  float fade = pow(1.0 - r, 1.6);
+  // Clamped: under multisampling an edge fragment interpolates past the outer rim, r > 1, and
+  // pow of a negative base is NaN, which the strongest tier's bloom spreads over the whole view.
+  float fade = pow(max(1.0 - r, 0.0), 1.6);
   float core = (1.0 - smoothstep(0.0, 0.25, r))
     * (0.6 + 0.4 * noise2(vec2(time * 3.0, vSplash.y * 40.0)));
   float alpha = ring * 0.35 * fade + core * 0.6;
