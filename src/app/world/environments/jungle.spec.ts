@@ -24,6 +24,7 @@ import {
   PLAYER_RADIUS,
   PlayerController,
 } from '@engine/player/player-controller';
+import { BOOM_LENGTH, BOOM_RADIUS } from '@engine/player/third-person-rig';
 import { StubAssets, stubContext } from '@engine/testing/world-context';
 import { WorldContext } from '@engine/world-object';
 import { DSCHUNGEL } from './mood';
@@ -60,6 +61,7 @@ import {
   POOL_DEPTH,
   PORTAL,
   RILL,
+  STATION_STANDS,
   STEPS,
   STELE,
   WALL,
@@ -67,8 +69,10 @@ import {
   beyondBowl,
   distanceToPaths,
   inBowl,
+  inNiche,
 } from './jungle-layout';
 import { COMMIT_STEPS_MODEL } from './jungle-steps';
+import { SPAWN_DISTANCE } from '../landmarks/base/landmark';
 import { isExcluded } from './scatter';
 import { clearance } from './testing/clearance';
 
@@ -253,6 +257,67 @@ describe('JungleEnvironment', () => {
     environment.dispose();
   });
 
+  it('stands no tree, fern or boulder within 2 m of the camera behind any station', () => {
+    const ctx = contextAt('high');
+    const environment = jungle();
+    environment.init(ctx);
+    const position = new Vector3();
+    const kinds = ['kapok', 'palm', 'tree-fern', 'boulder'];
+    const meshes = ctx.scene.children.filter(
+      (object): object is InstancedMesh =>
+        object instanceof InstancedMesh && kinds.some((kind) => object.name.startsWith(kind)),
+    );
+    for (const [id, stand] of Object.entries(STATION_STANDS)) {
+      // The boom hangs straight back from the head: (sin yaw, cos yaw) in the player's convention.
+      const boom = {
+        kind: 'segment' as const,
+        ax: stand.x,
+        az: stand.z,
+        bx: stand.x + Math.sin(stand.yaw) * BOOM_LENGTH,
+        bz: stand.z + Math.cos(stand.yaw) * BOOM_LENGTH,
+        halfWidth: 2,
+      };
+      for (const mesh of meshes) {
+        for (const [x, , z] of roots(mesh, position)) {
+          expect(isExcluded(x, z, [boom]), `${mesh.name} at ${x}, ${z} behind ${id}`).toBe(false);
+        }
+      }
+    }
+    environment.dispose();
+  });
+
+  it('keeps every crown and the canopy 4 m off the view down the axis, portal to pool', () => {
+    const ctx = contextAt('high');
+    const environment = jungle();
+    environment.init(ctx);
+    const kinds = ['kapok', 'palm', 'tree-fern', 'canopy'];
+    const meshes = ctx.scene.children.filter(
+      (object): object is InstancedMesh =>
+        object instanceof InstancedMesh && kinds.some((kind) => object.name.startsWith(kind)),
+    );
+    expect(meshes.length).toBeGreaterThanOrEqual(kinds.length);
+    const matrix = new Matrix4();
+    const leaf = new Vector3();
+    let crowns = 0;
+    for (const mesh of meshes) {
+      const vertices = mesh.geometry.getAttribute('position');
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, matrix);
+        // The nearest any part of it comes to the axis, turned, tilted and scaled as it stands.
+        let nearest = Infinity;
+        for (let v = 0; v < vertices.count; v++) {
+          leaf.fromBufferAttribute(vertices, v).applyMatrix4(matrix);
+          const along = Math.min(Math.max(leaf.z, POOL.z), PORTAL.z);
+          nearest = Math.min(nearest, Math.hypot(leaf.x - PORTAL.x, leaf.z - along));
+        }
+        expect(nearest, `${mesh.name} #${i}`).toBeGreaterThan(4);
+        crowns++;
+      }
+    }
+    expect(crowns).toBeGreaterThan(100);
+    environment.dispose();
+  });
+
   it('keeps every grove collider wholly inside the bowl', () => {
     const environment = jungle();
     const fixed = new Set<Collider>([
@@ -354,10 +419,12 @@ describe('JungleEnvironment', () => {
     expect(flood(walls, (x, z) => z < RILL.centreZ(x) - RILL.halfWidth)).toBe(null);
   });
 
-  it('lets no one out of the bowl but into the cave', () => {
+  it('lets no one out of the bowl but into the cave and the return portal’s niche', () => {
     const environment = jungle();
     const walls = environment.colliders.filter((c) => c.top === undefined);
-    expect(flood(walls, (x, z) => beyondBowl(x, z) > 0 && !inCave(x, z))).toBe(null);
+    expect(flood(walls, (x, z) => beyondBowl(x, z) > 0 && !inCave(x, z) && !inNiche(x, z))).toBe(
+      null,
+    );
   });
 
   it('walks nobody across the rill beside the deck, jumping or not', () => {
@@ -587,6 +654,33 @@ describe('JungleEnvironment', () => {
     const environment = jungle();
     expect(clearance(PORTAL.x, PORTAL.z, environment.colliders)).toBeGreaterThan(PLAYER_RADIUS);
     expect(clearance(PORTAL.x, PORTAL.z - 1.5, environment.colliders)).toBeGreaterThan(1.5);
+  });
+
+  it('stands the return portal in a niche behind the arrival, facing north over it', () => {
+    const environment = jungle();
+    const portal = environment.returnPortal;
+
+    // `SPAWN_DISTANCE` behind the arrival, so a visitor steps out of it onto the portal's spot.
+    expect(portal.position[0]).toBe(PORTAL.x);
+    expect(portal.position[2]).toBeCloseTo(PORTAL.z + SPAWN_DISTANCE, 10);
+    // A prop's front is (sin yaw, cos yaw): north, over the arrival.
+    expect(Math.sin(portal.rotationY)).toBeCloseTo(0, 10);
+    expect(Math.cos(portal.rotationY)).toBeCloseTo(-1, 10);
+    // Its back is not in the bowl: the niche it stands in is cut into the rim.
+    expect(inBowl(portal.position[0], portal.position[2])).toBe(false);
+    expect(inNiche(portal.position[0], portal.position[2])).toBe(true);
+  });
+
+  it('keeps the ledge flat and open behind the arrival for the camera’s whole boom', () => {
+    const environment = jungle();
+    for (let back = 0; back <= BOOM_LENGTH + BOOM_RADIUS; back += 0.1) {
+      const z = PORTAL.z + back;
+      expect(clearance(PORTAL.x, z, environment.colliders), `at ${z}`).toBeGreaterThan(BOOM_RADIUS);
+      // Level with the ledge, so the camera hangs at the shoulder rather than over the rim.
+      for (const x of [-1.5, 0, 1.5]) {
+        expect(jungleHeightAt(x, z), `at ${x}, ${z}`).toBeCloseTo(3, 0);
+      }
+    }
   });
 
   it('holds water in the plunge pool, and keeps the visitor out of it', () => {
@@ -841,7 +935,7 @@ describe('JungleEnvironment', () => {
 
     it('lays the ground haze over every surface the atmosphere reaches, cleared by the ring', () => {
       for (const [tier, steps] of [
-        ['low', 6],
+        ['low', 4],
         ['medium', 10],
         ['high', 16],
       ] as const) {

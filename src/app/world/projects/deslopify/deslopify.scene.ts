@@ -108,10 +108,13 @@ const RING_SEGMENTS = 128;
 const RING_GLOW = 0.35;
 /** Metres from the portal, a language stalk and the cairn or the liana within which each has a plate. */
 const PLATE_REACH = { portal: 3, languages: 3, find: 2.6 } as const;
-/** The overview the arrival and the install's moment rise to: the whole bowl, looking north. */
+/**
+ * The overview the arrival and the install's moment rise to: the whole bowl from the portal to the
+ * falls, looking north and steeply down, so the floor the ring runs over reads too.
+ */
 const OVERVIEW: ShotPose = Object.freeze({
-  position: Object.freeze({ x: 0, y: 24, z: 36 }),
-  target: Object.freeze({ x: 0, y: 0, z: -6 }),
+  position: Object.freeze({ x: 0, y: 30, z: 27 }),
+  target: Object.freeze({ x: 0, y: 0, z: -4 }),
 });
 
 /** The jungle's commit steps, lit by the flow; only the jungle has them. */

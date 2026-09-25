@@ -72,6 +72,13 @@ export interface Environment extends WorldObject {
   readonly spawn: Vector3;
   /** The yaw such a player faces. */
   readonly spawnYaw: number;
+  /**
+   * Where a project world's return portal stands, if the environment gives it a place of its own:
+   * turned to face `spawn`, a landmark's `SPAWN_DISTANCE` behind it, so the visitor still arrives
+   * on `spawn` facing `spawnYaw`. Without it the portal stands on `spawn` itself, turned away, and
+   * the visitor arrives that distance ahead of it.
+   */
+  readonly returnPortal?: Anchor;
   /** What the environment itself blocks — walls, trees, a fountain. */
   readonly colliders: readonly Collider[];
   readonly interactables?: readonly Interactable[];

@@ -27,8 +27,11 @@ export const GROUND_HAZE = {
   extinction: 0.35,
   /** Metres of a ray's way through the bowl the march covers, from where it enters. */
   reach: 60,
-  /** Samples along the ray, per shader detail: low, medium, high. */
-  steps: [6, 10, 16],
+  /**
+   * Samples along the ray, per shader detail: low, medium, high. The low tier's four hold the march
+   * to about a sixth of a software-rendered frame at the portal; six took nearly a quarter.
+   */
+  steps: [4, 10, 16],
   /** The lantern's light clears it fully within this share of its radius, not at all beyond it. */
   lanternInner: 0.7,
   /** Metres beyond the ring's edge over which the haze comes back. */
