@@ -41,6 +41,11 @@ export interface LanguagePillarsOptions {
   readonly project: Project;
   readonly origin: Vector3;
   readonly rotationY: number;
+  /**
+   * Where each stalk stands, largest share first, instead of a row across `origin`: as many
+   * languages as there are spots, and no sign (the place itself names them).
+   */
+  readonly stalks?: readonly Vector3[];
   readonly ground: HeightField;
   readonly skin?: ToySkin;
 }
@@ -55,7 +60,10 @@ export class LanguagePillars implements WorldObject {
   constructor(private readonly options: LanguagePillarsOptions) {}
 
   init(ctx: WorldContext): void {
-    const languages = languageEntries(this.options.project);
+    const stalks = this.options.stalks;
+    const languages = stalks
+      ? languageEntries(this.options.project).slice(0, stalks.length)
+      : languageEntries(this.options.project);
     if (languages.length === 0) {
       return;
     }
@@ -69,8 +77,10 @@ export class LanguagePillars implements WorldObject {
     const parts = languages.flatMap(([language, bytes], index) => {
       const share = total > 0 ? bytes / total : 0;
       const offset = (index - (languages.length - 1) / 2) * PILLAR_SPACING;
-      const x = this.options.origin.x + Math.cos(this.options.rotationY) * offset;
-      const z = this.options.origin.z - Math.sin(this.options.rotationY) * offset;
+      const x =
+        stalks?.[index].x ?? this.options.origin.x + Math.cos(this.options.rotationY) * offset;
+      const z =
+        stalks?.[index].z ?? this.options.origin.z - Math.sin(this.options.rotationY) * offset;
       if (!jungle) {
         const height = PILLAR_BASE + share * PILLAR_MAX;
         return [
@@ -136,7 +146,7 @@ export class LanguagePillars implements WorldObject {
     this.mesh = mesh;
     ctx.scene.add(mesh);
 
-    if (jungle) {
+    if (jungle && !stalks) {
       const sign = createPlankSign('Sprachen · Languages', this.options.project.theme.primary);
       if (sign) {
         sign.name = 'language-pillars-sign';

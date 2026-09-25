@@ -37,14 +37,15 @@ export interface ToyLine {
 /**
  * Where a project world's shared toys stand, for an environment that lays its ground out around
  * them: the terminal, the seed lever, the commit ridge, the language row (its centre, the row
- * running across the way it faces), the release cairns (laid beside their line like the ridge's
- * cairns) and the star lanterns (over their line's midpoint).
+ * running across the way it faces, or one stalk at each of `stalks`), the release cairns (laid
+ * beside their line like the ridge's cairns) and the star lanterns (over their line's midpoint).
+ * An environment that shows the commits its own way (the jungle's steps) lays out no ridge.
  */
 export interface ToyLayout {
   readonly terminal: ToySpot;
   readonly lever: ToySpot;
-  readonly ridge: ToyLine;
-  readonly languages: ToySpot;
+  readonly ridge?: ToyLine;
+  readonly languages: ToySpot & { readonly stalks?: readonly Vector3[] };
   readonly releases: ToyLine;
   readonly stars: ToyLine;
 }

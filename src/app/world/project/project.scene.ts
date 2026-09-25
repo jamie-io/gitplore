@@ -265,18 +265,23 @@ export class ProjectScene implements WorldScene {
       this.seedLever,
       this.exhibit,
       this.returnPortal,
-      new CommitRidge({
-        project: options.project,
-        from: toys.ridge.from,
-        to: toys.ridge.to,
-        ground: this.environment.ground,
-        skin,
-        reducedMotion: options.reducedMotion,
-      }),
+      ...(toys.ridge
+        ? [
+            new CommitRidge({
+              project: options.project,
+              from: toys.ridge.from,
+              to: toys.ridge.to,
+              ground: this.environment.ground,
+              skin,
+              reducedMotion: options.reducedMotion,
+            }),
+          ]
+        : []),
       new LanguagePillars({
         project: options.project,
         origin: toys.languages.position,
         rotationY: toys.languages.rotationY,
+        stalks: toys.languages.stalks,
         ground: this.environment.ground,
         skin,
       }),

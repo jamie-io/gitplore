@@ -3,7 +3,7 @@ import { stubContext } from '@engine/testing/world-context';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
 import { JungleEnvironment } from '../environments/jungle';
-import { BAMBOO, CAIRNS, LIANA, RIDGE, STELE } from '../environments/jungle-layout';
+import { BAMBOO, CAIRN, LIANA, STELE } from '../environments/jungle-layout';
 import { PlazaEnvironment } from '../environments/plaza';
 import { ShowroomEnvironment } from '../environments/showroom';
 import { clearance } from '../environments/testing/clearance';
@@ -194,7 +194,7 @@ describe('ProjectScene', () => {
     expect(ctx.scene.children).toHaveLength(0);
   });
 
-  it('stands the toys where the jungle lays them out, off the straight walk', () => {
+  it('stands the toys where the jungle lays them out, the steps in place of the ridge', () => {
     const project: Project = {
       ...PROJECT,
       environment: 'jungle',
@@ -211,10 +211,10 @@ describe('ProjectScene', () => {
       environment: new JungleEnvironment({ reducedMotion: () => true }),
     });
 
-    expect(target.terminal.position.x).toBeCloseTo(STELE.position.x, 6);
-    expect(target.terminal.position.z).toBeCloseTo(STELE.position.z, 6);
-    expect(target.seedLever.position.x).toBeCloseTo(LIANA.position.x, 6);
-    expect(target.seedLever.position.z).toBeCloseTo(LIANA.position.z, 6);
+    expect(target.terminal.position.x).toBeCloseTo(STELE.x, 6);
+    expect(target.terminal.position.z).toBeCloseTo(STELE.z, 6);
+    expect(target.seedLever.position.x).toBeCloseTo(LIANA.x, 6);
+    expect(target.seedLever.position.z).toBeCloseTo(LIANA.z, 6);
 
     target.init(ctx);
     const centre = (name: string) => {
@@ -222,10 +222,14 @@ describe('ProjectScene', () => {
       mesh.geometry.computeBoundingBox();
       return mesh.geometry.boundingBox!.getCenter(new Vector3()).setY(0);
     };
-    const ridge = RIDGE.from.clone().lerp(RIDGE.to, 0.5);
-    expect(centre('commit-ridge').distanceTo(ridge)).toBeLessThan(0.5);
-    expect(centre('language-pillars').distanceTo(BAMBOO.position)).toBeLessThan(1.5);
-    expect(centre('release-markers').distanceTo(CAIRNS.position)).toBeLessThan(2.5);
+    expect(ctx.scene.getObjectByName('commit-ridge')).toBeUndefined();
+    // Two languages: the two largest shares' stalks, at the deck's two north corners.
+    const stalks = new Vector3((BAMBOO[0].x + BAMBOO[1].x) / 2, 0, (BAMBOO[0].z + BAMBOO[1].z) / 2);
+    expect(centre('language-pillars').distanceTo(stalks)).toBeLessThan(0.5);
+    expect(ctx.scene.getObjectByName('language-pillars-sign')).toBeUndefined();
+    expect(centre('release-markers').distanceTo(new Vector3(CAIRN.x, 0, CAIRN.z))).toBeLessThan(
+      2.5,
+    );
 
     target.dispose();
   });
@@ -247,8 +251,8 @@ describe('ProjectScene', () => {
     ).toBeUndefined();
   });
 
-  // Not the jungle: Deslopify's walk from the arrival over the bridge is the demo itself, 15–20 s
-  // long by design (jungle-layout.spec.ts holds it to that).
+  // Not the jungle: Deslopify's tour from the portal is the demo itself, at most 60 m by design
+  // (jungle-layout.spec.ts holds it to that).
   it.each([
     ['Showroom', () => new ShowroomEnvironment({ reducedMotion: () => true })],
     ['Plaza', () => new PlazaEnvironment({ reducedMotion: () => true })],

@@ -11,14 +11,14 @@ import { disposeObject3D } from '@engine/dispose';
 import { Collider } from '@engine/player/collision';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import { assemble, paint } from './flora';
-import { ARCH, BRIDGE, STREAM, WATER_LEVEL } from './jungle-layout';
+import { ARCH, DECK, RILL, RILL_BED } from './jungle-layout';
 import { seededRandom } from './random';
 import { withAtmosphere } from './shaders/atmosphere';
 import { HazedCopies } from './shaders/hazed-copies';
 import { SharedUniforms } from './shaders/shared-uniforms';
 
 /**
- * The Deslopify arch on the bridge, the gate between the banks: modelled in Blender
+ * The Deslopify arch on the deck, the gate between the marsh and the glade: modelled in Blender
  * (scripts/blender/models/arch.py) to the hub portal's footprint, in the jungle's mossy stone.
  */
 export const ARCH_MODEL = 'assets/models/jungle-arch.glb';
@@ -33,36 +33,41 @@ export const WOOD_TONES: readonly number[] = [0x6a4a30, 0x5a3d27, 0x70523a, 0x4f
 
 /** A plank across the deck: its thickness, its width along the deck and the gap to the next. */
 const PLANK = { thickness: 0.07, width: 0.27, pitch: 0.32 } as const;
-/** Metres from the deck's centre line to each rail and to each arch pillar's centre. */
-const RAIL_X = BRIDGE.halfWidth - 0.08;
-export const PILLAR_X = 1.4;
+/** Metres from the deck's centre line to each rail. */
+const RAIL_X = DECK.halfWidth - 0.08;
+/** A proxy pillar's radius. */
+const PILLAR_RADIUS = 0.35;
+/**
+ * Metres from the deck's centre line to each arch pillar's centre: the pillars stand just off the
+ * deck's sides, 3.2 m clear between them.
+ */
+export const PILLAR_X = 1.6 + PILLAR_RADIUS;
 /** A pillar's radius plus a hand's width, so the visitor brushes past rather than into the stone. */
-const PILLAR_REACH = 0.38;
+const PILLAR_REACH = PILLAR_RADIUS + 0.03;
 const RAIL_HEIGHT = 1;
-/** Rail posts keep this far from the arch's pillars along the deck. */
-const ARCH_GAP = 0.6;
 
 export interface JungleBridgeOptions {
   readonly shared: SharedUniforms;
 }
 
 /**
- * The only way over the stream: a plank deck on two stringers and four piles, railed on both
- * sides, with the Deslopify arch standing across its middle. The deck is a collider with a walkable
- * top, so the visitor steps up onto it and walks level across; the arch's pillars are walls either
- * side of the walkway. The arch is the hub portal's own model, loaded when the world is built; a
- * stone proxy of the same shape stands in until it arrives, and for good if it never does.
+ * The only way over the rill: a plank deck 2.4 m up on two stringers and four piles, railed on both
+ * sides, with the Deslopify arch standing across its middle. The commit steps climb to its south
+ * end and a ramp of ground meets its north end. The deck is a collider with a walkable top, so the
+ * visitor walks level across; the arch's pillars stand either side of it. The arch is the hub
+ * portal's own model, loaded when the world is built; a stone proxy of the same shape stands in
+ * until it arrives, and for good if it never does.
  */
 export class JungleBridge implements WorldObject {
   readonly id = 'bridge';
   readonly colliders: readonly Collider[] = [
     {
       kind: 'aabb',
-      minX: BRIDGE.centre.x - BRIDGE.halfWidth,
-      maxX: BRIDGE.centre.x + BRIDGE.halfWidth,
-      minZ: BRIDGE.centre.z - BRIDGE.halfLength,
-      maxZ: BRIDGE.centre.z + BRIDGE.halfLength,
-      top: BRIDGE.deckHeight,
+      minX: ARCH.x - DECK.halfWidth,
+      maxX: ARCH.x + DECK.halfWidth,
+      minZ: ARCH.z - DECK.halfLength,
+      maxZ: ARCH.z + DECK.halfLength,
+      top: DECK.height,
     },
     { kind: 'cylinder', x: ARCH.x - PILLAR_X, z: ARCH.z, radius: PILLAR_REACH },
     { kind: 'cylinder', x: ARCH.x + PILLAR_X, z: ARCH.z, radius: PILLAR_REACH },
@@ -85,7 +90,7 @@ export class JungleBridge implements WorldObject {
 
   constructor(private readonly options: JungleBridgeOptions) {
     this.arch.name = 'deslopify-arch';
-    this.arch.position.copy(ARCH);
+    this.arch.position.set(ARCH.x, DECK.height, ARCH.z);
   }
 
   init(ctx: WorldContext): void {
@@ -222,7 +227,7 @@ function post(
 function bridgeGeometry(): BufferGeometry {
   const random = seededRandom(91);
   const parts: BufferGeometry[] = [];
-  const length = BRIDGE.halfLength * 2;
+  const length = DECK.halfLength * 2;
   const planks = Math.floor(length / PLANK.pitch);
   const start = -((planks - 1) * PLANK.pitch) / 2;
 
@@ -232,7 +237,7 @@ function bridgeGeometry(): BufferGeometry {
     const turn = (random() - 0.5) * 0.03;
     parts.push(
       box(
-        [BRIDGE.halfWidth * 2 + 0.1, PLANK.thickness, PLANK.width],
+        [DECK.halfWidth * 2 + 0.1, PLANK.thickness, PLANK.width],
         [0, -PLANK.thickness / 2 + lift, z],
         WOOD_TONES[i % WOOD_TONES.length],
         turn,
@@ -246,30 +251,20 @@ function bridgeGeometry(): BufferGeometry {
   }
 
   // Piles down to the bed at the water's edges, where the stringers need them.
-  const bed = WATER_LEVEL - STREAM.depth - BRIDGE.deckHeight;
+  const bed = RILL_BED - DECK.height;
   for (const along of [-1, 1]) {
     for (const side of [-1, 1]) {
       parts.push(
-        post(
-          side * (RAIL_X - 0.3),
-          along * STREAM.halfWidth * 0.85,
-          bed,
-          -0.3,
-          0.12,
-          WOOD_TONES[3],
-        ),
+        post(side * (RAIL_X - 0.3), along * RILL.halfWidth * 0.85, bed, -0.3, 0.12, WOOD_TONES[3]),
       );
     }
   }
 
-  // Rail posts every metre and a quarter, stopping short of the arch's pillars, with a top rail.
-  const posts = Math.floor(length / 1.25);
+  // Rail posts every metre or so, inside the arch's pillars, with a top rail.
+  const posts = Math.max(1, Math.floor(length / 1.05));
   for (const side of [-1, 1]) {
     for (let i = 0; i <= posts; i++) {
-      const z = -BRIDGE.halfLength + 0.15 + (i * (length - 0.3)) / posts;
-      if (Math.abs(z) < ARCH_GAP) {
-        continue;
-      }
+      const z = -DECK.halfLength + 0.15 + (i * (length - 0.3)) / posts;
       parts.push(post(side * RAIL_X, z, 0, RAIL_HEIGHT, 0.06, WOOD_TONES[i % 2 === 0 ? 1 : 3]));
     }
     parts.push(
@@ -279,19 +274,21 @@ function bridgeGeometry(): BufferGeometry {
   }
 
   const geometry = assemble(parts);
-  geometry.translate(BRIDGE.centre.x, BRIDGE.deckHeight, BRIDGE.centre.z);
+  geometry.translate(ARCH.x, DECK.height, ARCH.z);
   geometry.computeBoundingSphere();
   return geometry;
 }
 
 /**
  * The arch's stand-in, in the model's own frame (the deck's top at y = 0): two stone pillars
- * 2.8 m apart under a lintel, the shape the model has, in its greys.
+ * 3.2 m clear of each other, rising from the rill's bed beside the deck, under a lintel: the shape
+ * the model has, in its greys.
  */
 function archProxyGeometry(): BufferGeometry {
+  const foot = RILL_BED - DECK.height;
   return assemble([
-    post(-PILLAR_X, 0, 0, 3.6, 0.35, 0x80848f),
-    post(PILLAR_X, 0, 0, 3.6, 0.35, 0x80848f),
+    post(-PILLAR_X, 0, foot, 3.6, PILLAR_RADIUS, 0x80848f),
+    post(PILLAR_X, 0, foot, 3.6, PILLAR_RADIUS, 0x80848f),
     box([PILLAR_X * 2 + 1, 0.55, 0.8], [0, 4.2, 0], 0x707480),
   ]);
 }

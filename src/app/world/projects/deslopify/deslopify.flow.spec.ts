@@ -1,5 +1,7 @@
-import { MAP_SCALE } from '../../environments/jungle-layout';
 import { DeslopifyFlow, DeslopifyFlowOptions, FLOW, FlowLight, FlowPoint } from './deslopify.flow';
+
+/** The flow prototype's metres per pixel. */
+const MAP_SCALE = 0.18;
 
 const POST: FlowPoint = { x: 0, z: 0 };
 const ARCH: FlowPoint = { x: 0, z: -60 };

@@ -9,12 +9,15 @@ import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { JungleEnvironment } from '../../environments/jungle';
 import {
   ARCH,
+  BOARDWALK,
   CARD_SLOTS,
   LANTERN_POST,
-  SPAWN,
+  PORTAL,
   TAG_SLOTS,
-  WALL_SLOT,
+  WALL,
   jungleHeightAt,
+  nearestOnPath,
+  pointAlong,
 } from '../../environments/jungle-layout';
 import { clearance } from '../../environments/testing/clearance';
 import { PROMPTS, POSTER } from './deslopify.data';
@@ -47,6 +50,8 @@ function build(options: { reduced?: boolean; init?: boolean; ctx?: WorldContext 
   const ctx = options.ctx ?? stubContext();
   if (options.init ?? true) {
     target.init(ctx);
+    // Where visitors arrive, rather than the world's origin, which is under the arch.
+    stand(ctx, PORTAL, PORTAL.yaw);
   }
   return { target, environment, ctx, statuses, setReduced: (on) => (reduced = on) };
 }
@@ -92,25 +97,38 @@ function crossArch(built: Built): void {
 
 /** Three metres in front of the wall, facing it. */
 function atWall(built: Built): void {
-  const front = new Vector3(Math.sin(WALL_SLOT.yaw), 0, Math.cos(WALL_SLOT.yaw));
-  stand(built.ctx, WALL_SLOT.position.clone().addScaledVector(front, 3), WALL_SLOT.yaw);
+  stand(built.ctx, inFront(WALL, 3), WALL.yaw);
+}
+
+/** `metres` in front of a prop, on the ground plane. */
+function inFront(place: { x: number; z: number; yaw: number }, metres: number): Vector3 {
+  return new Vector3(
+    place.x + Math.sin(place.yaw) * metres,
+    0,
+    place.z + Math.cos(place.yaw) * metres,
+  );
+}
+
+/** Only the colliders a visitor walks into, not the floors they walk on. */
+function walls(target: DeslopifyScene) {
+  return target.colliders.filter((collider) => collider.top === undefined);
 }
 
 describe('DeslopifyScene', () => {
   describe('composition', () => {
-    it('stands four feed cards along the south trail and the four-card wall on the north bank', () => {
+    it('stands four feed cards beside the boardwalk and the four-card wall on the glade', () => {
       const { target, ctx } = build();
 
       expect(target.cards).toHaveLength(4);
       target.cards.forEach((card, index) => {
-        expect(card.object.position.x).toBeCloseTo(CARD_SLOTS[index].position.x, 6);
-        expect(card.object.position.z).toBeCloseTo(CARD_SLOTS[index].position.z, 6);
+        expect(card.object.position.x).toBeCloseTo(CARD_SLOTS[index].x, 6);
+        expect(card.object.position.z).toBeCloseTo(CARD_SLOTS[index].z, 6);
         expect(card.object.rotation.y).toBeCloseTo(CARD_SLOTS[index].yaw, 6);
         expect(card.object.parent).toBe(ctx.scene);
       });
       expect(target.wall.cards).toHaveLength(4);
-      expect(target.wall.object.position.x).toBeCloseTo(WALL_SLOT.position.x, 6);
-      expect(target.wall.object.position.z).toBeCloseTo(WALL_SLOT.position.z, 6);
+      expect(target.wall.object.position.x).toBeCloseTo(WALL.x, 6);
+      expect(target.wall.object.position.z).toBeCloseTo(WALL.z, 6);
       // Eight cards in all, and nothing else in the world carries a title pair.
       const faces: Object3D[] = [];
       ctx.scene.traverse((child) => {
@@ -140,7 +158,7 @@ describe('DeslopifyScene', () => {
       expect(target.tags.object.parent).toBe(ctx.scene);
     });
 
-    it('hangs the tags at eye level, 2.2–2.9 m over the ground, turned to the trail', () => {
+    it('hangs the tags at eye level, 2.2–2.9 m over the ground, turned to the boardwalk', () => {
       const { target } = build();
       target.tags.object.updateMatrixWorld(true);
 
@@ -148,10 +166,15 @@ describe('DeslopifyScene', () => {
         const face = target.tags.object.getObjectByName(`slop-tag-face:${index}`)!;
         const at = face.getWorldPosition(new Vector3());
         // Measured under the anchor, where the rope was cut to length.
-        const height = at.y - jungleHeightAt(slot.position.x, slot.position.z);
+        const height = at.y - jungleHeightAt(slot.x, slot.z);
         expect(height).toBeGreaterThanOrEqual(TAG_HEIGHT.min - 1e-6);
         expect(height).toBeLessThanOrEqual(TAG_HEIGHT.max + 1e-6);
-        expect(target.tags.object.getObjectByName(`slop-tag:${index}`)!.rotation.y).toBe(slot.yaw);
+        // Turned to the walk a little back towards the portal, where visitors come from.
+        const back = pointAlong(BOARDWALK, nearestOnPath(slot.x, slot.z, BOARDWALK).along - 3);
+        expect(target.tags.object.getObjectByName(`slop-tag:${index}`)!.rotation.y).toBeCloseTo(
+          Math.atan2(back.x - slot.x, back.z - slot.z),
+          10,
+        );
       });
     });
 
@@ -160,29 +183,31 @@ describe('DeslopifyScene', () => {
 
       expect(target.colliders).toEqual(expect.arrayContaining([...target.lantern.colliders]));
       for (const slot of CARD_SLOTS) {
-        expect(clearance(slot.position.x, slot.position.z, target.colliders)).toBeLessThan(0);
+        expect(clearance(slot.x, slot.z, target.colliders)).toBeLessThan(0);
       }
       expect(target.colliders.length).toBeGreaterThan(environment.colliders.length + 8);
     });
 
-    it('keeps the arrival and the trail past the lantern free', () => {
+    it('keeps the arrival and the boardwalk in front of every card free', () => {
       const { target } = build({ init: false });
 
       const { x, z } = target.arrival.position;
-      expect(clearance(x, z, target.colliders)).toBeGreaterThan(0.5);
+      expect(clearance(x, z, walls(target))).toBeGreaterThan(0.5);
       for (const slot of CARD_SLOTS) {
-        const front = new Vector3(Math.sin(slot.yaw), 0, Math.cos(slot.yaw));
-        const reading = slot.position.clone().addScaledVector(front, 2);
-        expect(clearance(reading.x, reading.z, target.colliders)).toBeGreaterThan(0.5);
+        const reading = inFront(slot, 2);
+        expect(clearance(reading.x, reading.z, walls(target))).toBeGreaterThan(0.5);
       }
     });
 
-    it('offers the jungle cave behind the waterfall', () => {
+    it('keeps the jungle’s cliff, cave, deck and steps', () => {
       const { target, environment } = build({ init: false });
 
-      expect(target.colliders).toEqual(expect.arrayContaining([...environment.cave.colliders]));
-      expect(target.interactables).toEqual(
-        expect.arrayContaining([...environment.cave.interactables]),
+      expect(target.colliders).toEqual(
+        expect.arrayContaining([
+          ...environment.cave.colliders,
+          ...environment.bridge.colliders,
+          ...environment.steps.colliders,
+        ]),
       );
     });
 
@@ -210,7 +235,7 @@ describe('DeslopifyScene', () => {
       const built = build();
       expect(prompts(built.target)).toContain(PROMPTS.lanternOn);
 
-      stand(built.ctx, LANTERN_POST.clone().add(new Vector3(FLOW.ignitionRadius - 0.3, 0, 0)));
+      stand(built.ctx, { x: LANTERN_POST.x + FLOW.ignitionRadius - 0.3, z: LANTERN_POST.z });
       run(built, 1 / 30);
 
       expect(built.target.flow.lantern).toBe('lit');
@@ -248,13 +273,15 @@ describe('DeslopifyScene', () => {
       expect(built.target.cards[0].original).toBe(false);
 
       const slot = CARD_SLOTS[0];
-      const front = new Vector3(Math.sin(slot.yaw), 0, Math.cos(slot.yaw));
-      stand(built.ctx, slot.position.clone().addScaledVector(front, 2));
+      stand(built.ctx, inFront(slot, 2));
       run(built, 1.5);
 
       expect(built.target.cards[0].original).toBe(true);
       expect(built.target.cards[3].original).toBe(false);
-      expect(built.statuses.at(-1)).toBe('Deslopify noch nicht · Entslopt 1/8');
+      // The boardwalk's cards stand close: the light may reach the next one along too.
+      const cleared = built.target.cards.filter((card) => card.original).length;
+      expect(cleared).toBeLessThan(4);
+      expect(built.statuses.at(-1)).toBe(`Deslopify noch nicht · Entslopt ${cleared}/8`);
     });
 
     it('starts a card wipe on the frame its card becomes cleared', () => {
@@ -263,11 +290,10 @@ describe('DeslopifyScene', () => {
       run(built, 1.5);
 
       const slot = CARD_SLOTS[0];
-      const front = new Vector3(Math.sin(slot.yaw), 0, Math.cos(slot.yaw));
-      stand(built.ctx, slot.position.clone().addScaledVector(front, 2));
+      stand(built.ctx, inFront(slot, 2));
       run(built, 1 / 60, 1 / 60);
 
-      expect(built.target.flow.isCleared(slot.position.x, slot.position.z)).toBe(true);
+      expect(built.target.flow.isCleared(slot.x, slot.z)).toBe(true);
       expect(built.target.flow.cardOriginal(0)).toBe(false);
       expect(built.target.cards[0].wipe).toBeGreaterThan(0);
     });
@@ -347,7 +373,7 @@ describe('DeslopifyScene', () => {
       expect(built.target.flow.clearedCards).toBe(8);
 
       // Lantern out, back at the arrival, for a good while.
-      stand(built.ctx, SPAWN.position, 0);
+      stand(built.ctx, PORTAL, 0);
       run(built, 0.1);
       built.target.toggleLantern();
       run(built, 20, 0.25);
@@ -366,7 +392,7 @@ describe('DeslopifyScene', () => {
       run(built, 0.5);
 
       find(built.target, PROMPTS.wallOff)!.onInteract();
-      stand(built.ctx, SPAWN.position, 0);
+      stand(built.ctx, PORTAL, 0);
       run(built, 0.5);
       expect(built.target.flow.state).toBe('aus');
       expect(built.environment.slop).toBe(1);
@@ -380,14 +406,14 @@ describe('DeslopifyScene', () => {
       find(built.target, PROMPTS.wallOn)!.onInteract();
       run(built, 0.1);
       expect(built.target.flow.state).toBe('an');
-      expect(built.target.flow.ring.origin.x).toBeCloseTo(WALL_SLOT.position.x, 6);
-      expect(built.target.flow.ring.origin.z).toBeCloseTo(WALL_SLOT.position.z, 6);
+      expect(built.target.flow.ring.origin.x).toBeCloseTo(WALL.x, 6);
+      expect(built.target.flow.ring.origin.z).toBeCloseTo(WALL.z, 6);
     });
 
     it('staggers the wall’s cards that turn in the same frame by 120 ms', () => {
       const built = build();
       crossArch(built);
-      stand(built.ctx, SPAWN.position, 0);
+      stand(built.ctx, PORTAL, 0);
       run(built, 40, 0.5);
       expect(built.target.wall.cards.every((card) => card.original)).toBe(true);
 
@@ -432,12 +458,11 @@ describe('DeslopifyScene', () => {
       demo.enter(built.ctx.player);
       run(built, 1 / 30);
 
-      const front = new Vector3(Math.sin(WALL_SLOT.yaw), 0, Math.cos(WALL_SLOT.yaw));
-      const expected = WALL_SLOT.position.clone().addScaledVector(front, DEMO_STAND);
+      const expected = inFront(WALL, DEMO_STAND);
       expect(built.ctx.player.position.x).toBeCloseTo(expected.x, 5);
       expect(built.ctx.player.position.z).toBeCloseTo(expected.z, 5);
       expect(built.target.flow.state).toBe('an');
-      expect(built.target.flow.ring.origin.x).toBeCloseTo(WALL_SLOT.position.x, 6);
+      expect(built.target.flow.ring.origin.x).toBeCloseTo(WALL.x, 6);
       expect(reachable(built.ctx, find(built.target, PROMPTS.wallOff)!)).toBe(true);
 
       demo.interact();
@@ -461,15 +486,15 @@ describe('DeslopifyScene', () => {
       crossArch(built);
       run(built, 1);
       built.target.toggleWall();
-      stand(built.ctx, WALL_SLOT.position, WALL_SLOT.yaw);
+      stand(built.ctx, WALL, WALL.yaw);
 
       built.target.restart(built.ctx.player);
       run(built, 1 / 30);
 
-      expect(built.ctx.player.position.x).toBeCloseTo(SPAWN.position.x, 6);
-      expect(built.ctx.player.position.z).toBeCloseTo(SPAWN.position.z, 6);
-      // Facing along the trail, as on arrival: the engine yaw is the slot yaw turned half round.
-      expect(built.ctx.player.yaw).toBeCloseTo(SPAWN.yaw + Math.PI, 6);
+      expect(built.ctx.player.position.x).toBeCloseTo(PORTAL.x, 6);
+      expect(built.ctx.player.position.z).toBeCloseTo(PORTAL.z, 6);
+      // Facing north along the axis, as on arrival.
+      expect(built.ctx.player.yaw).toBeCloseTo(PORTAL.yaw, 6);
       expect(built.target.flow.lantern).toBe('unlit');
       expect(built.target.flow.state).toBe('noch nicht');
       expect(built.target.flow.clearedCards).toBe(0);
@@ -533,7 +558,7 @@ describe('DeslopifyScene', () => {
 
       built.target.dispose();
 
-      expect(textures.size).toBeGreaterThanOrEqual(8 * 2 + 15 * 2);
+      expect(textures.size).toBeGreaterThanOrEqual(8 * 2 + TAG_SLOTS.length * 2);
       expect(spies.every((spy) => spy.mock.calls.length >= 1)).toBe(true);
       expect(built.ctx.scene.children).toEqual([]);
     });

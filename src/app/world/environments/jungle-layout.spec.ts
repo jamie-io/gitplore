@@ -1,275 +1,271 @@
-import { Vector3 } from 'three';
-import { PLAYER_RADIUS, WALK_SPEED } from '@engine/player/player-controller';
 import {
   ARCH,
-  ARCH_TRIGGER,
   BAMBOO,
-  BRIDGE,
-  BRIDGE_NORTH,
-  BRIDGE_SOUTH,
-  CAIRNS,
-  CARD_OFFSET,
+  BEHIND_FALLS,
+  BOARDWALK,
+  BOWL,
   CARD_SLOTS,
-  CAVE_SLOT,
+  CAVE,
+  CLIFF,
+  DECK,
   EXHIBIT,
-  HANG,
-  LANTERN_OFFSET,
   LANTERN_POST,
-  LANTERN_YAW,
-  LIANA,
-  MAP_SCALE,
-  NORTH_TRAIL,
+  NORTH_LOOP,
   PATHS,
   POOL,
-  RIDGE,
-  SOUTH_TRAIL,
-  SPAWN,
+  PORTAL,
+  Pt,
+  RILL,
+  STATION_STANDS,
+  STEPS,
   STELE,
-  STREAM,
-  Slot,
   TAG_SLOTS,
+  TOUR,
   VINE_SLOTS,
-  WALL_SLOT,
-  arrivalToArch,
+  WALL,
+  WATERFALL,
+  crossesArch,
+  distanceToPaths,
+  glidePath,
+  inBowl,
   jungleHeightAt,
-  mapToWorld,
   nearestOnPath,
-  onSouthBank,
-  streamCentreZ,
+  pathLength,
+  stepCentres,
   underArch,
 } from './jungle-layout';
 
-/** Whether a slot's front turns towards (x, z) rather than away from it. */
-function faces(place: Slot, x: number, z: number): boolean {
-  const dx = x - place.position.x;
-  const dz = z - place.position.z;
-  return Math.sin(place.yaw) * dx + Math.cos(place.yaw) * dz > 0;
-}
-
-/** Metres from a point to the nearest walked line. */
-function offTrail(point: Vector3): number {
-  return Math.min(...PATHS.map((path) => nearestOnPath(point.x, point.z, path).distance));
+/** The walked lines as a graph: every vertex, keyed by its coordinates, with its neighbours. */
+function pathGraph(): Map<string, { point: Pt; next: Set<string> }> {
+  const key = (point: Pt) => `${point.x.toFixed(3)},${point.z.toFixed(3)}`;
+  const graph = new Map<string, { point: Pt; next: Set<string> }>();
+  const vertex = (point: Pt) => {
+    const at = key(point);
+    if (!graph.has(at)) {
+      graph.set(at, { point, next: new Set() });
+    }
+    return at;
+  };
+  for (const path of PATHS) {
+    for (let i = 1; i < path.length; i++) {
+      const a = vertex(path[i - 1]);
+      const b = vertex(path[i]);
+      graph.get(a)!.next.add(b);
+      graph.get(b)!.next.add(a);
+    }
+  }
+  return graph;
 }
 
 describe('jungle layout', () => {
-  describe('mapToWorld', () => {
-    it('puts the map’s plunge pool on the world’s', () => {
-      const pool = mapToWorld(530, 88);
-
-      expect(pool.x).toBeCloseTo(POOL.x, 10);
-      expect(pool.z).toBeCloseTo(POOL.z, 10);
-      expect(pool.y).toBe(0);
-    });
-
-    it('scales both axes by the same metres per pixel, the map’s y running south as z does', () => {
-      const origin = mapToWorld(530, 88);
-      const east = mapToWorld(630, 88);
-      const south = mapToWorld(530, 188);
-
-      expect(east.x - origin.x).toBeCloseTo(100 * MAP_SCALE, 10);
-      expect(east.z).toBeCloseTo(origin.z, 10);
-      expect(south.z - origin.z).toBeCloseTo(100 * MAP_SCALE, 10);
-      expect(south.x).toBeCloseTo(origin.x, 10);
-    });
-
-    it('is pure: every call hands out a fresh vector', () => {
-      const first = mapToWorld(490, 672);
-      first.x = 1000;
-
-      expect(mapToWorld(490, 672).x).not.toBe(1000);
-    });
+  it('fits the bowl inside 60 × 45 m', () => {
+    expect(BOWL.rx * 2).toBeLessThanOrEqual(60);
+    expect(BOWL.rz * 2).toBeLessThanOrEqual(45);
   });
 
-  it('takes 15 to 20 seconds to walk from the arrival to the arch', () => {
-    const seconds = arrivalToArch() / WALK_SPEED;
-
-    expect(seconds).toBeGreaterThanOrEqual(15);
-    expect(seconds).toBeLessThanOrEqual(20);
-  });
-
-  it('starts the south trail at the arrival and ends it on the bridge’s south end', () => {
-    expect(SPAWN.position.distanceTo(SOUTH_TRAIL[0])).toBe(0);
-    expect(SOUTH_TRAIL[SOUTH_TRAIL.length - 1]).toBe(BRIDGE_SOUTH);
-    expect(NORTH_TRAIL[0]).toBe(BRIDGE_NORTH);
-    // The arrival faces along the trail's first leg.
-    expect(faces(SPAWN, SOUTH_TRAIL[1].x, SOUTH_TRAIL[1].z)).toBe(true);
-  });
-
-  it('spans the stream square with the bridge, both ends on dry ground past the stream’s band', () => {
-    expect(BRIDGE.yaw).toBe(0);
-    expect(streamCentreZ(BRIDGE.centre.x)).toBeCloseTo(BRIDGE.centre.z, 10);
-    // Straight under the whole deck, so its sides meet the stream square on.
-    for (let x = -BRIDGE.halfWidth; x <= BRIDGE.halfWidth; x += 0.25) {
-      expect(streamCentreZ(BRIDGE.centre.x + x)).toBeCloseTo(BRIDGE.centre.z, 10);
+  it('keeps the tour at most 60 m and stations 3–14 m apart', () => {
+    const stops = [PORTAL, ...TOUR.map((id) => STATION_STANDS[id])];
+    let total = 0;
+    for (let i = 1; i < stops.length; i++) {
+      const leg = pathLength(glidePath(stops[i - 1], stops[i]));
+      if (i > 1) {
+        expect(leg, `leg to ${TOUR[i - 1]}`).toBeGreaterThanOrEqual(3);
+        expect(leg, `leg to ${TOUR[i - 1]}`).toBeLessThanOrEqual(14);
+      }
+      total += leg;
     }
-    expect(BRIDGE.halfLength).toBeGreaterThan(STREAM.band + 1);
-    expect(onSouthBank(BRIDGE_SOUTH.x, BRIDGE_SOUTH.z)).toBe(true);
-    expect(onSouthBank(BRIDGE_NORTH.x, BRIDGE_NORTH.z)).toBe(false);
+    expect(total).toBeLessThanOrEqual(60);
   });
 
-  it('stands the arch on the deck’s middle, inside its own trigger', () => {
-    expect(ARCH.x).toBe(BRIDGE.centre.x);
-    expect(ARCH.z).toBe(BRIDGE.centre.z);
-    expect(ARCH.y).toBe(BRIDGE.deckHeight);
+  it('looks from the portal through the arch at the exhibit', () => {
+    expect(crossesArch(PORTAL, EXHIBIT)).toBe(true);
+  });
+
+  it('follows the section heights', () => {
+    expect(jungleHeightAt(0, 20)).toBeCloseTo(3.0, 1);
+    expect(jungleHeightAt(-7, 11.6)).toBeCloseTo(0.3, 1);
+    expect(jungleHeightAt(0, -8)).toBeCloseTo(1.0, 1);
+    expect(jungleHeightAt(0, RILL.centreZ(0))).toBeCloseTo(-0.8, 1);
+    expect(stepCentres()[0].y).toBeGreaterThan(0.8);
+    expect(stepCentres()[10].y).toBeCloseTo(2.4, 2);
+  });
+
+  it('rises into a rim outside the bowl', () => {
+    expect(jungleHeightAt(BOWL.rx + 4, 0)).toBeGreaterThan(8);
+    expect(jungleHeightAt(0, -BOWL.rz - 4)).toBeGreaterThan(8);
+    expect(jungleHeightAt(-BOWL.rx - 4, 0)).toBeGreaterThan(8);
+  });
+
+  it('detects a glide segment that jumps over the arch trigger', () => {
+    expect(crossesArch({ x: 0, z: 3 }, { x: 0, z: -3 })).toBe(true);
+    expect(crossesArch({ x: 5, z: 3 }, { x: 5, z: -3 })).toBe(false);
+  });
+
+  it('routes to the cave behind the waterfall', () => {
+    const path = glidePath(STATION_STANDS.exponat, STATION_STANDS.hoehle);
+    expect(path.some((p) => p.z < -18.2 && p.z > -21 && Math.abs(p.x) > 1.2)).toBe(true);
+    for (const p of path) {
+      expect(Math.hypot((p.x - POOL.x) / POOL.rx, (p.z - POOL.z) / POOL.rz)).toBeGreaterThan(1);
+    }
+  });
+
+  it('has no dead end longer than 15 m', () => {
+    // The only line that ends without joining another is the boardwalk's start: the arrival
+    // itself, not a side path. Every other end meets the rest of the network.
+    const graph = pathGraph();
+    const ends = [...graph.values()]
+      .filter(({ next }) => next.size === 1)
+      .map(({ point }) => point);
+    expect(ends).toEqual([PORTAL]);
+
+    for (const end of ends.filter((point) => point !== PORTAL)) {
+      const junction = [...graph.values()].filter(({ next }) => next.size >= 3);
+      const nearest = Math.min(...junction.map(({ point }) => pathLength(glidePath(end, point))));
+      expect(nearest).toBeLessThanOrEqual(15);
+    }
+  });
+
+  it('lays the walked lines out as the prototype draws them', () => {
+    expect(BOARDWALK[0]).toBe(PORTAL);
+    expect(BOARDWALK[BOARDWALK.length - 1]).toBe(STEPS.from);
+    expect(NORTH_LOOP[0]).toBe(ARCH);
+    expect(NORTH_LOOP[NORTH_LOOP.length - 1]).toEqual({ x: 0, z: -9 });
+    expect(PATHS).toContain(BOARDWALK);
+    expect(PATHS).toContain(NORTH_LOOP);
+    // The steps land on the deck's south end, the deck ends at the arch.
+    expect(STEPS.to).toEqual({ x: 0, z: 2.2 });
+    expect(pathLength([STEPS.from, STEPS.to])).toBeCloseTo(4.8, 1);
+  });
+
+  it('keeps everything walkable inside the bowl, and the portal just inside its south edge', () => {
+    for (const path of PATHS) {
+      for (const point of path) {
+        expect(inBowl(point.x, point.z), `${point.x}, ${point.z}`).toBe(true);
+      }
+    }
+    for (const id of TOUR.filter((id) => id !== 'hoehle')) {
+      expect(inBowl(STATION_STANDS[id].x, STATION_STANDS[id].z), id).toBe(true);
+    }
+    expect(inBowl(PORTAL.x, PORTAL.z)).toBe(true);
+    expect(inBowl(PORTAL.x, PORTAL.z + 1)).toBe(false);
+  });
+
+  it('puts the stations on or beside the walked lines', () => {
+    for (const id of TOUR) {
+      const stand = STATION_STANDS[id];
+      expect(distanceToPaths(stand.x, stand.z), id).toBeLessThan(1.1);
+    }
+  });
+
+  it('installs only between the arch’s pillars, on the deck', () => {
     expect(underArch(ARCH.x, ARCH.z)).toBe(true);
-    // The map's `y < 326`: 9 px short of the arch towards the arrival, nothing further south.
-    expect(ARCH_TRIGGER.maxZ - ARCH.z).toBeCloseTo(9 * MAP_SCALE, 10);
-    expect(underArch(ARCH.x, ARCH_TRIGGER.maxZ + 0.1)).toBe(false);
-    // On the deck only, never beside it over the water.
-    expect(underArch(BRIDGE.centre.x + BRIDGE.halfWidth + 0.1, ARCH.z)).toBe(false);
-    expect(ARCH_TRIGGER.minZ).toBeCloseTo(BRIDGE_NORTH.z, 10);
+    expect(underArch(1.3, 0.7)).toBe(true);
+    expect(underArch(1.5, 0)).toBe(false);
+    expect(underArch(0, 0.9)).toBe(false);
+    expect(underArch(0, -0.9)).toBe(false);
   });
 
-  it('keeps the arrival’s things on the south bank and the destination’s on the north', () => {
-    const south: [string, Vector3][] = [
-      ['lantern', LANTERN_POST],
-      ['stele', STELE.position],
-      ['bamboo', BAMBOO.position],
-      ['cairns', CAIRNS.position],
-      ...SOUTH_TRAIL.map((point, i) => [`south trail ${i}`, point] as [string, Vector3]),
-      ...CARD_SLOTS.map((card, i) => [`card ${i}`, card.position] as [string, Vector3]),
-    ];
-    const north: [string, Vector3][] = [
-      ['exhibit', EXHIBIT.position],
-      ['wall', WALL_SLOT.position],
-      ['liana', LIANA.position],
-      ['cave', CAVE_SLOT],
-      ...NORTH_TRAIL.map((point, i) => [`north trail ${i}`, point] as [string, Vector3]),
-    ];
-
-    for (const [name, point] of south) {
-      expect(onSouthBank(point.x, point.z), name).toBe(true);
+  it('carves the rill below the water line across the bowl, and stands the deck over it', () => {
+    for (let x = -26; x <= 26; x += 2) {
+      const centre = RILL.centreZ(x);
+      expect(jungleHeightAt(x, centre), `bed at ${x}`).toBeLessThan(-0.6);
+      expect(jungleHeightAt(x, centre + RILL.halfWidth * 0.7)).toBeLessThan(0);
+      expect(jungleHeightAt(x, centre - RILL.halfWidth * 0.7)).toBeLessThan(0);
+      // Where a visitor may stand beside it, the ground is out of the water.
+      expect(jungleHeightAt(x, centre + RILL.halfWidth + 0.6)).toBeGreaterThan(0.15);
+      expect(jungleHeightAt(x, centre - RILL.halfWidth - 0.6)).toBeGreaterThan(0.15);
     }
-    for (const [name, point] of north) {
-      expect(onSouthBank(point.x, point.z), name).toBe(false);
+    // The deck spans the whole rill and a little of each bank.
+    expect(DECK.halfLength).toBeGreaterThan(RILL.halfWidth + 0.5);
+    expect(DECK.halfWidth * 2).toBeCloseTo(2.9, 5);
+  });
+
+  it('meets the deck’s north end with a ramp down to the glade', () => {
+    const end = jungleHeightAt(0, -DECK.halfLength - 0.05);
+    expect(DECK.height - end).toBeGreaterThan(0);
+    expect(DECK.height - end).toBeLessThan(0.45);
+    // Down the ramp, never steeper than a step per 30 cm.
+    for (let z = -DECK.halfLength; z > -4; z -= 0.3) {
+      expect(jungleHeightAt(0, z) - jungleHeightAt(0, z - 0.3), `at ${z}`).toBeLessThan(0.45);
     }
   });
 
-  it('keeps everything that stands off the stream, well clear of the water', () => {
-    const standing = [
-      LANTERN_POST,
-      STELE.position,
-      BAMBOO.position,
-      CAIRNS.position,
-      EXHIBIT.position,
-      WALL_SLOT.position,
-      LIANA.position,
-      ...CARD_SLOTS.map((card) => card.position),
-    ];
-    for (const point of standing) {
-      expect(Math.abs(point.z - streamCentreZ(point.x))).toBeGreaterThan(STREAM.band + 2);
-    }
+  it('holds the pool’s water in a dip under the falls', () => {
+    expect(jungleHeightAt(POOL.x, POOL.z)).toBeLessThan(POOL.level - 0.5);
+    expect(jungleHeightAt(POOL.x + POOL.rx * 0.6, POOL.z)).toBeLessThan(POOL.level);
+    expect(jungleHeightAt(POOL.x + POOL.rx * 1.6, POOL.z)).toBeGreaterThan(POOL.level);
+    expect(WATERFALL.bottom).toBe(POOL.level);
+    expect(WATERFALL.top - WATERFALL.bottom).toBeGreaterThan(8);
+    expect(WATERFALL.x1 - WATERFALL.x0).toBeCloseTo(2, 5);
   });
 
-  it('stands four feed cards beside the south trail, each turned to the visitor coming along it', () => {
+  it('floors the cave at its own height inside the cliff', () => {
+    expect(jungleHeightAt(0, -21.6)).toBeCloseTo(CAVE.floor, 2);
+    expect(jungleHeightAt(0, (CAVE.z0 + CAVE.z1) / 2)).toBeCloseTo(CAVE.floor, 2);
+    expect(STELE.z).toBeGreaterThan(CAVE.z0);
+    expect(STELE.z).toBeLessThan(CAVE.z1);
+    expect(CAVE.z1).toBe(CLIFF.z);
+    // Behind the rock face on either side of the cave, the ground is the cliff's.
+    expect(jungleHeightAt(-6, -24)).toBeGreaterThan(CLIFF.height);
+  });
+
+  it('keeps the walk behind the falls between the pool and the cave', () => {
+    expect(BEHIND_FALLS.x0).toBeLessThan(WATERFALL.x0);
+    expect(BEHIND_FALLS.x1).toBeGreaterThan(WATERFALL.x1);
+    const path = glidePath(STATION_STANDS.wand, STATION_STANDS.hoehle);
+    expect(path).toContainEqual({ x: 2.4, z: -19.2 });
+  });
+
+  it('ripples the ground by at most 8 cm, and not at all on the paths', () => {
+    let rippled = 0;
+    // Off the paths, on the marsh and the glade.
+    for (let x = -16; x <= 16; x += 0.9) {
+      for (const [z, flat] of [
+        [8, 0.3],
+        [-7, 1],
+      ] as const) {
+        if (distanceToPaths(x, z) > 3) {
+          const off = Math.abs(jungleHeightAt(x, z) - flat);
+          expect(off, `${x}, ${z}`).toBeLessThanOrEqual(0.08);
+          rippled = Math.max(rippled, off);
+        }
+      }
+    }
+    expect(rippled).toBeGreaterThan(0.01);
+    expect(jungleHeightAt(-7, 11.6)).toBeCloseTo(0.3, 10);
+    expect(jungleHeightAt(0, -8)).toBeCloseTo(1, 10);
+  });
+
+  it('turns every feed card towards the boardwalk, beside it but off it', () => {
     expect(CARD_SLOTS).toHaveLength(4);
     for (const card of CARD_SLOTS) {
-      const nearest = nearestOnPath(card.position.x, card.position.z, SOUTH_TRAIL);
-      expect(nearest.distance).toBeCloseTo(CARD_OFFSET, 5);
-      expect(faces(card, nearest.point.x, nearest.point.z)).toBe(true);
-    }
-    // In the map's order: the arrival passes them first to last.
-    const along = CARD_SLOTS.map(
-      (card) => nearestOnPath(card.position.x, card.position.z, SOUTH_TRAIL).along,
-    );
-    expect([...along].sort((a, b) => a - b)).toEqual(along);
-  });
-
-  it('hangs fifteen vines, twelve over the south trail and three on the north bank', () => {
-    expect(VINE_SLOTS).toHaveLength(15);
-    const south = VINE_SLOTS.filter(({ position }) => onSouthBank(position.x, position.z));
-    expect(south).toHaveLength(12);
-    for (const vine of VINE_SLOTS) {
-      expect(vine.radius).toBeGreaterThanOrEqual(12 * MAP_SCALE);
-      expect(vine.radius).toBeLessThanOrEqual(20 * MAP_SCALE);
+      const near = nearestOnPath(card.x, card.z, BOARDWALK);
+      expect(near.distance).toBeGreaterThan(1.4);
+      expect(near.distance).toBeLessThan(4);
+      const dx = near.x - card.x;
+      const dz = near.z - card.z;
+      expect(Math.sin(card.yaw) * dx + Math.cos(card.yaw) * dz).toBeGreaterThan(0);
     }
   });
 
-  it('hangs fifteen tags, the four canonical ones first, each turned to the trail', () => {
-    expect(TAG_SLOTS).toHaveLength(15);
-    const canonical = [
-      [412, 592],
-      [398, 522],
-      [458, 462],
-      [512, 404],
-    ].map(([x, y]) => mapToWorld(x, y));
-    // At the map's spot, or brought in straight towards the trail until 2.3 m off it.
-    canonical.forEach((point, i) => {
-      const tag = TAG_SLOTS[i].position;
-      const mapped = offTrail(point);
-      const hung = offTrail(tag);
-      expect(hung).toBeLessThanOrEqual(Math.min(mapped, 2.3) + 1e-9);
-      expect(Math.hypot(tag.x - point.x, tag.z - point.z)).toBeCloseTo(mapped - hung, 6);
-    });
-    for (const tag of TAG_SLOTS.slice(4)) {
-      expect(
-        VINE_SLOTS.some(({ position }) => position.distanceTo(tag.position) < 1e-9),
-        'every further tag hangs in a vine',
-      ).toBe(true);
+  it('hangs four tags and fourteen vines over the walk, from the canopy line', () => {
+    expect(TAG_SLOTS).toHaveLength(4);
+    expect(VINE_SLOTS).toHaveLength(14);
+    for (const tag of TAG_SLOTS) {
+      expect(tag.y - jungleHeightAt(tag.x, tag.z)).toBeGreaterThan(5);
+      expect(distanceToPaths(tag.x, tag.z)).toBeLessThan(1.5);
     }
+    expect(VINE_SLOTS[0]).toEqual({ x: -3.6, z: 17, r: 0.8 });
+    expect(VINE_SLOTS[13]).toEqual({ x: -2.4, z: -14.4, r: 0.8 });
   });
 
-  it('stands the lantern beside the first leg, its arm reaching over the walk', () => {
-    expect(offTrail(LANTERN_POST)).toBeCloseTo(LANTERN_OFFSET, 6);
-    expect(LANTERN_OFFSET).toBeLessThan(2.2 - PLAYER_RADIUS);
-    const nearest = nearestOnPath(LANTERN_POST.x, LANTERN_POST.z, SOUTH_TRAIL);
-    expect(nearest.along).toBeLessThan(SOUTH_TRAIL[0].distanceTo(SOUTH_TRAIL[1]));
-    // The arm is the model's −X: (−cos yaw, sin yaw) in the world, pointing back at the trail.
-    const toTrail = nearest.point.clone().sub(LANTERN_POST).normalize();
-    expect(-Math.cos(LANTERN_YAW)).toBeCloseTo(toTrail.x, 6);
-    expect(Math.sin(LANTERN_YAW)).toBeCloseTo(toTrail.z, 6);
-  });
-
-  it('brings the toys and the vines in from the map’s far spots to where the walk passes them', () => {
-    expect(offTrail(STELE.position)).toBeLessThanOrEqual(5 + 1e-9);
-    expect(offTrail(LIANA.position)).toBeLessThanOrEqual(4 + 1e-9);
-    expect(offTrail(BAMBOO.position)).toBeLessThanOrEqual(6.5 + 1e-9);
-    expect(offTrail(CAIRNS.position)).toBeLessThanOrEqual(6.5 + 1e-9);
-    for (const vine of VINE_SLOTS) {
-      expect(offTrail(vine.position)).toBeLessThanOrEqual(3 + 1e-9);
+  it('stands the bamboo at the deck’s four corners, the lantern on the ledge and the wall north', () => {
+    expect(BAMBOO).toHaveLength(4);
+    for (const stalk of BAMBOO) {
+      expect(Math.abs(stalk.x)).toBeGreaterThan(DECK.halfWidth);
+      expect(Math.abs(stalk.z)).toBeLessThanOrEqual(DECK.halfLength);
     }
-    // Each still on its map side: the stele by the bridge head, bamboo east, cairns west.
-    expect(STELE.position.distanceTo(BRIDGE_SOUTH)).toBeLessThan(8);
-    expect(BAMBOO.position.x).toBeGreaterThan(
-      nearestOnPath(BAMBOO.position.x, BAMBOO.position.z, SOUTH_TRAIL).point.x,
-    );
-    expect(CAIRNS.position.x).toBeLessThan(
-      nearestOnPath(CAIRNS.position.x, CAIRNS.position.z, SOUTH_TRAIL).point.x,
-    );
-  });
-
-  it('hangs every vine and tag from the canopy line, 5.6 to 6.8 m over the ground below it', () => {
-    for (const { position } of [...VINE_SLOTS, ...TAG_SLOTS]) {
-      const above = position.y - jungleHeightAt(position.x, position.z);
-      expect(above).toBeGreaterThanOrEqual(HANG.min);
-      expect(above).toBeLessThanOrEqual(HANG.max);
-    }
-    expect(HANG).toEqual({ min: 5.6, max: 6.8 });
-  });
-
-  it('hangs the tags over the south trail, where the arrival walks under them', () => {
-    const south = TAG_SLOTS.filter(({ position }) => onSouthBank(position.x, position.z));
-    expect(south.length).toBeGreaterThanOrEqual(12);
-    for (const tag of TAG_SLOTS.slice(0, 4)) {
-      expect(nearestOnPath(tag.position.x, tag.position.z, SOUTH_TRAIL).distance).toBeLessThan(4);
-    }
-  });
-
-  it('turns the exhibit to the bridge and the wall to the north trail', () => {
-    expect(faces(EXHIBIT, BRIDGE_NORTH.x, BRIDGE_NORTH.z)).toBe(true);
-    expect(faces(WALL_SLOT, NORTH_TRAIL[1].x, NORTH_TRAIL[1].z)).toBe(true);
-  });
-
-  it('lays the commit ridge along a leg of the south trail', () => {
-    expect(SOUTH_TRAIL).toContain(RIDGE.from);
-    expect(SOUTH_TRAIL).toContain(RIDGE.to);
-    expect(RIDGE.from.distanceTo(RIDGE.to)).toBeGreaterThan(20);
-  });
-
-  it('freezes every anchor, so no consumer can move the layout for everyone else', () => {
-    expect(Object.isFrozen(LANTERN_POST)).toBe(true);
-    expect(Object.isFrozen(SOUTH_TRAIL[1])).toBe(true);
-    expect(Object.isFrozen(CARD_SLOTS[0].position)).toBe(true);
-    expect(Object.isFrozen(BRIDGE.centre)).toBe(true);
+    expect(jungleHeightAt(LANTERN_POST.x, LANTERN_POST.z)).toBeCloseTo(3, 1);
+    expect(WALL.z).toBeLessThan(STATION_STANDS.wand.z);
   });
 });
