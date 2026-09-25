@@ -28,6 +28,10 @@ MODELS = {
     "jungle-rocks": ("jungle_rocks", 0.5, 0.6, True),
     "cairn": ("cairn", 0.5, 0.4, True),
     "liana-lever": ("liana_lever", 0.5, 0.4, True),
+    "commit-steps": ("commit_steps", 0.6, 0.6, True),
+    "feed-wall": ("feed_wall", 0.55, 0.5, True),
+    "cave-cliff": ("cave_cliff", 0.6, 1.5, True),
+    "exhibit-easel": ("exhibit_easel", 0.5, 0.4, True),
 }
 
 

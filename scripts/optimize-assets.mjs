@@ -56,6 +56,15 @@ for (const file of (await readdir(SRC)).filter((f) => f.endsWith('.glb')).sort()
     'false',
     '--simplify',
     'false',
+    // Empties carry placements the game reads (the feed wall's card slots, the easel's screen
+    // anchor). Pruning, flattening and joining each drop empty leaf nodes; the models are
+    // authored flat and one node per part, so turning them off changes nothing else.
+    '--prune',
+    'false',
+    '--flatten',
+    'false',
+    '--join',
+    'false',
   ]);
   const { size } = await stat(out);
   const before = (await stat(`${SRC}${file}`)).size;

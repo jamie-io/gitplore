@@ -27,7 +27,11 @@ def main():
     scene.view_settings.view_transform = "AgX"
 
     bpy.ops.import_scene.gltf(filepath=glb)
-    objects = [o for o in scene.objects if o.type == "MESH"]
+    # A collider is a helper the game hides, so the sheet hides it too.
+    for obj in scene.objects:
+        if obj.name.split(".")[0] == "collider":
+            obj.hide_render = True
+    objects = [o for o in scene.objects if o.type == "MESH" and not o.hide_render]
     lo = Vector((min(v[i] for o in objects for v in world_bounds(o)) for i in range(3)))
     hi = Vector((max(v[i] for o in objects for v in world_bounds(o)) for i in range(3)))
     centre = (lo + hi) / 2

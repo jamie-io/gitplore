@@ -263,6 +263,54 @@ class Part:
         bmesh.ops.recalc_face_normals(tmp, faces=tmp.faces)
         return self._merge(tmp, placement(at, rot), color, slot, smooth_angle, bevel, jitter, seed)
 
+    def hull(self, points, at=(0, 0, 0), rot=(0, 0, 0), color=(1, 1, 1), slot=0, smooth_angle=None):
+        """The convex hull of game `points` around the origin: the cheapest faceted solid there is."""
+        tmp = bmesh.new()
+        for point in points:
+            tmp.verts.new(P(*point))
+        bmesh.ops.convex_hull(tmp, input=list(tmp.verts))
+        loose = [v for v in tmp.verts if not v.link_faces]
+        if loose:
+            bmesh.ops.delete(tmp, geom=loose, context="VERTS")
+        bmesh.ops.recalc_face_normals(tmp, faces=tmp.faces)
+        return self._merge(tmp, placement(at, rot), color, slot, smooth_angle, 0, 0, None)
+
+    def slab(self, size, at=(0, 0, 0), rot=(0, 0, 0), color=(1, 1, 1), slot=0, chamfer=0.3,
+             jitter=0.04, keep=(), knock=0.7, seed=None):
+        """
+        A split block of stone: a box `size` (game x, y, z) whose corners are knocked off at
+        random (each with chance `knock`, fewer knocks, fewer triangles), each cut up to `chamfer`
+        of the shortest side, and whose corners wander by
+        `jitter`, hulled into broad flat facets. Faces named in `keep` ('left', 'right',
+        'bottom', 'top', 'back', 'front') stay flat and exactly on the box, for treads and walls
+        something has to stand on or run along.
+        """
+        rng = random.Random(seed if seed is not None else self.rng.random())
+        half = [s / 2 for s in size]
+        cut = min(size) * chamfer
+        faces = (("left", "right"), ("bottom", "top"), ("back", "front"))
+        points = []
+        for signs in ((sx, sy, sz) for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)):
+            # A kept face pins its own axis at the corners on it; the other two may still wander.
+            pinned = [faces[axis][signs[axis] > 0] in keep for axis in range(3)]
+
+            def wobble(p):
+                return tuple(
+                    c if pinned[axis] else c + (rng.random() - 0.5) * 2 * jitter
+                    for axis, c in enumerate(p)
+                )
+
+            corner = [signs[axis] * half[axis] for axis in range(3)]
+            if any(pinned) or rng.random() >= knock:
+                points.append(wobble(corner))
+                continue
+            # Knock the corner off: one point back along each of its three edges.
+            for axis in range(3):
+                p = list(corner)
+                p[axis] -= signs[axis] * cut * (0.35 + rng.random() * 0.65)
+                points.append(wobble(p))
+        return self.hull(points, at=at, rot=rot, color=color, slot=slot)
+
     def tube(self, points, radius, sides=5, color=(1, 1, 1), slot=0, taper=1.0, smooth_angle=60,
              radii=None):
         """
@@ -310,6 +358,31 @@ class Part:
         return obj
 
 
+def empty(name, at=(0, 0, 0), scale=1.0, collection=None):
+    """
+    A named point the game reads a placement from (a card's slot, the screen's anchor), at game
+    point `at` with a uniform `scale`. An empty carries no geometry, so the optimiser leaves its
+    transform exactly as authored, unlike a mesh node's.
+    """
+    collection = collection or bpy.context.scene.collection
+    obj = bpy.data.objects.new(name, None)
+    obj.empty_display_type = "PLAIN_AXES"
+    obj.empty_display_size = 0.3
+    obj.location = P(*at)
+    obj.scale = (scale, scale, scale)
+    collection.objects.link(obj)
+    return obj
+
+
+def unbaked(obj):
+    """
+    Marks a helper mesh the game never shows (a collider): it gets no occlusion bake, and it is
+    hidden while the visible parts bake so it casts no occlusion onto them.
+    """
+    obj["unbaked"] = True
+    return obj
+
+
 # --- scene ------------------------------------------------------------------------------------------
 
 
@@ -347,7 +420,11 @@ def bake_occlusion(objects, strength=0.55, distance=0.6, samples=64, ground=True
     neighbouring block or the ground, where occlusion is total; interpolated across a big face,
     that black would stain all of it. So occlusion never counts below `floor`, and only
     `strength` of it is applied.
+
+    Empties are skipped, and helper meshes marked `unbaked` are neither baked nor seen by the bake.
     """
+    helpers = [o for o in objects if o.type == "MESH" and o.get("unbaked")]
+    objects = [o for o in objects if o.type == "MESH" and not o.get("unbaked")]
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.samples = samples
@@ -372,6 +449,8 @@ def bake_occlusion(objects, strength=0.55, distance=0.6, samples=64, ground=True
         bm.free()
         plane = bpy.data.objects.new("bake-ground", mesh)
         scene.collection.objects.link(plane)
+    for obj in helpers:
+        obj.hide_render = True
 
     for obj in objects:
         mesh = obj.data
@@ -394,9 +473,13 @@ def bake_occlusion(objects, strength=0.55, distance=0.6, samples=64, ground=True
 
     if plane:
         bpy.data.objects.remove(plane)
+    for obj in helpers:
+        obj.hide_render = False
 
 
 def triangles(obj):
+    if obj.type != "MESH":
+        return 0
     return sum(len(p.vertices) - 2 for p in obj.data.polygons)
 
 
