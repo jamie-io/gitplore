@@ -12,6 +12,7 @@ import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { ENVIRONMENT_MODELS } from './lib/environment-models.mjs';
+import { OPTIMIZE_FLAGS } from './lib/optimize-flags.mjs';
 import { mergedProjects } from './lib/portfolio.mjs';
 
 const run = promisify(execFile);
@@ -37,35 +38,7 @@ const assets = [];
 
 for (const file of (await readdir(SRC)).filter((f) => f.endsWith('.glb')).sort()) {
   const out = `${OUT}${file}`;
-  await run(CLI, [
-    'optimize',
-    `${SRC}${file}`,
-    out,
-    '--compress',
-    'meshopt',
-    '--texture-compress',
-    'webp',
-    '--texture-size',
-    '1024',
-    // The game finds parts by node and material name (the lantern's body and glass, the arch's
-    // glow), so named nodes stay apart and materials are not merged into a palette. The models
-    // are authored low-poly; simplifying would only chip at their silhouettes and colour seams.
-    '--join-named',
-    'false',
-    '--palette',
-    'false',
-    '--simplify',
-    'false',
-    // Empties carry placements the game reads (the feed wall's card slots, the easel's screen
-    // anchor). Pruning, flattening and joining each drop empty leaf nodes; the models are
-    // authored flat and one node per part, so turning them off changes nothing else.
-    '--prune',
-    'false',
-    '--flatten',
-    'false',
-    '--join',
-    'false',
-  ]);
+  await run(CLI, ['optimize', `${SRC}${file}`, out, ...OPTIMIZE_FLAGS]);
   const { size } = await stat(out);
   const before = (await stat(`${SRC}${file}`)).size;
   const group = GROUPS[file] ?? 'core';

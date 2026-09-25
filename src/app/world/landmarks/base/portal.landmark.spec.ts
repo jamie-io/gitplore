@@ -1,4 +1,5 @@
 import {
+  Box3,
   Group,
   Mesh,
   MeshStandardMaterial,
@@ -315,5 +316,37 @@ describe('PortalLandmark with a glTF model', () => {
     portal.update(0.016, ctx);
 
     expect(assets.requested).toEqual([]);
+  });
+
+  it('stands only its veil and label when an environment frames it, and blocks nothing', () => {
+    const canvas = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      fillStyle: '',
+      font: '',
+      textAlign: '',
+      textBaseline: '',
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+      measureText: (text: string) => ({ width: text.length * 20 }),
+    } as unknown as CanvasRenderingContext2D);
+    const assets = new StubAssets();
+    const portal = new PortalLandmark({ ...options({ project: withModel() }), frame: false });
+    const ctx = ctxWith(assets);
+    portal.init(ctx);
+    ctx.player.teleport(new Vector3(0, 1.7, -18));
+
+    portal.update(0.016, ctx);
+
+    expect(portal.colliders).toEqual([]);
+    expect(portal.group.getObjectByName('proxy')).toBeUndefined();
+    expect(portal.group.getObjectByName('veil')).toBeInstanceOf(Mesh);
+    expect(portal.group.getObjectByName('veil')!.position.y).toBeCloseTo(1.8, 6);
+    expect(assets.requested).toEqual([]);
+    expect(portal.interactables).toHaveLength(1);
+    // The label clears a frame held to 5 m.
+    const label = portal.group.getObjectByName('label')!;
+    expect(label).toBeInstanceOf(Mesh);
+    expect(new Box3().setFromObject(label).min.y).toBeGreaterThanOrEqual(5);
+    portal.dispose();
+    canvas.mockRestore();
   });
 });

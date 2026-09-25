@@ -628,7 +628,7 @@ describe('JungleEnvironment', () => {
     expect(layout.ridge).toBeUndefined();
     expect([layout.terminal.position.x, layout.terminal.position.z]).toEqual([STELE.x, STELE.z]);
     expect(layout.terminal.rotationY).toBe(STELE.yaw);
-    expect([layout.lever.position.x, layout.lever.position.z]).toEqual([LIANA.x, LIANA.z]);
+    expect([layout.lever?.position.x, layout.lever?.position.z]).toEqual([LIANA.x, LIANA.z]);
     expect(layout.languages.stalks?.map(({ x, z }) => ({ x, z }))).toEqual(
       BAMBOO.map(({ x, z }) => ({ x, z })),
     );

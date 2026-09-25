@@ -4,6 +4,7 @@ import { StubAssets, stubContext } from '@engine/testing/world-context';
 import type { WorldScene } from '@engine/world-object';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import type { Project } from '@content/project.model';
+import type { ToyLayout } from '../environments/environment';
 import { JungleEnvironment } from '../environments/jungle';
 import { BAMBOO, CAIRN, LIANA, STELE } from '../environments/jungle-layout';
 import { PlazaEnvironment } from '../environments/plaza';
@@ -12,6 +13,18 @@ import { ShowroomEnvironment } from '../environments/showroom';
 import { clearance } from '../environments/testing/clearance';
 import { ProjectScene, ProjectSceneOptions } from './project.scene';
 import { ReturnPortal } from './return.landmark';
+
+/**
+ * A fake environment whose `toyLayout()` lays out every toy but the lever — everything the jungle
+ * already lays out, minus the one field this task makes optional — to test that `ProjectScene`
+ * copes with an environment that has no lever spot at all.
+ */
+class WithoutLeverEnvironment extends JungleEnvironment {
+  override toyLayout(): ToyLayout {
+    const { terminal, ridge, languages, releases, stars } = super.toyLayout();
+    return { terminal, ridge, languages, releases, stars };
+  }
+}
 
 const PROJECT = PROJECT_FIXTURES[0];
 
@@ -104,9 +117,12 @@ describe('ProjectScene', () => {
     expect(prompts).toContain('Dekoration neu würfeln');
     expect(target.landmarks).toHaveLength(2);
     expect(target.colliders).toContainEqual(target.terminal.colliders[0]);
-    expect(target.colliders).toContainEqual(target.seedLever.colliders[0]);
+    // The default (Showroom) environment lays out no toys of its own, so `walkLayout` always
+    // gives it a lever.
+    expect(target.seedLever).not.toBeNull();
+    expect(target.colliders).toContainEqual(target.seedLever!.colliders[0]);
 
-    for (const prop of [target.terminal, target.seedLever]) {
+    for (const prop of [target.terminal, target.seedLever!]) {
       const fromArrival = prop.position.clone().sub(target.arrival.position);
       const along = fromArrival.dot(walk);
       const lateral = Math.abs(fromArrival.x * walk.z - fromArrival.z * walk.x);
@@ -116,6 +132,25 @@ describe('ProjectScene', () => {
     }
   });
 
+  it('builds no seed lever when the environment lays out none', () => {
+    const target = scene({
+      environment: new WithoutLeverEnvironment({ reducedMotion: () => true }),
+    });
+
+    expect(target.seedLever).toBeNull();
+    expect(
+      target.interactables.some((interactable) => interactable.id.endsWith(':seed-lever:pull')),
+    ).toBe(false);
+
+    const ctx = stubContext();
+    target.init(ctx);
+    expect(() => target.dispose()).not.toThrow();
+  });
+
+  it('still builds the seed lever everywhere else', () => {
+    expect(scene().seedLever).not.toBeNull();
+  });
+
   it.each([
     ['Showroom', () => new ShowroomEnvironment({ reducedMotion: () => true })],
     ['Dschungel', () => new JungleEnvironment({ reducedMotion: () => true })],
@@ -123,8 +158,9 @@ describe('ProjectScene', () => {
   ] as const)('keeps both toys clear of %s environment colliders', (_name, buildEnvironment) => {
     const environment = buildEnvironment();
     const target = scene({ environment });
+    const toys = [target.terminal, target.seedLever].filter((toy) => toy !== null);
 
-    for (const prop of [target.terminal, target.seedLever]) {
+    for (const prop of toys) {
       expect(
         clearance(prop.position.x, prop.position.z, environment.colliders),
         `${prop.id} at (${prop.position.x.toFixed(2)}, ${prop.position.z.toFixed(2)}) overlaps environment`,
@@ -231,8 +267,10 @@ describe('ProjectScene', () => {
 
     expect(target.terminal.position.x).toBeCloseTo(STELE.x, 6);
     expect(target.terminal.position.z).toBeCloseTo(STELE.z, 6);
-    expect(target.seedLever.position.x).toBeCloseTo(LIANA.x, 6);
-    expect(target.seedLever.position.z).toBeCloseTo(LIANA.z, 6);
+    // The jungle's own `toyLayout()` still lays out a lever, at the liana.
+    expect(target.seedLever).not.toBeNull();
+    expect(target.seedLever!.position.x).toBeCloseTo(LIANA.x, 6);
+    expect(target.seedLever!.position.z).toBeCloseTo(LIANA.z, 6);
 
     target.init(ctx);
     const centre = (name: string) => {

@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import {
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
+  Color,
   Float32BufferAttribute,
   Group,
   InterleavedBuffer,
@@ -10,9 +12,16 @@ import {
   MeshStandardMaterial,
   Vector3,
 } from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import { adoptNode, bakeGeometry } from './model-geometry';
+import { StubAssets } from '@engine/testing/world-context';
+import {
+  adoptNode,
+  bakeGeometry,
+  borrowModels,
+  markerPosition,
+  mergeBaked,
+  tintGeometry,
+} from './model-geometry';
+import { loadModelFile } from './testing/model-files';
 
 function optimizedGeometry(): BufferGeometry {
   const geometry = new BufferGeometry();
@@ -41,16 +50,8 @@ function modelRoot(node: Mesh | Group): Group {
   return root;
 }
 
-async function loadModel(path: string): Promise<Group> {
-  await MeshoptDecoder.ready;
-  const bytes = readFileSync(path);
-  const arrayBuffer = new Uint8Array(bytes.byteLength);
-  arrayBuffer.set(bytes);
-  const loader = new GLTFLoader();
-  loader.setMeshoptDecoder(MeshoptDecoder);
-  return new Promise((resolve, reject) => {
-    loader.parse(arrayBuffer.buffer, '', (gltf) => resolve(gltf.scene), reject);
-  });
+function loadModel(path: string): Promise<Group> {
+  return loadModelFile((file) => readFileSync(file), path);
 }
 
 describe('model geometry', () => {
@@ -143,5 +144,111 @@ describe('model geometry', () => {
       expect(bounds.min.y).toBeLessThan(0);
       baked!.dispose();
     }
+  });
+
+  it('tints vertex colours, and paints a geometry that has none', () => {
+    const shaded = new BoxGeometry(1, 1, 1);
+    const count = shaded.getAttribute('position').count;
+    shaded.setAttribute('color', new BufferAttribute(new Float32Array(count * 3).fill(0.5), 3));
+    const tint = new Color(0x3178c6);
+
+    tintGeometry(shaded, tint);
+    const plain = tintGeometry(new BoxGeometry(1, 1, 1), tint);
+
+    expect(shaded.getAttribute('color').getX(3)).toBeCloseTo(tint.r * 0.5, 6);
+    expect(shaded.getAttribute('color').getZ(3)).toBeCloseTo(tint.b * 0.5, 6);
+    expect(plain.getAttribute('color').getY(0)).toBeCloseTo(tint.g, 6);
+  });
+
+  it('merges baked parts with the normals they were authored with', () => {
+    const a = new BoxGeometry(1, 1, 1);
+    const b = new BoxGeometry(1, 1, 1).translate(2, 0, 0);
+    [a, b].forEach((part) => part.deleteAttribute('uv'));
+    const normals = Array.from(a.getAttribute('normal').array);
+
+    const merged = mergeBaked([a, b]);
+
+    expect(merged.getAttribute('position').count).toBe(48);
+    expect(Array.from(merged.getAttribute('normal').array).slice(0, normals.length)).toEqual(
+      normals,
+    );
+    expect(merged.boundingSphere).not.toBeNull();
+  });
+
+  it('finds an empty in the model frame', () => {
+    const root = new Group();
+    root.position.set(5, 0, 0);
+    const lamp = new Group();
+    lamp.name = 'lamp';
+    lamp.position.set(-2, 2.6, 2.4);
+    root.add(lamp);
+
+    expect(markerPosition(root, 'lamp')?.toArray()).toEqual([-2, 2.6, 2.4]);
+    expect(markerPosition(root, 'missing')).toBeNull();
+  });
+
+  it('borrows models only while all of them arrive, and hands every arrival back', async () => {
+    const assets = new StubAssets();
+    const used: string[][] = [];
+    borrowModels(
+      assets,
+      ['a.glb', 'b.glb'],
+      () => false,
+      (models) => used.push([...models.keys()]),
+    );
+    await assets.resolve();
+    await assets.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(used).toEqual([['a.glb', 'b.glb']]);
+    expect(assets.releasedModels).toEqual(['a.glb', 'b.glb']);
+
+    const partial = new StubAssets();
+    borrowModels(
+      partial,
+      ['a.glb', 'b.glb'],
+      () => false,
+      () => used.push(['partial']),
+    );
+    await partial.resolve();
+    await partial.reject();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(used).toHaveLength(1);
+    expect(partial.releasedModels).toEqual(['a.glb']);
+
+    const cancelled = new StubAssets();
+    borrowModels(
+      cancelled,
+      ['a.glb'],
+      () => true,
+      () => used.push(['cancelled']),
+    );
+    await cancelled.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(used).toHaveLength(1);
+    expect(cancelled.releasedModels).toEqual(['a.glb']);
+  });
+
+  it('logs a model that cannot be dressed, still hands it back, and rejects nothing', async () => {
+    const assets = new StubAssets();
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+
+    borrowModels(
+      assets,
+      ['a.glb'],
+      () => false,
+      () => {
+        throw new Error('no such node');
+      },
+    );
+    await assets.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(logged).toHaveBeenCalledOnce();
+    expect(assets.releasedModels).toEqual(['a.glb']);
+    expect(unhandled).not.toHaveBeenCalled();
+    process.off('unhandledRejection', unhandled);
+    logged.mockRestore();
   });
 });

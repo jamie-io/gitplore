@@ -61,6 +61,86 @@
       "group": "core"
     },
     {
+      "url": "assets/models/plaza-arch.glb",
+      "bytes": 22864,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-bench.glb",
+      "bytes": 7860,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-board.glb",
+      "bytes": 10372,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-corner.glb",
+      "bytes": 17196,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-cypress.glb",
+      "bytes": 8904,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-fountain.glb",
+      "bytes": 37784,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-house-a.glb",
+      "bytes": 21192,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-house-b.glb",
+      "bytes": 19392,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-house-c.glb",
+      "bytes": 21248,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-house-d.glb",
+      "bytes": 22664,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-house-e.glb",
+      "bytes": 21716,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-house-f.glb",
+      "bytes": 23940,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-mast.glb",
+      "bytes": 4280,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-pillar.glb",
+      "bytes": 8584,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-step.glb",
+      "bytes": 2992,
+      "group": "plaza"
+    },
+    {
+      "url": "assets/models/plaza-terminal.glb",
+      "bytes": 13468,
+      "group": "plaza"
+    },
+    {
       "url": "assets/models/stele.glb",
       "bytes": 20152,
       "group": "jungle"

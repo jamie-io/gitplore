@@ -12,7 +12,7 @@ import {
 import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import { createLabel } from './label';
-import { Landmark, LandmarkShape } from './landmark';
+import { Landmark, LandmarkOptions, LandmarkShape } from './landmark';
 
 /** Seconds the camera glides towards the portal before the destination opens. */
 export const DOLLY_SECONDS = 0.35;
@@ -31,6 +31,12 @@ const INTERACT_RADIUS = 4;
  * title; the 0.6 m label now clears it by 10 cm.
  */
 const LABEL_Y = 5.2;
+/**
+ * Height of the label's centre when an environment frames the portal: the frame is held to 5 m (the
+ * Plaza's arch tops out there), and its attic stands in the label's plane, so the label's lower edge
+ * clears 5 m.
+ */
+const FRAMELESS_LABEL_Y = 5.36;
 
 /**
  * The glow's emissive strength. The surface is the project's colour, which is dark on purpose so
@@ -60,6 +66,15 @@ export const VEIL_HIDE = 1;
 /** Extra clearance so the player never clips a pillar. */
 const PILLAR_COLLIDER_RADIUS = PILLAR_RADIUS + 0.1;
 
+export interface PortalLandmarkOptions extends LandmarkOptions {
+  /**
+   * Whether the portal stands its own stone arch, and the pillars' colliders. An environment that
+   * builds an arch around the portal (the Plaza's street arch) turns it off: only the glowing veil
+   * and the label then stand, and the environment's arch blocks.
+   */
+  readonly frame?: boolean;
+}
+
 /**
  * A stone arch with a glowing surface in the project's colour. Using it glides the player into
  * the arch and opens the project (IMPLEMENTATION_PLAN.md §3).
@@ -75,9 +90,18 @@ export class PortalLandmark extends Landmark {
   /** The glowing surface between the pillars, faded out as the camera comes through it. */
   private veil: Mesh<PlaneGeometry, MeshStandardMaterial> | null = null;
 
+  private readonly frame: boolean;
+
+  constructor(options: PortalLandmarkOptions) {
+    super(options);
+    this.frame = options.frame ?? true;
+  }
+
   protected describe(): LandmarkShape {
+    // `describe` runs lazily, after the constructor, so `frame` is set by then.
+    const pillars = this.frame ? [-HALF_WIDTH, HALF_WIDTH] : [];
     return {
-      colliders: [-HALF_WIDTH, HALF_WIDTH].map((x) => {
+      colliders: pillars.map((x) => {
         const world = this.toWorld(x, 0, 0);
         return { kind: 'cylinder', x: world.x, z: world.z, radius: PILLAR_COLLIDER_RADIUS };
       }),
@@ -94,7 +118,6 @@ export class PortalLandmark extends Landmark {
   }
 
   protected build(ctx: WorldContext): void {
-    const stone = new MeshStandardMaterial({ color: 0x8a8f98, roughness: 0.9, flatShading: true });
     const glow = new MeshStandardMaterial({
       color: new Color(this.project.theme.primary),
       emissive: new Color(this.project.theme.primary),
@@ -104,7 +127,25 @@ export class PortalLandmark extends Landmark {
       side: DoubleSide,
     });
 
-    // The stone parts live in their own group so a glTF model can take their place later.
+    if (this.frame) {
+      this.buildStone(ctx);
+    }
+
+    this.veil = new Mesh(new PlaneGeometry(HALF_WIDTH * 2 - 0.2, PILLAR_HEIGHT - 0.2), glow);
+    this.veil.name = 'veil';
+    this.veil.position.set(0, PILLAR_HEIGHT / 2, 0);
+    this.group.add(this.veil);
+
+    const label = createLabel(this.project.title, this.project.theme.primary);
+    if (label) {
+      label.position.set(0, this.frame ? LABEL_Y : FRAMELESS_LABEL_Y, 0.05);
+      this.group.add(label);
+    }
+  }
+
+  /** The procedural stone arch, in its own group so a glTF model can take its place later. */
+  private buildStone(ctx: WorldContext): void {
+    const stone = new MeshStandardMaterial({ color: 0x8a8f98, roughness: 0.9, flatShading: true });
     this.proxy = new Group();
     this.proxy.name = 'proxy';
     const pillar = new CylinderGeometry(PILLAR_RADIUS, PILLAR_RADIUS * 1.15, PILLAR_HEIGHT, 8);
@@ -120,16 +161,6 @@ export class PortalLandmark extends Landmark {
     lintel.castShadow = ctx.quality.shadows;
     this.proxy.add(lintel);
     this.group.add(this.proxy);
-
-    this.veil = new Mesh(new PlaneGeometry(HALF_WIDTH * 2 - 0.2, PILLAR_HEIGHT - 0.2), glow);
-    this.veil.position.set(0, PILLAR_HEIGHT / 2, 0);
-    this.group.add(this.veil);
-
-    const label = createLabel(this.project.title, this.project.theme.primary);
-    if (label) {
-      label.position.set(0, LABEL_Y, 0.05);
-      this.group.add(label);
-    }
   }
 
   override update(dt: number, ctx: WorldContext): void {
@@ -188,7 +219,7 @@ export class PortalLandmark extends Landmark {
 
   private loadModelWhenNear(ctx: WorldContext): void {
     const url = this.project.landmark.model;
-    if (!url || this.modelState !== 'none') {
+    if (!url || !this.frame || this.modelState !== 'none') {
       return;
     }
 

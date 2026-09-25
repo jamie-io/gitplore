@@ -6,6 +6,7 @@ import type { Project } from '@content/project.model';
 import { mergedProjects } from '../../../../scripts/lib/portfolio.mjs';
 import { createEnvironment } from '../environments/create-environment';
 import { LIANA, STELE } from '../environments/jungle-layout';
+import { STATIONS } from '../environments/plaza-layout';
 import { clearance } from '../environments/testing/clearance';
 import { createProjectScene } from './create-project-scene';
 import { ProjectScene, TOY_SIDE_OFFSET } from './project.scene';
@@ -79,7 +80,9 @@ function vertices(root: Object3D, names: ReadonlySet<string>): Vector3[] {
 /** Everything the toys must keep clear of, in one built scene. */
 async function expectToysClear(project: Project): Promise<void> {
   const scene = await build(project);
-  const toys = [scene.terminal, scene.seedLever];
+  // `seedLever` is `null` for an environment that lays out no lever, the Plaza among them; skip
+  // its assertions rather than fail on a toy that was never built.
+  const toys = [scene.terminal, scene.seedLever].filter((toy) => toy !== null);
   const own = new Set<Collider>(toys.flatMap((toy) => toy.colliders));
   const others = scene.colliders.filter((collider) => !own.has(collider));
 
@@ -100,6 +103,12 @@ async function expectToysClear(project: Project): Promise<void> {
       const spot = toy === scene.terminal ? STELE : LIANA;
       expect(toy.position.x, `${where} is not at its spot`).toBeCloseTo(spot.x, 5);
       expect(toy.position.z, `${where} is not at its spot`).toBeCloseTo(spot.z, 5);
+    } else if (project.environment === 'plaza') {
+      // The Plaza stands the terminal at its south-west station and builds no seed lever.
+      const { prop } = STATIONS[0];
+      expect(toy, `${where} is not the terminal`).toBe(scene.terminal);
+      expect(toy.position.x, `${where} is not at its station`).toBeCloseTo(prop.x, 5);
+      expect(toy.position.z, `${where} is not at its station`).toBeCloseTo(prop.z, 5);
     } else {
       const from = toy.position.clone().sub(scene.arrival.position).setY(0);
       const along = from.dot(walk);

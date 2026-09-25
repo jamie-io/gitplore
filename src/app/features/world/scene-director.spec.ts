@@ -693,8 +693,10 @@ describe('SceneDirector', () => {
     const scene = engine.world as ProjectScene;
 
     expect(director.teleportToInteractableForTest(`${scene.id}:seed-lever:pull`)).toBe(true);
-    expect(engine.player.position.x).toBeCloseTo(scene.seedLever.position.x, 6);
-    expect(engine.player.position.z).toBeCloseTo(scene.seedLever.position.z + 1.5, 6);
+    // Deslopify stands in the jungle, whose own `toyLayout()` still lays out a lever.
+    expect(scene.seedLever).not.toBeNull();
+    expect(engine.player.position.x).toBeCloseTo(scene.seedLever!.position.x, 6);
+    expect(engine.player.position.z).toBeCloseTo(scene.seedLever!.position.z + 1.5, 6);
     expect(engine.player.yaw).toBe(0);
   });
 
