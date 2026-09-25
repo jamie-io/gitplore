@@ -1,13 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { Scene } from 'three';
-import {
-  CapabilityService,
-  DEVICE_CAPABILITIES,
-  QualitySettings,
-  qualitySettings,
-} from './capability.service';
+import { CapabilityService, DEVICE_CAPABILITIES, qualitySettings } from './capability.service';
 import { ENGINE_MAX_FRAME_SECONDS, EngineService } from './engine.service';
-import { RENDERER_FACTORY, RendererLike } from './renderer.factory';
+import { RENDERER_FACTORY } from './renderer.factory';
 import { BoxGeometry, Mesh, MeshStandardMaterial, Object3D, Texture, Vector3 } from 'three';
 import { Interactable } from './interaction/interactable';
 import { Collider, HeightField } from './player/collision';
@@ -15,43 +10,10 @@ import { PLAYER_EYE_HEIGHT, PlayerController } from './player/player-controller'
 import { PlayerVisual } from './player/player-visual';
 import { BOOM_HEIGHT, BOOM_LENGTH } from './player/third-person-rig';
 import { WorldScene } from './world-object';
+import { StubRenderer } from './testing/stub-renderer';
 import { CAPABLE } from './testing/world-context';
 import { arrivalShot, momentShot } from './camera/camera-shot';
 import { planGlide } from './stations/glide';
-
-class StubRenderer implements RendererLike {
-  loop: ((time: number) => void) | null = null;
-  renders = 0;
-  disposed = false;
-  width = 0;
-  height = 0;
-  pixelRatio = 1;
-  readonly domElement = document.createElement('canvas');
-  readonly qualities: QualitySettings[] = [];
-  readonly info = { memory: { geometries: 0, textures: 0 } };
-  renderListsDisposed = 0;
-  readonly renderLists = { dispose: () => void this.renderListsDisposed++ };
-
-  setAnimationLoop(fn: ((time: number) => void) | null) {
-    this.loop = fn;
-  }
-  setSize(width: number, height: number) {
-    this.width = width;
-    this.height = height;
-  }
-  setPixelRatio(ratio: number) {
-    this.pixelRatio = ratio;
-  }
-  setQuality(quality: QualitySettings) {
-    this.qualities.push(quality);
-  }
-  render() {
-    this.renders++;
-  }
-  dispose() {
-    this.disposed = true;
-  }
-}
 
 const FLAT: HeightField = { heightAt: () => 0 };
 
@@ -828,6 +790,37 @@ describe('EngineService', () => {
 
       expect(engine.player.position.x).toBeCloseTo(6, 6);
       expect(engine.player.position.z).toBeCloseTo(z, 6);
+    });
+
+    it('lets the tickables see the glide over on the very frame it arrives', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      const seen: { gliding: boolean; z: number }[] = [];
+      engine.addTickable({
+        update: () => seen.push({ gliding: engine.gliding(), z: engine.player.position.z }),
+      });
+      engine.glide(north());
+
+      run(16, 16 + 800);
+
+      const arrived = seen.findIndex((frame) => !frame.gliding);
+      expect(arrived).toBeGreaterThan(0);
+      expect(seen[arrived].z).toBeCloseTo(-10, 6);
+    });
+
+    it('lets the tickables see the glide over on the frame movement cancels it', () => {
+      engine.setScene(stubScene('hub'));
+      tick(0);
+      engine.glide(north());
+      run(16, 320);
+      const seen: boolean[] = [];
+      engine.addTickable({ update: () => seen.push(engine.gliding()) });
+
+      press('KeyD');
+      tick(336);
+      release('KeyD');
+
+      expect(seen).toEqual([false]);
     });
 
     it('teleports straight to the stand under reduced motion', () => {

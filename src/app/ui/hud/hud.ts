@@ -123,7 +123,10 @@ const BANNER_FADE_MS = 300;
       --hud-plate-text: #c9d2cc;
       --hud-plate-muted: #9aa89f;
     }
-    /* The Plaza: terracotta on warm dark umber, white on the accent. Every text pairing ≥ 4.5 : 1. */
+    /*
+     * The Plaza: terracotta on warm dark umber, white on the accent (4.67 : 1). The plate pairings
+     * are ≥ 4.5 : 1 even with the plate over pure white; the chips keep the shared dark glass.
+     */
     :host([data-environment='plaza']) {
       --hud-accent: #b8583a;
       --hud-accent-ink: #fff;

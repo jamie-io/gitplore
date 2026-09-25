@@ -457,6 +457,61 @@ describe('SceneDirector', () => {
       expect(engine.glides.length).toBe(0);
     });
 
+    describe('while gliding', () => {
+      /** Arrived at the first station, then off to the third, over the second's stand. */
+      async function glidingPastTheSecond(): Promise<void> {
+        dressNovaverta();
+        await director.show('novaverta');
+        standAt(0, -10);
+        director.glideTo(3);
+        expect(engine.gliding()).toBe(true);
+        standAt(0, -20);
+      }
+      const states = () => store.stations().map((chip) => chip.state);
+
+      it('neither visits nor shows a station the glide passes', async () => {
+        await glidingPastTheSecond();
+
+        expect(states()[1]).not.toBe('visited');
+        expect(states()[1]).not.toBe('here');
+        expect(store.plate()?.title).not.toBe('zwei');
+      });
+
+      it('takes up the stations on the frame the glide arrives', async () => {
+        await glidingPastTheSecond();
+
+        engine.finishGlide();
+        frame();
+
+        expect(states()).toEqual(['visited', 'next', 'here']);
+        expect(store.plate()?.title).toBe('drei');
+      });
+
+      it('takes up the stations on the frame a glide is cancelled, where the player stands', async () => {
+        await glidingPastTheSecond();
+
+        engine.cancelGlide();
+        frame();
+
+        expect(states()).toEqual(['visited', 'here', 'next']);
+        expect(store.plate()?.title).toBe('zwei');
+      });
+
+      it('takes up the stations on the frame after a reduced-motion jump', async () => {
+        engine.teleportGlides = true;
+        dressNovaverta();
+        await director.show('novaverta');
+        standAt(0, -10);
+
+        director.glideTo(3);
+        expect(engine.gliding()).toBe(false);
+        frame();
+
+        expect(states()).toEqual(['visited', 'next', 'here']);
+        expect(store.plate()?.title).toBe('drei');
+      });
+    });
+
     it('plays the moment over the overview and shows the banner until it ends', async () => {
       dressNovaverta();
       await director.show('novaverta');

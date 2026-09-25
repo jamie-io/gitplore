@@ -22,9 +22,10 @@ import {
 } from '@engine/capability.service';
 import { EngineService } from '@engine/engine.service';
 import { PLAYER_EYE_HEIGHT, PLAYER_RADIUS } from '@engine/player/player-controller';
-import { RENDERER_FACTORY, RendererLike } from '@engine/renderer.factory';
+import { RENDERER_FACTORY } from '@engine/renderer.factory';
 import { GLIDE, planGlide } from '@engine/stations/glide';
 import type { GroundPoint } from '@engine/stations/station';
+import { StubRenderer } from '@engine/testing/stub-renderer';
 import { CAPABLE, stubContext } from '@engine/testing/world-context';
 import type { WorldScene } from '@engine/world-object';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
@@ -760,10 +761,11 @@ describe('the Plaza’s stations', () => {
   });
 
   it('keeps each station’s trigger around its own stand only', () => {
-    for (const [index, station] of STATIONS.entries()) {
-      for (const other of STATIONS.slice(index + 1)) {
+    const stations = projectScene(plaza()).stations!;
+    for (const [index, station] of stations.entries()) {
+      for (const other of stations.slice(index + 1)) {
         const apart = Math.hypot(station.stand.x - other.stand.x, station.stand.z - other.stand.z);
-        expect(apart).toBeGreaterThan(2 * 2.5);
+        expect(apart).toBeGreaterThan(station.trigger + other.trigger);
       }
     }
   });
@@ -840,31 +842,6 @@ describe('the Plaza’s stations', () => {
   });
 
   describe('under reduced motion', () => {
-    class StubRenderer implements RendererLike {
-      loop: ((time: number) => void) | null = null;
-      readonly domElement = document.createElement('canvas');
-      readonly info = { memory: { geometries: 0, textures: 0 } };
-      readonly renderLists = { dispose: () => undefined };
-      setAnimationLoop(fn: ((time: number) => void) | null) {
-        this.loop = fn;
-      }
-      setSize() {
-        // Nothing to size.
-      }
-      setPixelRatio() {
-        // Nothing to scale.
-      }
-      setQuality() {
-        // Nothing to tune.
-      }
-      render() {
-        // Nothing to draw.
-      }
-      dispose() {
-        // Nothing to release.
-      }
-    }
-
     let engine: EngineService;
     let renderer: StubRenderer;
 

@@ -406,9 +406,15 @@ export class SceneDirector {
     this.store.pitch.set(scene.pitch ?? null);
   }
 
+  /**
+   * Skipped while a glide runs, so the stations it passes on the way are neither visited nor
+   * shown. The engine runs its tickables after it moves the player, so the frame a glide arrives
+   * or is cancelled already reads `gliding()` false and takes up the stop the player stands at; a
+   * reduced-motion glide never runs at all, and the next frame does the same.
+   */
   private updateStations(): void {
     const stations = this.stations;
-    if (!stations) {
+    if (!stations || this.engine.gliding()) {
       return;
     }
     const { x, z } = this.engine.player.position;

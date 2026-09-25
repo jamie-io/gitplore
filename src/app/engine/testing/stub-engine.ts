@@ -54,9 +54,27 @@ export class StubEngine {
     return () => this.shotListeners.delete(listener);
   }
 
+  /** Stands in for reduced motion: a glide puts the player straight down at its end. */
+  teleportGlides = false;
+
   glide(glide: Glide): void {
     this.glides.push(glide);
+    if (this.teleportGlides) {
+      this.standAtEnd(glide);
+      return;
+    }
     this.activeGlide = glide;
+  }
+  /** Ends the running glide as the loop would: the player stands at its end. */
+  finishGlide(): void {
+    if (this.activeGlide) {
+      this.standAtEnd(this.activeGlide);
+      this.activeGlide = null;
+    }
+  }
+  private standAtEnd(glide: Glide): void {
+    const end = glide.points[glide.points.length - 1];
+    this.player.position.set(end.x, this.player.position.y, end.z);
   }
   cancelGlide(): void {
     this.activeGlide = null;
