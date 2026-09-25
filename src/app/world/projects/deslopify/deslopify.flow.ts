@@ -46,6 +46,11 @@ export const FLOW = {
 
 /** The haze closes this fraction of its gap to the ring's coverage per second. */
 const HAZE_EASE = 2;
+/**
+ * Metres beyond which one frame's move is a jump rather than a step: a glide's teleport under
+ * reduced motion, or a restart's. A jump is followed along the walk it stands for.
+ */
+const JUMP = 2;
 
 /** A point on the ground plane, in world metres. */
 export interface FlowPoint {
@@ -104,6 +109,12 @@ export interface DeslopifyFlowOptions {
    * frame can carry the player from one side of it to the other without ever standing in it.
    */
   readonly crossesArch?: (a: FlowPoint, b: FlowPoint) => boolean;
+  /**
+   * The walk between two spots. A jump is tested leg by leg along it, as the glide it stands for
+   * would have walked: a teleport from the boardwalk to the exhibit passes under the arch, and one
+   * to the cave behind the falls. Without it a jump is one straight segment.
+   */
+  readonly glidePath?: (a: FlowPoint, b: FlowPoint) => readonly FlowPoint[];
   /** Read live: switched on mid-transition, it snaps the ring, the haze and the cards. */
   readonly reducedMotion?: () => boolean;
   /** A passing line for the HUD: the lantern lit, behind the falls, the wall switched. */
@@ -306,16 +317,16 @@ export class DeslopifyFlow {
       }
     }
 
-    if (!this.installedFlag && this.reachedArch(player)) {
+    const route = this.route(player);
+    if (!this.installedFlag && this.reachedArch(player, route)) {
       this.install(this.options.arch);
       this.options.onArchInstall?.();
     }
+    this.lightSteps(player);
+    this.watchFalls(player, route);
     this.previous.x = player.x;
     this.previous.z = player.z;
     this.hasPrevious = true;
-
-    this.lightSteps(player);
-    this.watchFalls(player);
 
     if (this.installedFlag) {
       if (this.wallFlag) {
@@ -414,12 +425,40 @@ export class DeslopifyFlow {
     this.lit.fill(false);
   }
 
-  /** Standing under the arch now, or carried through it since the last frame. */
-  private reachedArch(player: FlowPoint): boolean {
+  /**
+   * The walk a jump since the last frame stands for, leg by leg; `null` for an ordinary step, or
+   * on the first frame, or without a way to find the walk.
+   */
+  private route(player: FlowPoint): readonly FlowPoint[] | null {
+    const glide = this.options.glidePath;
+    if (
+      !this.hasPrevious ||
+      !glide ||
+      Math.hypot(player.x - this.previous.x, player.z - this.previous.z) <= JUMP
+    ) {
+      return null;
+    }
+    return glide(this.previous, player);
+  }
+
+  /** Standing under the arch now, or carried through it since the last frame, stepping or jumping. */
+  private reachedArch(player: FlowPoint, route: readonly FlowPoint[] | null): boolean {
     if (this.options.underArch(player.x, player.z)) {
       return true;
     }
-    return this.hasPrevious && (this.options.crossesArch?.(this.previous, player) ?? false);
+    const crosses = this.options.crossesArch;
+    if (!this.hasPrevious || !crosses) {
+      return false;
+    }
+    if (!route) {
+      return crosses(this.previous, player);
+    }
+    for (let i = 1; i < route.length; i++) {
+      if (crosses(route[i - 1]!, route[i]!)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private startRing(origin: FlowPoint): void {
@@ -437,18 +476,62 @@ export class DeslopifyFlow {
     }
   }
 
-  /** Says so once each time the player steps into the strip behind the falls. */
-  private watchFalls(player: FlowPoint): void {
+  /**
+   * Says so once each time the player steps into the strip behind the falls, or a jump takes
+   * the walk through it.
+   */
+  private watchFalls(player: FlowPoint, route: readonly FlowPoint[] | null): void {
     const box = this.options.behindFalls;
     if (!box) {
       return;
     }
     const inside = player.x > box.x0 && player.x < box.x1 && player.z > box.z0 && player.z < box.z1;
-    if (inside && !this.behindFalls) {
+    let passed = inside;
+    if (!passed && route) {
+      for (let i = 1; i < route.length && !passed; i++) {
+        passed = segmentMeetsBox(route[i - 1]!, route[i]!, box);
+      }
+    }
+    if (passed && !this.behindFalls) {
       this.options.onToast?.(TOASTS.falls);
     }
     this.behindFalls = inside;
   }
+}
+
+/** Whether the segment from `a` to `b` touches the box (Liang–Barsky). */
+function segmentMeetsBox(a: FlowPoint, b: FlowPoint, box: FlowBox): boolean {
+  const dx = b.x - a.x;
+  const dz = b.z - a.z;
+  let enter = 0;
+  let leave = 1;
+  for (let side = 0; side < 4; side++) {
+    const p = side === 0 ? -dx : side === 1 ? dx : side === 2 ? -dz : dz;
+    const q =
+      side === 0
+        ? a.x - box.x0
+        : side === 1
+          ? box.x1 - a.x
+          : side === 2
+            ? a.z - box.z0
+            : box.z1 - a.z;
+    if (p === 0) {
+      if (q < 0) {
+        return false;
+      }
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) {
+      enter = Math.max(enter, t);
+    } else {
+      leave = Math.min(leave, t);
+    }
+    if (enter > leave) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function clamp01(value: number): number {

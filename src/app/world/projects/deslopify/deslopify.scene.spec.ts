@@ -1,11 +1,11 @@
-import { Material, Mesh, Object3D, Points, Texture, Vector3 } from 'three';
+import { Group, Material, Mesh, Object3D, Points, Texture, Vector3 } from 'three';
 import { qualitySettings } from '@engine/capability.service';
 import type { Interactable } from '@engine/interaction/interactable';
 import { floorHeightAt } from '@engine/player/collision';
 import { FACING_THRESHOLD } from '@engine/interaction/interaction.system';
 import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
 import type { WorldContext } from '@engine/world-object';
-import { stubContext } from '@engine/testing/world-context';
+import { StubAssets, stubContext } from '@engine/testing/world-context';
 import type { Project } from '@content/project.model';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
 import { JungleEnvironment } from '../../environments/jungle';
@@ -41,6 +41,7 @@ import {
   TOASTS,
 } from './deslopify.data';
 import { FLOW } from './deslopify.flow';
+import { FEED_WALL_MODEL } from './feed-card';
 import {
   CARD_STAGGER,
   DEMO_STAND,
@@ -535,6 +536,38 @@ describe('DeslopifyScene', () => {
       expect(after[3]).toBe(0);
     });
 
+    it('leaves station 6’s stand a clear margin off the wall and its ledge', () => {
+      const { target } = build({ init: false });
+      const stand = STATION_STANDS.wand;
+
+      expect(clearance(stand.x, stand.z, walls(target))).toBeGreaterThanOrEqual(0.35 + 0.05);
+    });
+
+    it('moves the wall cards’ clearing anchors to the slots of the model that arrives', async () => {
+      const built = build();
+      const assets = built.ctx.assets as StubAssets;
+      const model = new Group();
+      [-2.2, -0.7, 0.7, 2.2].forEach((x, index) => {
+        const slot = new Group();
+        slot.name = `slot_${index}`;
+        slot.position.set(x, 0.3, 0.5);
+        slot.scale.setScalar(0.52);
+        model.add(slot);
+      });
+      // Deliver every request in order, the wall's with its slots, the rest empty.
+      for (const url of [...assets.requested]) {
+        await assets.resolve(url === FEED_WALL_MODEL ? model : new Group());
+      }
+
+      const anchors = (built.target as unknown as { cardAnchors: Vector3[] }).cardAnchors;
+      built.target.wall.cards.forEach((card, index) => {
+        const at = card.object.getWorldPosition(new Vector3());
+        expect(anchors[4 + index].x).toBeCloseTo(at.x, 6);
+        expect(anchors[4 + index].z).toBeCloseTo(at.z, 6);
+      });
+      expect(anchors[4].x).toBeCloseTo(WALL.x - 2.2, 6);
+    });
+
     it('throws the wall’s lever when it switches, upright before the install', () => {
       const built = build({ reduced: true });
       run(built, 0.1);
@@ -713,6 +746,30 @@ describe('DeslopifyScene', () => {
 
       expect(built.target.flow.installed).toBe(true);
       expect(built.moments).toEqual([MOMENT_BANNER]);
+    });
+
+    it('installs once when a reduced-motion glide teleports from the south to stations 5–7', () => {
+      for (const from of [PORTAL, STATION_STANDS.pfad]) {
+        for (const to of [STATION_STANDS.exponat, STATION_STANDS.wand, STATION_STANDS.hoehle]) {
+          const built = build({ reduced: true });
+          stand(built.ctx, from, from.yaw);
+          run(built, 1 / 30);
+
+          stand(built.ctx, to, to.yaw);
+          run(built, 0.5);
+
+          const route = `${from.x}, ${from.z} → ${to.x}, ${to.z}`;
+          expect(built.target.flow.installed, route).toBe(true);
+          expect(built.moments, route).toEqual([MOMENT_BANNER]);
+          if (to === STATION_STANDS.hoehle) {
+            expect(
+              built.toasts.filter((text) => text === TOASTS.falls),
+              route,
+            ).toHaveLength(1);
+          }
+          built.target.dispose();
+        }
+      }
     });
 
     it('does not play the moment when "try it in the world" installs at the wall', () => {

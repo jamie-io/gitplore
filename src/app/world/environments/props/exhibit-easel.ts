@@ -2,6 +2,7 @@ import { Group, Material, Mesh, Vector3 } from 'three';
 import type { AssetLike } from '@engine/asset.service';
 import type { Collider } from '@engine/player/collision';
 import type { WorldContext, WorldObject } from '@engine/world-object';
+import { transformIn } from '../model-geometry';
 import type { HazedCopies } from '../shaders/hazed-copies';
 
 /**
@@ -104,8 +105,12 @@ export class ExhibitEasel implements WorldObject {
         }
       }
     });
-    const anchor = model.getObjectByName(SCREEN_ANCHOR)?.position ?? new Vector3();
-    model.position.set(-anchor.x, this.options.screenCentre - anchor.y, -anchor.z);
     this.group.add(model);
+    // The anchor wherever it hangs in the model's tree, in the easel group's own frame.
+    const node = model.getObjectByName(SCREEN_ANCHOR);
+    const anchor = node
+      ? new Vector3().setFromMatrixPosition(transformIn(node, this.group))
+      : model.position.clone();
+    model.position.add(new Vector3(0, this.options.screenCentre, 0).sub(anchor));
   }
 }

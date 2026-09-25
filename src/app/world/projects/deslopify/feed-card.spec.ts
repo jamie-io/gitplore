@@ -386,6 +386,41 @@ describe('FeedWall', () => {
     expect(assets.releasedModels).toEqual([FEED_WALL_MODEL]);
   });
 
+  it('reads the slots and the hinge wherever they hang in the model, and says when it placed them', async () => {
+    const assets = new StubAssets();
+    const wall = new FeedWall();
+    const onPlaced = vi.fn();
+    wall.setSwitch('on');
+    wall.update(5);
+    wall.loadModel(assets, false, undefined, onPlaced);
+
+    // The same model, its empties and lever nested one level down under an offset group.
+    const { model } = wallModel();
+    const nest = new Group();
+    nest.position.set(0.5, 0.1, -0.2);
+    [...model.children]
+      .filter((child) => child.name !== 'feed-wall')
+      .forEach((child) => nest.add(child));
+    model.add(nest);
+    await assets.resolve(model);
+
+    expect(onPlaced).toHaveBeenCalledTimes(1);
+    expect(wall.cards[0].object.position.x).toBeCloseTo(-1.95 + 0.5, 6);
+    expect(wall.cards[0].object.position.y).toBeCloseTo(0.3 + 0.1, 6);
+    expect(wall.cards[0].object.scale.x).toBeCloseTo(0.52, 6);
+    expect(wall.lever.position.x).toBeCloseTo(3.18 + 0.5, 6);
+    expect(wall.lever.position.y).toBeCloseTo(1.12 + 0.1, 6);
+    // Adopted at the pivot's rest even though it was thrown: upright when switched back.
+    const lever = wall.lever.getObjectByName('lever')!;
+    expect(lever.position.y).toBeCloseTo(1.569 - 1.12, 6);
+    expect(lever.position.x).toBeCloseTo(0, 6);
+    wall.setSwitch('rest');
+    wall.update(5);
+    wall.object.updateMatrixWorld(true);
+    expect(lever.getWorldPosition(new Vector3()).y).toBeCloseTo(1.569 + 0.1, 6);
+    wall.dispose();
+  });
+
   it('throws its lever about the hinge’s x axis: upright at rest, one way on, the other off', () => {
     const wall = new FeedWall();
     expect(wall.lever.rotation.x).toBe(0);
@@ -433,7 +468,7 @@ describe('FeedWall', () => {
     expect(covers(8.4 - 2.7, -13)).toBe(true);
     expect(covers(8.4 + 2.7, -13 + 0.5)).toBe(true);
     expect(covers(8.4 + 3.18, -13)).toBe(true);
-    expect(covers(8.4, -13 + 0.7)).toBe(false);
+    expect(covers(8.4, -13 + 0.6)).toBe(false);
     expect(covers(8.4, -13 - 0.3)).toBe(false);
     wall.dispose();
   });

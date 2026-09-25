@@ -3,8 +3,11 @@ import {
   BEHIND_FALLS,
   CARD_SLOTS,
   LANTERN_POST,
+  PORTAL,
+  STATION_STANDS,
   WALL,
   crossesArch,
+  glidePath,
   stepCentres,
   underArch,
 } from '../../environments/jungle-layout';
@@ -39,6 +42,7 @@ function flow(overrides: Partial<DeslopifyFlowOptions> = {}): DeslopifyFlow {
     behindFalls: BEHIND_FALLS,
     underArch,
     crossesArch,
+    glidePath,
     ...overrides,
   });
 }
@@ -238,6 +242,36 @@ describe('DeslopifyFlow', () => {
       expect(target.ring.origin).toEqual(ARCH);
     });
 
+    it('installs when a jump (a glide’s teleport) takes the walk through the arch', () => {
+      for (const from of [
+        PORTAL,
+        STATION_STANDS.laterne,
+        STATION_STANDS.pfad,
+        STATION_STANDS.stufen,
+      ]) {
+        for (const to of [STATION_STANDS.exponat, STATION_STANDS.wand, STATION_STANDS.hoehle]) {
+          const onArchInstall = vi.fn();
+          const target = flow({ onArchInstall });
+          target.update(1 / 60, { player: from, light: null });
+
+          target.update(1 / 60, { player: to, light: null });
+
+          expect(target.installed, `${from.x}, ${from.z} → ${to.x}, ${to.z}`).toBe(true);
+          expect(onArchInstall).toHaveBeenCalledTimes(1);
+        }
+      }
+    });
+
+    it('does not install for a jump that stays on one side of the arch', () => {
+      const target = flow();
+      target.update(1 / 60, { player: PORTAL, light: null });
+
+      target.update(1 / 60, { player: STATION_STANDS.stufen, light: null });
+      target.update(1 / 60, { player: STATION_STANDS.pfad, light: null });
+
+      expect(target.installed).toBe(false);
+    });
+
     it('does not count the jump of a reset as a crossing', () => {
       const target = flow();
       target.update(1 / 60, { player: { x: 0, z: 3 }, light: null });
@@ -421,6 +455,29 @@ describe('DeslopifyFlow', () => {
       run(target, 0.5, { x: 0, z: -22 });
       run(target, 0.5, inside);
       expect(falls()).toHaveLength(2);
+    });
+
+    it('says the visitor passed behind the falls when a jump takes the walk through them', () => {
+      const onToast = vi.fn();
+      const target = installed({ onToast });
+      target.update(1 / 60, { player: STATION_STANDS.exponat, light: null });
+      onToast.mockClear();
+
+      target.update(1 / 60, { player: STATION_STANDS.hoehle, light: null });
+      run(target, 1, STATION_STANDS.hoehle);
+
+      expect(onToast.mock.calls).toEqual([[TOASTS.falls]]);
+    });
+
+    it('says it once for a jump that ends behind the falls', () => {
+      const onToast = vi.fn();
+      const target = installed({ onToast });
+      target.update(1 / 60, { player: STATION_STANDS.wand, light: null });
+      onToast.mockClear();
+
+      run(target, 1, { x: 0, z: -19.6 });
+
+      expect(onToast.mock.calls).toEqual([[TOASTS.falls]]);
     });
 
     it('says what the wall did', () => {

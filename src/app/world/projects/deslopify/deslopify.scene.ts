@@ -178,7 +178,8 @@ export class DeslopifyScene extends ProjectScene {
   private readonly cairnPlate: StationPlate;
   /** Every card, the trail's four then the wall's four, in the flow's order. */
   private readonly allCards: readonly FeedCard[];
-  private readonly cardAnchors: readonly FlowPoint[];
+  /** Where each card stands, read by the flow; the wall's move to its model's slots when it comes. */
+  private readonly cardAnchors: readonly Vector3[];
   private readonly cardGroups: readonly (readonly FeedCard[])[];
   private readonly shownCleared: boolean[];
   private readonly wallCentre: Vector3;
@@ -272,6 +273,7 @@ export class DeslopifyScene extends ProjectScene {
       behindFalls: BEHIND_FALLS,
       underArch,
       crossesArch,
+      glidePath,
       reducedMotion,
       onToast: (text) => this.sceneOptions.onToast?.(text),
       onArchInstall: () => this.sceneOptions.onMoment?.(MOMENT_BANNER),
@@ -359,14 +361,12 @@ export class DeslopifyScene extends ProjectScene {
     if (Math.hypot(x - PORTAL.x, z - PORTAL.z) < PLATE_REACH.portal) {
       return PLATES.portal;
     }
-    if (
-      this.languagesPlate &&
-      !onDeck(x, z) &&
-      this.languageStalks.some(
-        (stalk) => Math.hypot(x - stalk.x, z - stalk.z) < PLATE_REACH.languages,
-      )
-    ) {
-      return this.languagesPlate;
+    if (this.languagesPlate && !onDeck(x, z)) {
+      for (const stalk of this.languageStalks) {
+        if (Math.hypot(x - stalk.x, z - stalk.z) < PLATE_REACH.languages) {
+          return this.languagesPlate;
+        }
+      }
     }
     if (Math.hypot(x - CAIRN.x, z - CAIRN.z) < PLATE_REACH.find) {
       return this.cairnPlate;
@@ -397,7 +397,9 @@ export class DeslopifyScene extends ProjectScene {
     for (const card of this.allCards) {
       card.loadFrame(ctx.assets, ctx.quality.shadows, this.haze ?? undefined);
     }
-    this.wall.loadModel(ctx.assets, ctx.quality.shadows, this.haze ?? undefined);
+    this.wall.loadModel(ctx.assets, ctx.quality.shadows, this.haze ?? undefined, () =>
+      this.followWallCards(),
+    );
     ctx.scene.add(this.wall.object, this.vines.object, this.tags.object, this.ring);
     this.air?.setSlop(this.flow.haze);
     this.publishStatus();
@@ -547,6 +549,14 @@ export class DeslopifyScene extends ProjectScene {
     this.lightValue.z = this.lightAt.z;
     this.lightValue.radius = radius;
     return this.lightValue;
+  }
+
+  /** The wall's model moved its cards to its slots: the flow's anchors for them follow. */
+  private followWallCards(): void {
+    this.wall.object.updateMatrixWorld(true);
+    this.wall.cards.forEach((card, index) =>
+      card.object.getWorldPosition(this.cardAnchors[this.cards.length + index]!),
+    );
   }
 
   /** Each step the visitor has come by glows if its period had commits; a restart darkens all. */

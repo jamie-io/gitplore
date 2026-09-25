@@ -56,6 +56,26 @@ describe('ExhibitEasel', () => {
     expect(ctx.scene.children).toEqual([]);
   });
 
+  it('finds its screen anchor wherever it hangs in the model', async () => {
+    const { assets, ctx, easel } = build();
+    const { model } = easelModel();
+    const anchor = model.getObjectByName('screen_anchor')!;
+    const nest = new Group();
+    nest.position.set(0, 0.3, 0.1);
+    nest.add(anchor);
+    model.add(nest);
+    model.position.set(0, 0.05, 0);
+
+    await assets.resolve(model);
+
+    ctx.scene.updateMatrixWorld(true);
+    const at = anchor.getWorldPosition(new Vector3());
+    expect(at.x).toBeCloseTo(0, 6);
+    expect(at.y).toBeCloseTo(0.4 + 1.9, 6);
+    expect(at.z).toBeCloseTo(-9, 6);
+    easel.dispose();
+  });
+
   it('blocks its uprights and back legs, outside the screen’s body', () => {
     const { easel } = build();
 

@@ -1,11 +1,12 @@
 import type { AssetLike } from '@engine/asset.service';
 import type { Material, Object3D } from 'three';
 import type { Collider } from '@engine/player/collision';
-import { adoptNode } from '../../environments/model-geometry';
+import { transformIn } from '../../environments/model-geometry';
 import type { HazedCopies } from '../../environments/shaders/hazed-copies';
 import {
   BoxGeometry,
   CanvasTexture,
+  Matrix4,
   CylinderGeometry,
   Group,
   Mesh,
@@ -53,6 +54,12 @@ const WIPE_RATE = 1 / WIPE_SECONDS;
 const WALL_SIZE = { width: 5.6, height: 2.6, depth: 0.5, ledgeTop: 0.3, ledgeFront: 0.64 } as const;
 /** Where the cards stand on the ledge: 1.3 m apart, shrunk to fit four across the wall. */
 const WALL_CARD = { pitch: 1.3, y: WALL_SIZE.ledgeTop, z: 0.44, scale: 0.52 } as const;
+/**
+ * How far in front of the wall the block a visitor walks into reaches: the card stands' front on
+ * the ledge. The ledge's stones round off beyond it, too low to matter, so station 6's stand a
+ * metre off the wall keeps a real margin.
+ */
+const BLOCK_FRONT = 0.58;
 /** The switch's pier, right of the wall, and the hinge its lever turns on. */
 const PIER = { x: 3.18, width: 0.56, depth: 0.52 } as const;
 const LEVER_HINGE = new Vector3(3.18, 1.12, 0.02);
@@ -343,14 +350,24 @@ export class FeedWall {
   /**
    * Asks for the wall's model and swaps it in for the stone block when it arrives, hazed into the
    * environment's air when `haze` is given: the cards move to its slots, its lever to the hinge.
+   * `onPlaced` hears when the cards have moved, so whatever tracks where they stand can follow.
    */
-  loadModel(assets: AssetLike, castShadow = false, haze?: HazedCopies): void {
+  loadModel(
+    assets: AssetLike,
+    castShadow = false,
+    haze?: HazedCopies,
+    onPlaced?: () => void,
+  ): void {
     if (this.disposed || this.assets) {
       return;
     }
     this.assets = assets;
     assets.model(FEED_WALL_MODEL).then(
-      (model) => this.placeModel(model, castShadow, haze),
+      (model) => {
+        if (this.placeModel(model, castShadow, haze)) {
+          onPlaced?.();
+        }
+      },
       () => undefined,
     );
   }
@@ -383,7 +400,7 @@ export class FeedWall {
   colliders(): Collider[] {
     const half = WALL_SIZE.width / 2;
     return [
-      this.worldBox(-half - 0.05, half + 0.05, -WALL_SIZE.depth / 2, WALL_SIZE.ledgeFront),
+      this.worldBox(-half - 0.05, half + 0.05, -WALL_SIZE.depth / 2, BLOCK_FRONT),
       this.worldBox(
         PIER.x - PIER.width / 2,
         PIER.x + PIER.width / 2,
@@ -454,10 +471,14 @@ export class FeedWall {
     this.proxy = [];
   }
 
-  private placeModel(model: Group, castShadow: boolean, haze?: HazedCopies): void {
+  /**
+   * Stands the model in the wall's frame and moves the cards and the lever to where it says; the
+   * empties are read wherever they hang in its tree. `false` if it came too late or twice.
+   */
+  private placeModel(model: Group, castShadow: boolean, haze?: HazedCopies): boolean {
     if (this.disposed || this.model) {
       this.assets?.releaseModel(FEED_WALL_MODEL);
-      return;
+      return false;
     }
     this.model = model;
     this.disposeProxy();
@@ -470,20 +491,35 @@ export class FeedWall {
         }
       }
     });
+    this.object.add(model);
+    const placement = new Matrix4();
     this.cards.forEach((card, index) => {
       const slot = model.getObjectByName(`slot_${index}`);
       if (slot) {
-        card.object.position.copy(slot.position);
-        card.object.scale.copy(slot.scale);
+        transformIn(slot, this.object, placement).decompose(
+          card.object.position,
+          card.object.quaternion,
+          card.object.scale,
+        );
       }
     });
-    const hinge = model.getObjectByName('lever_hinge')?.position ?? LEVER_HINGE;
-    const lever: Object3D | undefined = model.getObjectByName('lever');
+    const hingeNode = model.getObjectByName('lever_hinge');
+    const hinge = hingeNode
+      ? new Vector3().setFromMatrixPosition(transformIn(hingeNode, this.object, placement))
+      : LEVER_HINGE.clone();
     this.lever.position.copy(hinge);
+    const lever: Object3D | undefined = model.getObjectByName('lever');
     if (lever) {
-      this.lever.add(adoptNode(lever, hinge));
+      // Into the pivot at its rest: the hinge's offset comes off, the optimiser's own transform
+      // (its dequantising offset and scale) stays, and the pivot's throw then turns it.
+      const rest = new Matrix4()
+        .makeTranslation(-hinge.x, -hinge.y, -hinge.z)
+        .multiply(transformIn(lever, this.object, placement));
+      this.lever.add(lever);
+      rest.decompose(lever.position, lever.quaternion, lever.scale);
     }
-    this.object.add(model);
+    this.object.updateMatrixWorld(true);
+    return true;
   }
 
   /** The world box round the wall-frame rectangle x0…x1, z0…z1, as the wall stands now. */
