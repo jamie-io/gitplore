@@ -243,8 +243,10 @@ export class ProjectScene implements WorldScene {
     // metres in front of it and a yaw pointing away, which is exactly "the exit is behind you".
     // `Landmark.spawnYaw` already adds one `Math.PI` to `rotationY`; subtracting it here (rather
     // than adding, which `sin`/`cos` would make physically identical but numerically 2π off)
-    // keeps `arrival.yaw` exactly equal to `environment.spawnYaw` instead of `+ 2π`.
-    const back: LandmarkPlacement = {
+    // keeps `arrival.yaw` exactly equal to `environment.spawnYaw` instead of `+ 2π`. An environment
+    // may stand it further back instead, facing the spawn from behind (the jungle's niche in the
+    // rim), so it is neither underfoot nor in front of the arrival's cameras.
+    const back: LandmarkPlacement = this.environment.returnPortal ?? {
       position: [this.environment.spawn.x, 0, this.environment.spawn.z],
       rotationY: this.environment.spawnYaw - Math.PI,
     };

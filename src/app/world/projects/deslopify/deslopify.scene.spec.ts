@@ -329,6 +329,16 @@ describe('DeslopifyScene', () => {
       expect(find(built.target, PROMPTS.lanternOn)).toBeUndefined();
     });
 
+    it('offers the way back, not the lantern, to a visitor turning round on arrival', () => {
+      const built = build();
+      const back = built.target.interactables.find((item) => item.prompt === 'Zurück zur Lichtung');
+      stand(built.ctx, built.target.arrival.position, built.target.arrival.yaw + Math.PI);
+
+      expect(back).toBeDefined();
+      expect(reachable(built.ctx, back!)).toBe(true);
+      expect(reachable(built.ctx, find(built.target, PROMPTS.lanternOn)!)).toBe(false);
+    });
+
     it('lights from E at the post', () => {
       const built = build();
 
@@ -632,13 +642,30 @@ describe('DeslopifyScene', () => {
 
       expect(target.portalStand).toBe(PORTAL);
       expect(target.overview).toEqual({
-        position: { x: 0, y: 24, z: 36 },
-        target: { x: 0, y: 0, z: -6 },
+        position: { x: 0, y: 30, z: 27 },
+        target: { x: 0, y: 0, z: -4 },
       });
       expect(target.pitch).toBe(PITCH);
       const from = STATION_STANDS.laterne;
       const to = STATION_STANDS.hoehle;
       expect(target.glidePath(from, to)).toEqual(glidePath(from, to));
+    });
+
+    it('shows the portal’s plate on arrival, and the lantern’s at its stand', () => {
+      const { target } = build({ init: false });
+      const { x, z } = target.arrival.position;
+      const at = (px: number, pz: number) =>
+        target.stations.find(
+          (station) => Math.hypot(px - station.stand.x, pz - station.stand.z) <= station.trigger,
+        );
+
+      // The visitor arrives on the portal's spot, where no station's trigger reaches.
+      expect(x).toBeCloseTo(PORTAL.x, 6);
+      expect(z).toBeCloseTo(PORTAL.z, 6);
+      expect(at(x, z)).toBeUndefined();
+      expect(target.plateAt(x, z)).toEqual(PLATES.portal);
+      // On the boardwalk past the lantern the lantern's station speaks.
+      expect(at(BOARDWALK[1].x, BOARDWALK[1].z)?.id).toBe('laterne');
     });
 
     it('shows the finds’ plates: portal, languages off the deck, cairn and liana', () => {

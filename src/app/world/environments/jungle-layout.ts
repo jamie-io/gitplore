@@ -61,6 +61,27 @@ export function beyondBowl(x: number, z: number): number {
 export const PORTAL: Placed = placed(0, 20.6, 0);
 
 /**
+ * The niche cut into the south rim behind the arrival, where the return portal stands: the ledge
+ * runs on at its own height `halfWidth` either side of the axis as far as `back`, so the camera
+ * behind a visitor at the portal has its whole boom, and the rim rises round the niche's walls.
+ */
+export const PORTAL_NICHE = { halfWidth: 2.4, back: 25 } as const;
+
+/** Whether (x, z) lies on the niche's floor, past the bowl's edge and short of its back. */
+export function inNiche(x: number, z: number): boolean {
+  return (
+    z > 0 && z < PORTAL_NICHE.back && Math.abs(x) < PORTAL_NICHE.halfWidth && beyondBowl(x, z) > 0
+  );
+}
+
+/**
+ * The return portal, in its niche 3 m (a landmark's `SPAWN_DISTANCE`) behind the arrival and
+ * facing north over it, so a visitor steps out of it onto the portal's spot. A prop's yaw: turned
+ * half round from the arrival's heading, which keeps the visitor's own yaw exactly the portal's.
+ */
+export const RETURN_PORTAL: Placed = placed(PORTAL.x, PORTAL.z + 3, PORTAL.yaw - Math.PI);
+
+/**
  * The lantern's post on the ledge, just before the ramp, 0.75 m west of the boardwalk's bend at
  * (−2, 18) so the walk passes it; its arm (the model's −X) reaches east over the walk.
  */
@@ -395,13 +416,30 @@ export function glidePath(from: Pt, to: Pt): readonly Pt[] {
 }
 
 /**
- * Where the visitor stands at each station, facing what it shows. The lantern's stand is on the
- * walk east of its post, facing it. The feed wall's is where the prototype puts station 6
- * (404, 120), a metre in front of the wall rather than the spec table's 2.4 m, at the end of the
- * spur to it: from there the leg on to the cave, round the wall and the pool, stays within 16 m.
+ * The lantern's stand: beside the walk east of the post, 3.5 m from the arrival, so the portal's
+ * spot stays outside the station's 3 m and the arrival shows the portal's plate.
+ */
+const LATERNE_STAND = pt(-1.3, 17.3);
+/**
+ * How far the stand turns from its post towards the walk ahead, 50°: the camera behind then keeps
+ * the post in the left of its shot, with the boardwalk and the cards, and the return portal in its
+ * niche out of it.
+ */
+const LATERNE_TURN = (Math.PI * 5) / 18;
+
+/**
+ * Where the visitor stands at each station, facing what it shows. The lantern's stand is beside
+ * the walk east of its post, turned from it up the walk. The feed wall's is where the prototype
+ * puts station 6 (404, 120), a metre in front of the wall rather than the spec table's 2.4 m, at
+ * the end of the spur to it: from there the leg on to the cave, round the wall and the pool, stays
+ * within 16 m.
  */
 export const STATION_STANDS = Object.freeze({
-  laterne: placed(-1, 18, heading(pt(-1, 18), LANTERN_POST)),
+  laterne: placed(
+    LATERNE_STAND.x,
+    LATERNE_STAND.z,
+    heading(LATERNE_STAND, LANTERN_POST) - LATERNE_TURN,
+  ),
   pfad: placed(-7, 11.6, heading(pt(-7, 11.6), pt(-6.6, 7.8))),
   stufen: placed(-2, 3.8, heading(STEPS.from, STEPS.to)),
   bogen: placed(0, 0, 0),
@@ -606,6 +644,21 @@ function caveShare(x: number, z: number): number {
   return across * along;
 }
 
+/**
+ * How much of the rim the portal's niche cuts away at (x, z), 0 … 1: all of it on the niche's
+ * floor, none past its walls and its back, each of them a steep 1.5 m climb to the rim.
+ */
+function nicheShare(x: number, z: number): number {
+  if (z <= 0) {
+    return 0;
+  }
+  const { halfWidth, back } = PORTAL_NICHE;
+  return (
+    (1 - smoothstep(halfWidth, halfWidth + 1.5, Math.abs(x))) *
+    (1 - smoothstep(back, back + 1.5, z))
+  );
+}
+
 /** A small, even ripple, at most 8 cm either way. */
 function ripple(x: number, z: number): number {
   return (
@@ -628,7 +681,7 @@ export function jungleHeightAt(x: number, z: number): number {
     (1 - smoothstep(CLIFF.width / 2 - 1, CLIFF.width / 2 + 2, Math.abs(x)));
   height += (Math.max(height, CLIFF_GROUND) - height) * behind;
   const rim = RIM.high + (RIM.low - RIM.high) * smoothstep(8, 20, z);
-  height += rim * smoothstep(-0.5, 5, beyond);
+  height += rim * smoothstep(-0.5, 5, beyond) * (1 - nicheShare(x, z));
   const cave = caveShare(x, z);
   height += (CAVE.floor - height) * cave;
   // The ripple stays off the paths, out of the water and out of the cave.

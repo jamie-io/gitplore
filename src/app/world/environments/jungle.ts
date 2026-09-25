@@ -16,6 +16,7 @@ import {
 import { QualitySettings, QualityTier } from '@engine/capability.service';
 import { Interactable } from '@engine/interaction/interactable';
 import { Collider } from '@engine/player/collision';
+import { BOOM_LENGTH } from '@engine/player/third-person-rig';
 import { WorldContext } from '@engine/world-object';
 import { disposeObject3D } from '@engine/dispose';
 import { Backdrop } from './backdrop';
@@ -42,8 +43,10 @@ import {
   PATHS,
   POOL,
   PORTAL,
+  PORTAL_NICHE,
   Placed,
   Pt,
+  RETURN_PORTAL,
   RILL,
   RILL_REACH,
   STATION_STANDS,
@@ -166,9 +169,23 @@ const LANDMARK_SPOTS: readonly Placed[] = [
 ];
 
 /**
+ * Behind each station's stand, where the camera hangs on its boom (the player's yaw: back is
+ * (sin yaw, cos yaw)), with room either side for a crown: nothing tall stands in its face.
+ */
+const STATION_CAMERAS: readonly Exclusion[] = Object.values(STATION_STANDS).map((stand) => ({
+  kind: 'segment',
+  ax: stand.x,
+  az: stand.z,
+  bx: stand.x + Math.sin(stand.yaw) * (BOOM_LENGTH + 0.4),
+  bz: stand.z + Math.cos(stand.yaw) * (BOOM_LENGTH + 0.4),
+  halfWidth: 2.2,
+}));
+
+/**
  * Where nothing tall stands: the arrival, a corridor along every walked line, the rill with its
  * banks, room around everything the flow stands, the view from the portal through the arch to the
- * exhibit and from the deck to the falls, and the stands in front of the exhibit and the wall.
+ * exhibit and from the deck to the falls, the stands in front of the exhibit and the wall, and the
+ * cameras behind the stations' stands.
  */
 export const STAGE: readonly Exclusion[] = [
   { kind: 'circle', x: PORTAL.x, z: PORTAL.z, radius: 4 },
@@ -182,7 +199,51 @@ export const STAGE: readonly Exclusion[] = [
   sideways(EXHIBIT, 4, 3.5),
   sideways(WALL, 4.5, 3),
   ...LANDMARK_SPOTS.slice(1).map(({ x, z }) => ({ kind: 'circle' as const, x, z, radius: 3.5 })),
+  ...STATION_CAMERAS,
 ];
+
+/** Metres either side of the axis, from the portal to the pool, that no crown reaches into. */
+const VIEW_CLEAR = 4;
+
+/**
+ * The view down the axis from the portal over the arch to the falls, kept clear of anything whose
+ * crown reaches `reach` metres from its root: the corridor round the line from the portal to the
+ * pool, `VIEW_CLEAR` wider than the crown either side.
+ */
+function viewCorridor(reach: number): Exclusion {
+  return {
+    kind: 'segment',
+    ax: PORTAL.x,
+    az: PORTAL.z,
+    bx: POOL.x,
+    bz: POOL.z,
+    halfWidth: VIEW_CLEAR + reach,
+  };
+}
+
+/**
+ * Each grove's scale range, and how far its widest crown reaches from the trunk at scale 1 (the
+ * flora's own geometry: the kapok's umbrella, the palm's fronds with its lean, the fern's rosette).
+ */
+const GROVE = {
+  kapok: { scale: [0.85, 1.15], crown: 6.2 },
+  palms: { scale: [0.85, 1.2], crown: 4 },
+  ferns: { scale: [0.8, 1.3], crown: 2.15 },
+} as const;
+
+/**
+ * The ledge and the marsh under the overview, which looks down the axis from high over the south
+ * rim: a kapok's 15 m umbrella there would stand in the shot's foreground and hide the marsh.
+ */
+const OVERVIEW_FOREGROUND: Exclusion = {
+  kind: 'circle',
+  x: PORTAL.x,
+  z: PORTAL.z + 9.4,
+  radius: 20,
+};
+
+/** A canopy cluster's spread from its root and its length down, at scale 1 (`leafCluster`). */
+const CLUSTER = { spread: 0.75, length: 1.3 } as const;
 
 /** The cliff's foot and the pool's edge. */
 const ROCK: readonly Exclusion[] = [
@@ -258,11 +319,14 @@ const WATER_COLLIDERS: readonly Collider[] = waterColliders();
 
 /** The edge ring's discs: their radius, and how far their inner edge reaches inside the bowl. */
 const EDGE = { radius: 1.5, inset: 0.3 } as const;
+/** Metres thick the portal niche's walls are. */
+const NICHE_WALL = 1;
 
 /**
  * The bowl's edge, too thick to push through: a ring of discs overlapping round the ellipse, their
  * inner edges just inside it, and none wholly behind the cliff face, whose rock closes the north
- * and whose cave reaches past the ellipse.
+ * and whose cave reaches past the ellipse. Across the mouth of the portal's niche the ring gives
+ * way to the niche's own walls: one either side and one across its back.
  */
 function edgeColliders(): Collider[] {
   const rx = BOWL.rx + EDGE.radius - EDGE.inset;
@@ -278,8 +342,24 @@ function edgeColliders(): Collider[] {
     if (Math.abs(x) + EDGE.radius < CLIFF.width / 2 && z + EDGE.radius < CLIFF.z) {
       continue;
     }
+    if (z > 0 && Math.abs(x) < PORTAL_NICHE.halfWidth + NICHE_WALL / 2) {
+      continue;
+    }
     colliders.push({ kind: 'cylinder', x, z, radius: EDGE.radius });
   }
+  const { halfWidth, back } = PORTAL_NICHE;
+  const mouth = BOWL.rz - EDGE.inset;
+  colliders.push(
+    { kind: 'aabb', minX: -halfWidth - NICHE_WALL, maxX: -halfWidth, minZ: mouth, maxZ: back },
+    { kind: 'aabb', minX: halfWidth, maxX: halfWidth + NICHE_WALL, minZ: mouth, maxZ: back },
+    {
+      kind: 'aabb',
+      minX: -halfWidth - NICHE_WALL,
+      maxX: halfWidth + NICHE_WALL,
+      minZ: back,
+      maxZ: back + NICHE_WALL,
+    },
+  );
   return colliders;
 }
 
@@ -464,10 +544,15 @@ interface Air {
 export class JungleEnvironment implements Environment {
   readonly id = 'jungle' as const;
   readonly name = 'Dschungel';
-  /** The portal on the ledge, where the return portal stands; arrivals look north along the axis. */
+  /** The portal on the ledge, in front of the return portal; arrivals look north along the axis. */
   readonly spawn = new Vector3(PORTAL.x, jungleHeightAt(PORTAL.x, PORTAL.z), PORTAL.z);
   /** The portal's heading is already the player's own: 0 looks north. */
   readonly spawnYaw = PORTAL.yaw;
+  /** The return portal, in its niche in the rim behind the arrival, facing north over it. */
+  readonly returnPortal: Anchor = {
+    position: [RETURN_PORTAL.x, 0, RETURN_PORTAL.z],
+    rotationY: RETURN_PORTAL.yaw,
+  };
   /** The light and air of this place; the scene reads it to match whatever stands in it. */
   readonly mood = DSCHUNGEL;
   /**
@@ -642,6 +727,11 @@ export class JungleEnvironment implements Environment {
 
   constructor(private readonly options: EnvironmentOptions) {
     const exclusions = [...STAGE, ...ROCK];
+    // The tall ones stand back from the view down the axis far enough for their crowns to clear it.
+    const clear = ({ scale, crown }: { scale: readonly number[]; crown: number }) => [
+      ...exclusions,
+      viewCorridor(crown * Math.max(...scale)),
+    ];
     const area = { x: 0, z: 0, inner: 0, outer: BOWL.rx };
     // Scattered over the circle round the bowl, kept where a trunk of `reach` stands wholly inside it.
     const grove = (placements: readonly Placement[], reach: number) =>
@@ -649,7 +739,14 @@ export class JungleEnvironment implements Environment {
     this.groves = {
       kapok: grove(
         scatter(
-          { seed: 51, count: 16, area, scale: [0.85, 1.15], minSpacing: 7, exclusions },
+          {
+            seed: 51,
+            count: 16,
+            area,
+            scale: GROVE.kapok.scale,
+            minSpacing: 7,
+            exclusions: [...clear(GROVE.kapok), OVERVIEW_FOREGROUND],
+          },
           this.floor,
         ),
         1.2,
@@ -661,9 +758,9 @@ export class JungleEnvironment implements Environment {
             count: 30,
             area,
             clusters: { count: 8, radius: 4 },
-            scale: [0.85, 1.2],
+            scale: GROVE.palms.scale,
             minSpacing: 2.5,
-            exclusions,
+            exclusions: clear(GROVE.palms),
           },
           this.floor,
         ),
@@ -671,7 +768,14 @@ export class JungleEnvironment implements Environment {
       ),
       ferns: grove(
         scatter(
-          { seed: 53, count: 40, area, scale: [0.8, 1.3], minSpacing: 2, exclusions },
+          {
+            seed: 53,
+            count: 40,
+            area,
+            scale: GROVE.ferns.scale,
+            minSpacing: 2,
+            exclusions: clear(GROVE.ferns),
+          },
           this.floor,
         ),
         0.5,
@@ -1120,7 +1224,8 @@ function standPlants(mesh: InstancedMesh, seed: number): void {
 
 /**
  * Hangs every canopy cluster of `mesh` upside down 7 to 11 m over the ground, lifted where needed
- * so its lowest leaf stays `CANOPY_CLEARANCE` above the visitor and the camera behind them.
+ * so its lowest leaf stays `CANOPY_CLEARANCE` above the visitor and the camera behind them, and
+ * none over the view down the axis.
  */
 function hangCanopy(mesh: InstancedMesh, seed: number): void {
   const random = seededRandom(seed);
@@ -1136,7 +1241,9 @@ function hangCanopy(mesh: InstancedMesh, seed: number): void {
     const tiltX = (random() - 0.5) * 0.6;
     const turn = random() * Math.PI * 2;
     const tiltZ = (random() - 0.5) * 0.6;
-    if (!at || isExcluded(at.x, at.z, OPEN_SKY)) {
+    // Its leaves spread round the root and, tilted, swing out by the tilt over their length.
+    const reach = size * (CLUSTER.spread + CLUSTER.length * Math.sin(Math.hypot(tiltX, tiltZ)));
+    if (!at || isExcluded(at.x, at.z, OPEN_SKY) || isExcluded(at.x, at.z, [viewCorridor(reach)])) {
       continue;
     }
 

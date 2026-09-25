@@ -11,6 +11,7 @@ import { EASEL_WIDEN, EXHIBIT_EASEL_MODEL } from '../environments/props/exhibit-
 import { ShowroomEnvironment } from '../environments/showroom';
 import { clearance } from '../environments/testing/clearance';
 import { ProjectScene, ProjectSceneOptions } from './project.scene';
+import { ReturnPortal } from './return.landmark';
 
 const PROJECT = PROJECT_FIXTURES[0];
 
@@ -55,6 +56,20 @@ describe('ProjectScene', () => {
     const toPlayer = target.arrival.position.clone().sub(environment.spawn);
     expect(toPlayer.length()).toBeGreaterThan(0);
     expect(toPlayer.length()).toBeLessThan(6);
+  });
+
+  it('stands the way back where the environment places it, the visitor on its spawn in front', () => {
+    const environment = new JungleEnvironment({ reducedMotion: () => true });
+    const target = scene({ environment });
+    const way = target.landmarks.find((landmark) => landmark instanceof ReturnPortal);
+
+    expect(way?.position.x).toBeCloseTo(environment.returnPortal.position[0], 10);
+    expect(way?.position.z).toBeCloseTo(environment.returnPortal.position[2], 10);
+    expect(way?.rotationY).toBe(environment.returnPortal.rotationY);
+    // The visitor stands on the environment's spawn, the portal at their back.
+    expect(target.arrival.position.x).toBeCloseTo(environment.spawn.x, 10);
+    expect(target.arrival.position.z).toBeCloseTo(environment.spawn.z, 10);
+    expect(target.arrival.yaw).toBeCloseTo(environment.spawnYaw, 10);
   });
 
   it('reports the project when the exhibit is used, so the panel can open', () => {
