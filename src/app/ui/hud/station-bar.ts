@@ -28,11 +28,18 @@ import type { StationChip } from '@engine/stations/station';
       display: flex;
       justify-content: center;
       gap: 6px;
+      row-gap: 6px;
+      flex-wrap: wrap;
+      max-inline-size: calc(100vw - 32px);
+      margin-inline: auto;
       pointer-events: none;
       transition: opacity 0.4s;
     }
     :host(.hidden) {
       opacity: 0;
+      pointer-events: none;
+    }
+    :host(.hidden) .chip {
       pointer-events: none;
     }
     .chip {
@@ -64,7 +71,7 @@ import type { StationChip } from '@engine/stations/station';
       border-color: #fff;
       background: rgb(0 0 0 / 55%);
       color: #fff;
-      animation: station-next-pulse 1.57s linear infinite;
+      animation: station-next-pulse 1.57s ease-in-out infinite;
     }
     .chip[data-state='open'] {
       border-color: rgb(255 255 255 / 35%);

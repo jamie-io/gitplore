@@ -1,13 +1,20 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, effect, inject, input, signal } from '@angular/core';
 import { CapabilityService } from '@engine/capability.service';
 import type { StationPlate } from '@engine/stations/station';
+
+const PLATE_FADE_MS = 250;
 
 @Component({
   selector: 'app-hud-plate',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    @if (plate(); as plate) {
-      <section class="plate" data-role="plate">
+    @if (displayedPlate(); as plate) {
+      <section
+        class="plate"
+        data-role="plate"
+        [class.plate-enter]="plateVisible()"
+        [class.plate-leave]="!plateVisible()"
+      >
         <span class="kicker">{{ plate.kicker }}</span>
         <h2>{{ plate.title }}</h2>
         <p class="text">{{ plate.text }}</p>
@@ -34,7 +41,12 @@ import type { StationPlate } from '@engine/stations/station';
       background: rgb(20 27 23 / 88%);
       color: #c9d2cc;
       text-shadow: none;
-      transition: opacity 0.25s;
+    }
+    .plate.plate-enter {
+      animation: hud-plate-enter 0.25s linear both;
+    }
+    .plate.plate-leave {
+      animation: hud-plate-leave 0.25s linear both;
     }
     .kicker {
       color: #e0a13c;
@@ -66,7 +78,28 @@ import type { StationPlate } from '@engine/stations/station';
         sans-serif;
     }
     :host(.reduced-motion) .plate {
-      transition: none;
+      animation: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .plate {
+        animation: none;
+      }
+    }
+    @keyframes hud-plate-enter {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    @keyframes hud-plate-leave {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
     }
   `,
   host: {
@@ -77,4 +110,28 @@ export class HudPlate {
   readonly plate = input<StationPlate | null>(null);
 
   protected readonly capability = inject(CapabilityService);
+  protected readonly displayedPlate = signal<StationPlate | null>(null);
+  protected readonly plateVisible = signal(false);
+
+  private hasDisplayedPlate = false;
+
+  constructor() {
+    effect((onCleanup) => {
+      const nextPlate = this.plate();
+      if (nextPlate) {
+        this.displayedPlate.set(nextPlate);
+        this.plateVisible.set(true);
+        this.hasDisplayedPlate = true;
+        return;
+      }
+
+      if (!this.hasDisplayedPlate) {
+        return;
+      }
+
+      this.plateVisible.set(false);
+      const timer = setTimeout(() => this.displayedPlate.set(null), PLATE_FADE_MS);
+      onCleanup(() => clearTimeout(timer));
+    });
+  }
 }

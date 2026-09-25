@@ -97,6 +97,14 @@ describe('Hud', () => {
     expect(query('[aria-live]')?.getAttribute('aria-live')).toBe('polite');
   });
 
+  it('keeps a persistent live region around the transient toast', async () => {
+    store.markReady();
+    await fixture.whenStable();
+
+    expect(query('.toast-region[aria-live="polite"]')).not.toBeNull();
+    expect(query('.toast[aria-live]')).toBeNull();
+  });
+
   it('hides the crosshair while the world is paused', async () => {
     store.markReady();
     store.markStarted();
@@ -240,6 +248,31 @@ describe('Hud interaction prompt and navigation', () => {
     expect(host().querySelector('[data-role="station-chip"]')?.textContent).toContain('Laterne');
   });
 
+  it('holds the station bar hidden for the first 2.6 seconds of arrival', async () => {
+    vi.useFakeTimers();
+    try {
+      const chips: readonly StationChip[] = [
+        { index: 1, id: 'lantern', name: 'Laterne', state: 'next' },
+      ];
+      store.stations.set(chips);
+      store.shot.set('arrival');
+      TestBed.tick();
+
+      const bar = host().querySelector('app-station-bar');
+      expect(bar?.classList.contains('hidden')).toBe(true);
+
+      vi.advanceTimersByTime(2599);
+      TestBed.tick();
+      expect(bar?.classList.contains('hidden')).toBe(true);
+
+      vi.advanceTimersByTime(1);
+      TestBed.tick();
+      expect(bar?.classList.contains('hidden')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('shows a toast and moment banner from store state', async () => {
     store.showToast('Die Laterne leuchtet auf');
     store.banner.set('Deslopify installiert');
@@ -251,6 +284,53 @@ describe('Hud interaction prompt and navigation', () => {
     expect(host().querySelector('[data-role="moment-banner"]')?.textContent).toContain(
       'Deslopify installiert',
     );
+  });
+
+  it('recreates a toast when the same text arrives with a new id', async () => {
+    store.showToast('Die Laterne leuchtet auf');
+    await fixture.whenStable();
+    const firstToast = host().querySelector('[data-role="toast"]');
+
+    store.showToast('Die Laterne leuchtet auf');
+    await fixture.whenStable();
+    const secondToast = host().querySelector('[data-role="toast"]');
+
+    expect(secondToast).not.toBe(firstToast);
+  });
+
+  it('offsets toast while the moment banner is active', async () => {
+    store.showToast('Toast');
+    store.banner.set('Banner');
+    await fixture.whenStable();
+
+    const banner = host().querySelector('[data-role="moment-banner"]');
+    expect(banner?.classList.contains('banner-enter')).toBe(true);
+    expect(host().querySelector('[data-role="toast"]')?.classList.contains('banner-active')).toBe(
+      true,
+    );
+
+    vi.useFakeTimers();
+    try {
+      store.banner.set(null);
+      TestBed.tick();
+
+      expect(
+        host().querySelector('[data-role="moment-banner"]')?.classList.contains('banner-leave'),
+      ).toBe(true);
+
+      vi.advanceTimersByTime(300);
+      TestBed.tick();
+      expect(host().querySelector('[data-role="moment-banner"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('moves the prompt class when stations exist', async () => {
+    store.stations.set([{ index: 1, id: 'lantern', name: 'Laterne', state: 'here' }]);
+    await fixture.whenStable();
+
+    expect(host().querySelector('.prompt')?.classList.contains('with-stations')).toBe(true);
   });
 
   it('shows arrival pitch only during an arrival shot', async () => {

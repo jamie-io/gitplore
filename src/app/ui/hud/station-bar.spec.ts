@@ -54,8 +54,10 @@ describe('StationBar', () => {
   it('makes hidden chips unavailable to assistive technology and focus', async () => {
     const fixture = await bar(true);
     const host = fixture.nativeElement as HTMLElement;
+    const chip = host.querySelector<HTMLButtonElement>('[data-role="station-chip"]');
 
     expect(host.getAttribute('aria-hidden')).toBe('true');
     expect(host.hasAttribute('inert')).toBe(true);
+    expect(chip ? getComputedStyle(chip).pointerEvents : null).toBe('none');
   });
 });

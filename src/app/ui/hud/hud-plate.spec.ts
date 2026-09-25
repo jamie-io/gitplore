@@ -42,4 +42,34 @@ describe('HudPlate', () => {
 
     expect(fixture.nativeElement.querySelector('[data-role="plate"]')).toBeNull();
   });
+
+  it('keeps the card during its enter and leave fade phases', async () => {
+    const fixture = await render(null);
+    vi.useFakeTimers();
+    try {
+      const host = fixture.nativeElement as HTMLElement;
+
+      fixture.componentRef.setInput('plate', plate);
+      fixture.detectChanges();
+      TestBed.tick();
+
+      const card = host.querySelector<HTMLElement>('[data-role="plate"]');
+
+      expect(card?.classList.contains('plate-enter')).toBe(true);
+
+      fixture.componentRef.setInput('plate', null);
+      fixture.detectChanges();
+      TestBed.tick();
+
+      const leavingCard = host.querySelector<HTMLElement>('[data-role="plate"]');
+      expect(leavingCard).not.toBeNull();
+      expect(leavingCard?.classList.contains('plate-leave')).toBe(true);
+
+      vi.advanceTimersByTime(250);
+      fixture.detectChanges();
+      expect(host.querySelector('[data-role="plate"]')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

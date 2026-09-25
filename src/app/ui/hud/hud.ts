@@ -1,6 +1,7 @@
 import { Component, DestroyRef, computed, effect, inject, isDevMode, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AudioService } from '@engine/audio/audio.service';
+import { CapabilityService } from '@engine/capability.service';
 import { EMPTY_ENGINE_STATS, ENGINE, EngineStats } from '@engine/engine.service';
 import { HudPlate } from './hud-plate';
 import { StationBar } from './station-bar';
@@ -9,6 +10,7 @@ import { WorldStore } from '../store/world.store';
 /** Twice a second is enough to read, and keeps signal writes rare (IMPLEMENTATION_PLAN.md §2). */
 const STATS_INTERVAL_MS = 500;
 const ARRIVAL_BAR_DELAY_MS = 2600;
+const BANNER_FADE_MS = 300;
 
 @Component({
   selector: 'app-hud',
@@ -40,20 +42,24 @@ const ARRIVAL_BAR_DELAY_MS = 2600;
           />
         }
         <app-hud-plate [plate]="store.plate()" />
-        @if (store.toast(); as toast) {
-          @for (item of [toast]; track item.id) {
-            <p
-              class="toast"
-              data-role="toast"
-              aria-live="polite"
-              [class.banner-active]="store.banner() !== null"
-            >
-              {{ item.text }}
-            </p>
+        <div class="toast-region" aria-live="polite" aria-atomic="true">
+          @if (store.toast(); as toast) {
+            @for (item of [toast]; track item.id) {
+              <p class="toast" data-role="toast" [class.banner-active]="displayedBanner() !== null">
+                {{ item.text }}
+              </p>
+            }
           }
-        }
-        @if (store.banner(); as banner) {
-          <p class="moment-banner" data-role="moment-banner">{{ banner }}</p>
+        </div>
+        @if (displayedBanner(); as banner) {
+          <p
+            class="moment-banner"
+            data-role="moment-banner"
+            [class.banner-enter]="bannerVisible()"
+            [class.banner-leave]="!bannerVisible()"
+          >
+            {{ banner }}
+          </p>
         }
         @if (store.shot() === 'arrival') {
           @if (store.pitch(); as pitch) {
@@ -210,7 +216,7 @@ const ARRIVAL_BAR_DELAY_MS = 2600;
       font:
         500 13px 'IBM Plex Mono',
         monospace;
-      animation: toast-fade 2.2s ease forwards;
+      animation: toast-fade 2.2s linear forwards;
     }
     .toast.banner-active {
       inset-block-start: 112px;
@@ -223,15 +229,19 @@ const ARRIVAL_BAR_DELAY_MS = 2600;
       font:
         600 14px system-ui,
         sans-serif;
-      opacity: 1;
-      transition: opacity 0.3s;
+    }
+    .moment-banner.banner-enter {
+      animation: hud-banner-enter 0.3s linear both;
+    }
+    .moment-banner.banner-leave {
+      animation: hud-banner-leave 0.3s linear both;
     }
     .pitch {
       position: absolute;
       inset-block-start: 36%;
       inset-inline: 16px;
       text-align: center;
-      animation: pitch-fade 2.7s ease both;
+      animation: pitch-fade 2.7s linear both;
     }
     .pitch h1 {
       margin: 0;
@@ -268,14 +278,42 @@ const ARRIVAL_BAR_DELAY_MS = 2600;
         opacity: 1;
       }
     }
+    :host(.reduced-motion) .moment-banner {
+      animation: none;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .moment-banner {
+        animation: none;
+      }
+    }
+    @keyframes hud-banner-enter {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    @keyframes hud-banner-leave {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
   `,
   // Whether the world is audible, for the end-to-end suite: SwiftShader has no audio output, so
   // the state of the context is the only thing a browser test can check.
-  host: { '[attr.data-audio]': 'audio.state()' },
+  host: {
+    '[attr.data-audio]': 'audio.state()',
+    '[class.reduced-motion]': 'capability.reducedMotion()',
+  },
 })
 export class Hud {
   protected readonly store = inject(WorldStore);
   protected readonly audio = inject(AudioService);
+  protected readonly capability = inject(CapabilityService);
 
   private readonly engine = inject(ENGINE);
 
@@ -294,6 +332,10 @@ export class Hud {
   });
 
   private readonly arrivalBarReady = signal(false);
+  protected readonly displayedBanner = signal<string | null>(null);
+  protected readonly bannerVisible = signal(false);
+
+  private hasDisplayedBanner = false;
 
   protected readonly stationBarHidden = computed(
     () => this.store.shot() === 'arrival' && !this.arrivalBarReady(),
@@ -308,6 +350,24 @@ export class Hud {
 
       this.arrivalBarReady.set(false);
       const timer = setTimeout(() => this.arrivalBarReady.set(true), ARRIVAL_BAR_DELAY_MS);
+      onCleanup(() => clearTimeout(timer));
+    });
+
+    effect((onCleanup) => {
+      const nextBanner = this.store.banner();
+      if (nextBanner !== null) {
+        this.displayedBanner.set(nextBanner);
+        this.bannerVisible.set(true);
+        this.hasDisplayedBanner = true;
+        return;
+      }
+
+      if (!this.hasDisplayedBanner) {
+        return;
+      }
+
+      this.bannerVisible.set(false);
+      const timer = setTimeout(() => this.displayedBanner.set(null), BANNER_FADE_MS);
       onCleanup(() => clearTimeout(timer));
     });
 
