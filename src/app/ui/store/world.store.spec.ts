@@ -172,6 +172,7 @@ describe('WorldStore', () => {
     store.setNearby(PORTAL);
     store.setArea('Deslopify');
     store.setWorldStatus('Deslopify an · Entslopt 8/8');
+    store.setEnvironment('plaza');
 
     store.resetTransient();
 
@@ -185,6 +186,7 @@ describe('WorldStore', () => {
     expect(store.nearby()).toBeNull();
     expect(store.area()).toBe('');
     expect(store.worldStatus()).toBeNull();
+    expect(store.environment()).toBeNull();
     // Not transient: the visitor has already been through the gate this session.
     expect(store.started()).toBe(true);
   });
@@ -228,6 +230,14 @@ describe('WorldStore', () => {
 
     store.setWorldStatus(null);
     expect(store.worldStatus()).toBeNull();
+  });
+
+  it('knows which environment the current world stands in, for the HUD’s colours', () => {
+    expect(store.environment()).toBeNull();
+
+    store.setEnvironment('plaza');
+
+    expect(store.environment()).toBe('plaza');
   });
 
   it('names the area the player is standing in', () => {

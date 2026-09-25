@@ -2,6 +2,7 @@ import { Service, computed, signal } from '@angular/core';
 import type { InputMode } from '@engine/input.service';
 import type { Interactable } from '@engine/interaction/interactable';
 import type { ShotKind } from '@engine/camera/camera-shot';
+import type { EnvironmentId } from '@content/project.model';
 import type { ScenePitch, StationChip, StationPlate } from '@engine/stations/station';
 
 export type WorldPhase = 'booting' | 'loading' | 'ready' | 'error';
@@ -21,6 +22,11 @@ export class WorldStore {
   readonly phase = signal<WorldPhase>('booting');
   readonly loadProgress = signal<LoadProgress>({ loaded: 0, total: 0, label: '' });
   readonly area = signal('');
+  /**
+   * The environment the current world stands in; the HUD takes its colours from it. `null` until a
+   * world is built.
+   */
+  readonly environment = signal<EnvironmentId | null>(null);
   readonly errorMessage = signal<string | null>(null);
 
   readonly menuOpen = signal(false);
@@ -143,6 +149,10 @@ export class WorldStore {
     this.area.set(area);
   }
 
+  setEnvironment(environment: EnvironmentId | null): void {
+    this.environment.set(environment);
+  }
+
   setCurrentProject(slug: string | null): void {
     this.currentProject.set(slug);
   }
@@ -204,6 +214,7 @@ export class WorldStore {
     this.requestDemo(null);
     this.setNearby(null);
     this.setArea('');
+    this.setEnvironment(null);
     this.setWorldStatus(null);
     this.setPanelOpen(false);
     this.setContactOpen(false);

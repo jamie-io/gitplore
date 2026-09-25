@@ -342,6 +342,71 @@ describe('ProjectScene', () => {
     expect(target.plateAt?.(0, 0)).toBe(plate);
   });
 
+  describe('with an environment that lays out stations', () => {
+    const plate = { kicker: 'Station 1', title: 'Brunnen', text: 'Text', en: 'Text' };
+    const laidOut = [
+      {
+        id: 'well',
+        name: 'Brunnen',
+        stand: { x: 3, z: 4, yaw: 1 },
+        trigger: 2,
+        plate: () => plate,
+      },
+    ];
+    /** Its path reads a field of its own, so an unbound call would lose it. */
+    class Laid extends ShowroomEnvironment {
+      readonly via: GroundPoint = { x: 7, z: 7 };
+      readonly portalStand = { x: 0, z: 9, yaw: Math.PI };
+      stations() {
+        return laidOut;
+      }
+      glidePath(from: GroundPoint, to: GroundPoint): readonly GroundPoint[] {
+        return [from, this.via, to];
+      }
+    }
+    const options = (): ProjectSceneOptions => ({
+      environment: new Laid({ reducedMotion: () => true }),
+      project: PROJECT,
+      reducedMotion: () => true,
+      onOpenInfo: () => undefined,
+      onLeave: () => undefined,
+    });
+
+    it('hands its stations, portal stand and path on to the director', () => {
+      const target: WorldScene = new ProjectScene(options());
+
+      expect(target.stations).toBe(laidOut);
+      expect(target.portalStand).toEqual({ x: 0, z: 9, yaw: Math.PI });
+      const glidePath = target.glidePath;
+      // Called detached, as a caller holding only the function would.
+      expect(glidePath?.({ x: 0, z: 0 }, { x: 1, z: 1 })).toEqual([
+        { x: 0, z: 0 },
+        { x: 7, z: 7 },
+        { x: 1, z: 1 },
+      ]);
+    });
+
+    it('lets a bespoke scene’s own stations, stand and path win over the environment’s', () => {
+      const own = [{ ...laidOut[0], id: 'own' }];
+      class Bespoke extends ProjectScene {
+        override get stations() {
+          return own;
+        }
+        override get portalStand() {
+          return { x: 0, z: 5, yaw: 0 };
+        }
+        override glidePath(from: GroundPoint, to: GroundPoint): readonly GroundPoint[] {
+          return [from, to];
+        }
+      }
+      const target: WorldScene = new Bespoke(options());
+
+      expect(target.stations).toBe(own);
+      expect(target.portalStand).toEqual({ x: 0, z: 5, yaw: 0 });
+      expect(target.glidePath?.({ x: 0, z: 0 }, { x: 1, z: 1 })).toHaveLength(2);
+    });
+  });
+
   it('stands the jungle’s exhibit inside its easel, and no easel anywhere else', () => {
     const environment = new JungleEnvironment({ reducedMotion: () => true });
     const target = scene({ project: { ...PROJECT, environment: 'jungle' }, environment });

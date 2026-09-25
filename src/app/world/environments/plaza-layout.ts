@@ -1,4 +1,5 @@
 import type { Collider } from '@engine/player/collision';
+import type { GroundPoint, StationStand } from '@engine/stations/station';
 import type { HouseOptions } from './architecture';
 import { Random, seededRandom } from './random';
 
@@ -286,8 +287,8 @@ export interface PlazaStation {
   readonly id: 'terminal' | 'board' | 'ridge' | 'languages';
   readonly name: string;
   readonly prop: { readonly x: number; readonly z: number; readonly rotationY: number };
-  /** Kit yaw: 0 faces −Z. */
-  readonly stand: { readonly x: number; readonly z: number; readonly yaw: number };
+  /** Where the glide stops, facing the prop; kit yaw: 0 faces −Z. */
+  readonly stand: StationStand;
 }
 
 /** STATION_RADIUS / √2 and GLIDE_RADIUS / √2, to the centimetre, as the plan lists them. */
@@ -329,12 +330,7 @@ export const STATIONS: readonly PlazaStation[] = [
 ];
 
 /** Where a glide to the portal stops: two metres in front of it, facing it. */
-export const PORTAL_STAND = { x: 0, z: 15.5, yaw: Math.PI } as const;
-
-export interface GroundPoint {
-  readonly x: number;
-  readonly z: number;
-}
+export const PORTAL_STAND: StationStand = { x: 0, z: 15.5, yaw: Math.PI };
 
 /** `p` normalised, or (0, 1) for the zero vector. */
 function unit(p: GroundPoint): readonly [number, number] {

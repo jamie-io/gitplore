@@ -60,6 +60,11 @@ test.describe('Deslopify world', () => {
     await expect(page.locator('[data-role="plate"]')).toContainText('Feed-Wand', {
       timeout: 40_000,
     });
+    // The Lichtung's own amber.
+    await expect(page.locator('[data-role="station-chip"][data-state="here"]')).toHaveCSS(
+      'background-color',
+      'rgb(224, 161, 60)',
+    );
     await expect(page.locator('app-hud .prompt')).toContainText('Deslopify ausschalten', {
       timeout: 40_000,
     });

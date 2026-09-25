@@ -71,3 +71,27 @@ test.describe('walking between worlds', () => {
     await expect(page.getByRole('dialog', { name: /Phönix/ })).toBeVisible();
   });
 });
+
+test.describe('the Plaza', () => {
+  test('lays out its four stations in key order, and glides to the board', async ({ page }) => {
+    test.setTimeout(150_000);
+    await page.goto('/p/gitplore');
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-phase', 'ready');
+    await page.locator('button[data-role="start"]').click();
+    await expect(page.locator('app-world-page')).toHaveAttribute('data-input-mode', 'world');
+    await expect(page.locator('app-hud .area')).toContainText('Plaza');
+
+    const chips = page.locator('[data-role="station-chip"]');
+    await expect(chips).toHaveCount(4);
+    await expect(chips).toContainText(['Terminal', 'Projekttafel', 'Commit-Treppe', 'Sprachen']);
+
+    await page.keyboard.press('Digit2');
+    await expect(page.locator('[data-role="plate"]')).toContainText('Projekttafel', {
+      timeout: 40_000,
+    });
+    // The Plaza's own terracotta, not the Lichtung's amber.
+    const here = page.locator('[data-role="station-chip"][data-state="here"]');
+    await expect(here).toContainText('Projekttafel');
+    await expect(here).toHaveCSS('background-color', 'rgb(184, 88, 58)');
+  });
+});

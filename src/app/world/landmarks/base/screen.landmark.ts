@@ -7,6 +7,7 @@ import {
   PlaneGeometry,
   SRGBColorSpace,
 } from 'three';
+import type { Collider } from '@engine/player/collision';
 import { WorldContext } from '@engine/world-object';
 import { createLabel } from './label';
 import { Landmark, LandmarkOptions, LandmarkShape } from './landmark';
@@ -18,8 +19,14 @@ const SCREEN_DEPTH = 0.16;
 /** Height of the screen's centre above the ground. */
 export const SCREEN_CENTRE = 1.9;
 const INTERACT_RADIUS = 4;
-/** Half the footprint's width when an environment's frame stands around the screen. */
+/**
+ * Half the footprint's width when an environment's frame stands around the screen: the Plaza's
+ * notice board is 4.2 m across its roof, and its posts and stone feet reach 1.92 m out.
+ */
 const FRAMED_HALF_WIDTH = 2;
+/** The discs in the row that stands for such a frame, and the radius of each. */
+const FRAME_DISCS = 5;
+const FRAME_DISC_RADIUS = SCREEN_DEPTH / 2 + 0.4;
 
 export interface ScreenLandmarkOptions extends LandmarkOptions {
   readonly comparison?: PosterComparison;
@@ -57,7 +64,7 @@ export class ScreenLandmark extends Landmark {
 
   protected describe(): LandmarkShape {
     return {
-      colliders: [this.footprint()],
+      colliders: this.frame ? [this.footprint()] : this.boardFootprint(),
       interactables: [
         {
           id: this.id,
@@ -136,11 +143,23 @@ export class ScreenLandmark extends Landmark {
     });
   }
 
-  /** Axis-aligned bounds of the rotated screen body, on the ground. */
+  /**
+   * The environment's frame (the Plaza's notice board, whose posts and stone feet reach 1.92 m out)
+   * as a row of overlapping discs along its width. The row follows the board however it is turned:
+   * one axis-aligned box around a board on a diagonal would stand 1.75 m out from its centre in
+   * front of it, and reach into the Plaza's glide circle.
+   */
+  private boardFootprint(): Collider[] {
+    const reach = FRAMED_HALF_WIDTH - FRAME_DISC_RADIUS;
+    return Array.from({ length: FRAME_DISCS }, (_, index) => {
+      const centre = this.toWorld(-reach + (2 * reach * index) / (FRAME_DISCS - 1), 0, 0);
+      return { kind: 'cylinder' as const, x: centre.x, z: centre.z, radius: FRAME_DISC_RADIUS };
+    });
+  }
+
+  /** Axis-aligned bounds of the rotated screen body on its own post, on the ground. */
   private footprint() {
-    // Framed by the environment (the Plaza's notice board, 4.2 m across its roof), the posts and
-    // their stone feet reach 1.92 m out: the footprint covers them.
-    const halfW = this.frame ? SCREEN_WIDTH / 2 + 0.3 : FRAMED_HALF_WIDTH;
+    const halfW = SCREEN_WIDTH / 2 + 0.3;
     const halfD = SCREEN_DEPTH / 2 + 0.4;
     const corners = [
       this.toWorld(-halfW, 0, -halfD),
