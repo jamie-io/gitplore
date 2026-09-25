@@ -35,6 +35,7 @@ import {
 } from './flora';
 import { ProceduralGround } from './ground';
 import { JungleBridge } from './jungle-bridge';
+import { bakeGeometry } from './model-geometry';
 import {
   ARCH,
   BAMBOO,
@@ -628,6 +629,8 @@ export class JungleEnvironment implements Environment {
     readonly boulders: readonly Placement[];
   };
   private props: InstancedMesh[] = [];
+  /** Set by `dispose`, so boulders arriving afterwards are only handed back. */
+  private disposed = false;
   /** The collider-free undergrowth the seed lever scatters again; also listed in `props`. */
   private plants: InstancedMesh | null = null;
   private scene: WorldContext['scene'] | null = null;
@@ -789,6 +792,8 @@ export class JungleEnvironment implements Environment {
 
     this.props = this.buildProps(ctx);
     this.props.forEach((mesh) => ctx.scene.add(mesh));
+    this.disposed = false;
+    this.loadBoulders(ctx);
 
     this.air = findAir(ctx, this.sun.light);
     this.appliedHaze = -1;
@@ -827,6 +832,7 @@ export class JungleEnvironment implements Environment {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.props.forEach(disposeObject3D);
     this.props = [];
     this.cave.dispose();
@@ -882,6 +888,33 @@ export class JungleEnvironment implements Environment {
       (sky.uniforms['below'].value as Color).copy(CLEAR.below).lerp(SLOPPED.below, t);
     }
     this.appliedHaze = t;
+  }
+
+  /**
+   * Swaps the boulders' procedural stones for the Blender-authored ones once they arrive: each
+   * variant's instanced mesh takes a baked copy of its node's geometry, keeping its placements,
+   * tints and colliders. The copies are the jungle's own, so the model is handed straight back.
+   */
+  private loadBoulders(ctx: WorldContext): void {
+    ctx.assets.model(ROCKS_MODEL).then(
+      (model) => {
+        if (!this.disposed) {
+          for (const mesh of this.props) {
+            const node = mesh.name.startsWith('boulder-') ? model.getObjectByName(mesh.name) : null;
+            const geometry = node ? bakeGeometry(node) : null;
+            if (geometry) {
+              mesh.geometry.dispose();
+              mesh.geometry = geometry;
+              mesh.boundingSphere = null;
+              mesh.computeBoundingSphere();
+            }
+          }
+        }
+        ctx.assets.releaseModel(ROCKS_MODEL);
+      },
+      // A missing model is no error worth showing: the procedural boulders stay.
+      () => undefined,
+    );
   }
 
   private buildProps(ctx: WorldContext): InstancedMesh[] {
@@ -988,6 +1021,9 @@ export class JungleEnvironment implements Environment {
 function toySpot(slot: Slot): ToySpot {
   return { position: slot.position.clone(), rotationY: slot.yaw };
 }
+
+/** The boulders, modelled in Blender (scripts/blender/models/jungle_rocks.py): nodes `boulder-0` and `-1`. */
+export const ROCKS_MODEL = 'assets/models/jungle-rocks.glb';
 
 /** Metres either side of their spot the release cairns spread. */
 const CAIRN_SPREAD = 2.5;

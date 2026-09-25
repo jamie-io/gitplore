@@ -25,6 +25,9 @@ MODELS = {
     "lantern": ("lantern", 0.45, 0.25, False),
     "stele": ("stele", 0.55, 0.5, True),
     "card-frame": ("card_frame", 0.5, 0.35, True),
+    "jungle-rocks": ("jungle_rocks", 0.5, 0.6, True),
+    "cairn": ("cairn", 0.5, 0.4, True),
+    "liana-lever": ("liana_lever", 0.5, 0.4, True),
 }
 
 
@@ -52,4 +55,5 @@ def main():
     print("AUTHORED " + json.dumps(report))
 
 
-main()
+if __name__ == "__main__":
+    main()

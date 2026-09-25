@@ -258,6 +258,7 @@ export class ProjectScene implements WorldScene {
       onReseed: (offset) => this.environment.reseedDecoration?.(offset),
       reducedMotion: options.reducedMotion,
       skin,
+      haze: this.haze ?? undefined,
     });
     this.parts = [
       this.terminal,
@@ -285,6 +286,7 @@ export class ProjectScene implements WorldScene {
         to: toys.releases.to,
         ground: this.environment.ground,
         skin,
+        haze: this.haze ?? undefined,
       }),
       new StarLanterns({
         project: options.project,

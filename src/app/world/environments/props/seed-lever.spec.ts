@@ -1,6 +1,9 @@
-import { Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { stubContext } from '@engine/testing/world-context';
-import { SEED_LEVER_PROMPT, SeedLever } from './seed-lever';
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import { StubAssets, stubContext } from '@engine/testing/world-context';
+import { DSCHUNGEL } from '../mood';
+import { HazedCopies } from '../shaders/hazed-copies';
+import { SharedUniforms } from '../shaders/shared-uniforms';
+import { LIANA_LEVER_MODEL, SEED_LEVER_PROMPT, SeedLever } from './seed-lever';
 
 const ground = { heightAt: () => 0.25 };
 
@@ -12,6 +15,48 @@ function lever(onReseed: (offset: number) => void, reducedMotion = false): SeedL
     onReseed,
     reducedMotion: () => reducedMotion,
   });
+}
+
+function jungleLever(
+  onReseed: (offset: number) => void = () => undefined,
+  assets = new StubAssets(),
+  haze?: HazedCopies,
+): { target: SeedLever; assets: StubAssets; ctx: ReturnType<typeof stubContext> } {
+  const target = new SeedLever({
+    id: 'test:jungle-model',
+    position: new Vector3(3, 0, -2),
+    ground,
+    onReseed,
+    skin: 'jungle',
+    haze,
+  });
+  return { target, assets, ctx: stubContext(assets) };
+}
+
+function leverModel(options: { readonly stump?: boolean; readonly liana?: boolean } = {}): {
+  readonly model: Group;
+  readonly stumpMaterial?: MeshStandardMaterial;
+  readonly lianaMaterial?: MeshStandardMaterial;
+} {
+  const model = new Group();
+  let stumpMaterial: MeshStandardMaterial | undefined;
+  let lianaMaterial: MeshStandardMaterial | undefined;
+  if (options.stump !== false) {
+    const stump = new Group();
+    stump.name = 'liana-lever';
+    stumpMaterial = new MeshStandardMaterial();
+    stump.add(new Mesh(new BoxGeometry(0.4, 0.4, 0.4), stumpMaterial));
+    model.add(stump);
+  }
+  if (options.liana !== false) {
+    const liana = new Group();
+    liana.name = 'liana-handle';
+    liana.position.set(0.975, 2.55, 0);
+    lianaMaterial = new MeshStandardMaterial();
+    liana.add(new Mesh(new BoxGeometry(0.1, 1, 0.1), lianaMaterial));
+    model.add(liana);
+  }
+  return { model, stumpMaterial, lianaMaterial };
 }
 
 describe('SeedLever', () => {
@@ -71,6 +116,79 @@ describe('SeedLever', () => {
     target.update(0.1);
 
     expect(handle.rotation.z).toBe(0);
+    target.dispose();
+  });
+
+  it('replaces jungle lever parts with authored nodes, keeps pivot offset, and hazes materials', async () => {
+    const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));
+    const assets = new StubAssets();
+    const { target, ctx } = jungleLever(() => undefined, assets, haze);
+    const { model, stumpMaterial, lianaMaterial } = leverModel();
+    target.init(ctx);
+
+    expect(assets.requested).toEqual([LIANA_LEVER_MODEL]);
+    await assets.resolve(model);
+
+    const root = ctx.scene.getObjectByName('test:jungle-model')!;
+    const handle = ctx.scene.getObjectByName('test:jungle-model:handle') as Group;
+    const stump = root.getObjectByName('liana-lever')!;
+    const liana = handle.getObjectByName('liana-handle')!;
+    expect(root.getObjectByName('test:jungle-model:base')).toBeUndefined();
+    expect(root.getObjectByName('test:jungle-model:trunk')).toBeUndefined();
+    expect(root.getObjectByName('test:jungle-model:branch')).toBeUndefined();
+    expect(root.getObjectByName('test:jungle-model:liana')).toBeUndefined();
+    expect(root.getObjectByName('test:jungle-model:liana-grip')).toBeUndefined();
+    expect(stump.parent).toBe(root);
+    expect(liana.parent).toBe(handle);
+    expect(liana.position.x).toBeCloseTo(0.1, 6);
+    expect(liana.position.y).toBeCloseTo(0.2, 6);
+    expect(liana.position.z).toBeCloseTo(0, 6);
+    expect((stump.children[0] as Mesh).material).toBe(haze.of(stumpMaterial!));
+    expect((liana.children[0] as Mesh).material).toBe(haze.of(lianaMaterial!));
+
+    target.interactables[0].onInteract();
+    target.update(0.1);
+    expect(handle.rotation.z).toBeLessThan(0);
+
+    target.dispose();
+    expect(assets.releasedModels).toEqual([LIANA_LEVER_MODEL]);
+  });
+
+  it('releases an incomplete jungle model and keeps procedural parts', async () => {
+    for (const missing of ['stump', 'liana'] as const) {
+      const assets = new StubAssets();
+      const { target, ctx } = jungleLever(() => undefined, assets);
+      target.init(ctx);
+      await assets.resolve(leverModel({ [missing === 'stump' ? 'stump' : 'liana']: false }).model);
+
+      expect(ctx.scene.getObjectByName('test:jungle-model:base')).toBeDefined();
+      expect(ctx.scene.getObjectByName('test:jungle-model:trunk')).toBeDefined();
+      expect(ctx.scene.getObjectByName('test:jungle-model:branch')).toBeDefined();
+      expect(ctx.scene.getObjectByName('test:jungle-model:liana')).toBeDefined();
+      expect(ctx.scene.getObjectByName('test:jungle-model:liana-grip')).toBeDefined();
+      expect(assets.releasedModels).toEqual([LIANA_LEVER_MODEL]);
+      target.dispose();
+    }
+  });
+
+  it('releases a late jungle lever model after disposal', async () => {
+    const assets = new StubAssets();
+    const { target, ctx } = jungleLever(() => undefined, assets);
+    target.init(ctx);
+    target.dispose();
+
+    await assets.resolve(leverModel().model);
+
+    expect(assets.releasedModels).toEqual([LIANA_LEVER_MODEL]);
+    expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('does not request a model for the default skin', () => {
+    const assets = new StubAssets();
+    const target = lever(() => undefined);
+    target.init(stubContext(assets));
+
+    expect(assets.requested).toEqual([]);
     target.dispose();
   });
 

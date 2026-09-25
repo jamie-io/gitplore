@@ -215,8 +215,15 @@ class Part:
         return self._merge(tmp, placement(at, rot), color, slot, smooth_angle, bevel, jitter, seed)
 
     def rock(self, radius, at=(0, 0, 0), squash=(1, 1, 1), rot=(0, 0, 0), color=(1, 1, 1),
-             slot=0, subdivisions=1, roughness=0.3, smooth_angle=None, seed=None):
-        """A faceted low-poly lump: an icosphere pushed about by noise, then squashed."""
+             slot=0, subdivisions=1, roughness=0.3, smooth_angle=None, seed=None, cuts=0,
+             depth=(0.62, 0.85), flat=None):
+        """
+        A faceted low-poly lump: an icosphere pushed about by noise, then squashed. `cuts` slices
+        that many planes off it, each `depth` (a fraction of the radius) from the centre, facing a
+        random way above the horizon: the broad flat facets that make stone read as split rather
+        than moulded. `flat` (a fraction of the radius) cuts the top and bottom level too, where a
+        stacked stone bears on its neighbours.
+        """
         tmp = bmesh.new()
         bmesh.ops.create_icosphere(tmp, subdivisions=subdivisions, radius=radius)
         rng = random.Random(seed if seed is not None else self.rng.random())
@@ -224,6 +231,24 @@ class Part:
         for v in tmp.verts:
             n = noise.noise(v.co * (2.2 / max(radius, 1e-3)) + offset)
             v.co *= 1 + n * roughness
+        planes = []
+        if flat is not None:
+            planes = [(Vector((0, 0, 1)), radius * flat), (Vector((0, 0, -1)), radius * flat)]
+        for _ in range(cuts):
+            yaw = rng.random() * math.tau
+            lift = rng.uniform(-0.25, 0.85)
+            planes.append(
+                (Vector((math.cos(yaw), math.sin(yaw), lift)).normalized(),
+                 radius * rng.uniform(*depth))
+            )
+        for normal, distance in planes:
+            cut = bmesh.ops.bisect_plane(
+                tmp, geom=list(tmp.verts) + list(tmp.edges) + list(tmp.faces),
+                plane_co=normal * distance, plane_no=normal, clear_outer=True,
+            )
+            edges = [e for e in cut["geom_cut"] if isinstance(e, bmesh.types.BMEdge)]
+            if edges:
+                bmesh.ops.holes_fill(tmp, edges=edges, sides=0)
         sx, sy, sz = squash
         bmesh.ops.scale(tmp, vec=Vector((sx, sz, sy)), verts=tmp.verts)
         return self._merge(tmp, placement(at, rot), color, slot, smooth_angle, 0, 0, None)
@@ -238,8 +263,12 @@ class Part:
         bmesh.ops.recalc_face_normals(tmp, faces=tmp.faces)
         return self._merge(tmp, placement(at, rot), color, slot, smooth_angle, bevel, jitter, seed)
 
-    def tube(self, points, radius, sides=5, color=(1, 1, 1), slot=0, taper=1.0, smooth_angle=60):
-        """A rope or vine through game `points`, `radius` at the start, `radius * taper` at the end."""
+    def tube(self, points, radius, sides=5, color=(1, 1, 1), slot=0, taper=1.0, smooth_angle=60,
+             radii=None):
+        """
+        A rope, vine or limb through game `points`, `radius` at the start, `radius * taper` at the
+        end; `radii` multiplies each point's radius on top, for flares, bulges and knots.
+        """
         tmp = bmesh.new()
         rings = []
         count = len(points)
@@ -252,7 +281,7 @@ class Part:
                 side = ahead.cross(Vector((1, 0, 0)))
             side.normalize()
             up = side.cross(ahead)
-            r = radius * (1 + (taper - 1) * (i / max(count - 1, 1)))
+            r = radius * (1 + (taper - 1) * (i / max(count - 1, 1))) * (radii[i] if radii else 1)
             ring = []
             for s in range(sides):
                 a = s / sides * math.tau
@@ -286,6 +315,23 @@ class Part:
 
 def reset():
     bpy.ops.wm.read_factory_settings(use_empty=True)
+    scene = bpy.context.scene
+    scene.unit_settings.system = "METRIC"
+    return scene
+
+
+def clear():
+    """
+    Empties the open scene without touching preferences: `reset` reloads factory settings, which
+    in a live session (Blender driven over MCP) would also unload the add-on that serves it.
+    """
+    for obj in list(bpy.data.objects):
+        bpy.data.objects.remove(obj)
+    for blocks in (bpy.data.meshes, bpy.data.materials, bpy.data.lights, bpy.data.cameras,
+                   bpy.data.images):
+        for block in list(blocks):
+            if block.users == 0:
+                blocks.remove(block)
     scene = bpy.context.scene
     scene.unit_settings.system = "METRIC"
     return scene

@@ -5,8 +5,11 @@
  * as its procedural proxy until it arrives.
  */
 export const ENVIRONMENT_MODELS = {
+  'cairn.glb': 'jungle',
   'card-frame.glb': 'jungle',
   'jungle-arch.glb': 'jungle',
+  'jungle-rocks.glb': 'jungle',
   'lantern.glb': 'jungle',
+  'liana-lever.glb': 'jungle',
   'stele.glb': 'jungle',
 };

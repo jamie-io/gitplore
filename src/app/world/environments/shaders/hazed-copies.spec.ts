@@ -33,6 +33,18 @@ describe('HazedCopies', () => {
     expect(haze.of(original)).toBe(original);
   });
 
+  it('patches owned material in place and leaves it undisposed', () => {
+    const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));
+    const material = new MeshStandardMaterial();
+    const dispose = vi.spyOn(material, 'dispose');
+
+    expect(haze.own(material)).toBe(material);
+    expect(material.customProgramCacheKey()).toContain('atmosphere');
+
+    haze.dispose();
+    expect(dispose).not.toHaveBeenCalled();
+  });
+
   it('disposes each copied material once', () => {
     const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));
     const first = haze.of(new MeshStandardMaterial());

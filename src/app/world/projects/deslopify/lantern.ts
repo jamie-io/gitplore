@@ -15,6 +15,7 @@ import { disposeObject3D } from '@engine/dispose';
 import type { Collider } from '@engine/player/collision';
 import type { WorldContext } from '@engine/world-object';
 import type { SceneObject } from '../../project/project.scene';
+import { adoptNode } from '../../environments/model-geometry';
 import type { HazedCopies } from '../../environments/shaders/hazed-copies';
 
 /**
@@ -87,7 +88,7 @@ export class Lantern implements SceneObject {
     this.group.position.copy(this.position);
     this.group.rotation.y = this.rotationY;
     this.body.name = 'lantern-body';
-    this.body.position.set(-0.42, 1.5, 0);
+    this.body.position.copy(BODY_REST);
 
     this.colliders = [
       {
@@ -264,7 +265,7 @@ export class Lantern implements SceneObject {
       if (this.body.parent !== this.group) {
         this.group.attach(this.body);
       }
-      this.body.position.set(-0.42, 1.5, 0);
+      this.body.position.copy(BODY_REST);
       this.body.updateMatrixWorld(true);
       if (this.light && this.light.parent !== this.body) {
         this.body.attach(this.light);
@@ -337,10 +338,9 @@ export class Lantern implements SceneObject {
     };
     post.traverse(dress);
     body.traverse(dress);
-    post.position.set(0, 0, 0);
-    body.position.set(0, 0, 0);
+    // The post is authored at the lantern's foot, the body where it hangs: `BODY_REST`.
     this.group.add(post);
-    this.body.add(body);
+    this.body.add(adoptNode(body, BODY_REST));
   }
 
   private igniteStep(dt: number, reduced: boolean): void {
@@ -426,6 +426,9 @@ export class Lantern implements SceneObject {
     }
   }
 }
+
+/** Where the body hangs on its hook, in the lantern's frame; the model's body is authored there. */
+const BODY_REST = new Vector3(-0.42, 1.5, 0);
 
 /** Where the lantern hangs from the hand: its ring just below the fist, the body below that. */
 const HANG = new Vector3(0, -0.46, 0);

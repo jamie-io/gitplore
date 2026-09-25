@@ -126,7 +126,8 @@ describe('Lantern', () => {
     post.add(postMesh);
     const body = new Group();
     body.name = 'lantern-body';
-    body.position.set(3, 4, 5);
+    // Authored where the body hangs, (-0.42, 1.5, 0), plus an optimiser's dequantising offset.
+    body.position.set(-0.42 + 0.1, 1.5 + 0.2, 0.05);
     const glassMaterial = new MeshStandardMaterial({ name: LANTERN_GLASS_MATERIAL });
     const glass = new Mesh(new CylinderGeometry(0.1, 0.1, 0.2), glassMaterial);
     glass.name = 'lantern-glass';
@@ -148,7 +149,10 @@ describe('Lantern', () => {
     expect(lanternRoot.getObjectByName('lantern-base')).toBeUndefined();
     expect(post.parent).toBe(lanternRoot);
     expect(body.parent).toBe(movingBody);
-    expect(body.position.toArray()).toEqual([0, 0, 0]);
+    // Only the authored placement comes off; the dequantising offset stays.
+    expect(body.position.x).toBeCloseTo(0.1, 6);
+    expect(body.position.y).toBeCloseTo(0.2, 6);
+    expect(body.position.z).toBeCloseTo(0.05, 6);
     expect(glass.material).toBe(litMaterial);
     expect(wood.material).toBe(haze.of(woodMaterial));
     expect(lanternRoot.getObjectByName('lantern-light')).toBeInstanceOf(PointLight);

@@ -10,8 +10,11 @@ import type { Project } from '@content/project.model';
 import { disposeObject3D } from '@engine/dispose';
 import { WorldContext, WorldObject } from '@engine/world-object';
 import type { HeightField } from '@engine/player/collision';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { createLabel } from '../../landmarks/base/label';
 import { assemble, paint } from '../flora';
+import { bakeGeometry } from '../model-geometry';
+import type { HazedCopies } from '../shaders/hazed-copies';
 import { RIDGE_HALF_DEPTH, RIDGE_OFFSET } from './commit-ridge';
 import { createPlankSign } from './plank-sign';
 
@@ -25,6 +28,11 @@ const CAIRN_HALF_DEPTH = CAIRN_MAX_SCALE * Math.hypot(1.2, 0.9);
 /** Keep release markers beyond the ridge's far edge, with a gap around each footprint. */
 export const MARKER_OFFSET = RIDGE_OFFSET + RIDGE_HALF_DEPTH + CAIRN_HALF_DEPTH + RELEASE_PATH_GAP;
 export const MAX_RELEASE_MARKERS = 12;
+/**
+ * The jungle's cairns, modelled in Blender (scripts/blender/models/cairn.py) to the procedural
+ * stack's measurements: nodes `cairn-0` to `-2`, one per `index % 3` variant.
+ */
+export const CAIRN_MODEL = 'assets/models/cairn.glb';
 const MAX_RELEASE_LABELS = 3;
 
 type ToySkin = 'default' | 'jungle';
@@ -35,6 +43,8 @@ export interface ReleaseMarkersOptions {
   readonly to: Vector3;
   readonly ground: HeightField;
   readonly skin?: ToySkin;
+  /** Hazes the cairns into the environment's air; without it they stay plain. */
+  readonly haze?: HazedCopies;
 }
 
 /** Release cairns beyond the history ridge; absent release data leaves this object silent. */
@@ -45,6 +55,9 @@ export class ReleaseMarkers implements WorldObject {
   private labels: Mesh[] = [];
   private versionLabels: Mesh[] = [];
   private sign?: Group;
+  /** Where each jungle cairn stands, for swapping in the modelled stones. */
+  private cairns: { readonly x: number; readonly y: number; readonly z: number }[] = [];
+  private disposed = false;
 
   constructor(private readonly options: ReleaseMarkersOptions) {}
 
@@ -73,6 +86,9 @@ export class ReleaseMarkers implements WorldObject {
       const point = from.clone().lerp(to, fraction).addScaledVector(side, -MARKER_OFFSET);
       points.push(point);
       const y = this.options.ground.heightAt(point.x, point.z);
+      if (jungle) {
+        this.cairns.push({ x: point.x, y, z: point.z });
+      }
       let stackTop = y;
       let topStoneScale: number = CAIRN_SCALES[CAIRN_SCALES.length - 1];
       let topStoneCentreY = stackTop;
@@ -151,9 +167,10 @@ export class ReleaseMarkers implements WorldObject {
     }
 
     const geometry = assemble(parts);
+    const material = new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 });
     const mesh = new Mesh(
       geometry,
-      new MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0 }),
+      jungle && this.options.haze ? this.options.haze.own(material) : material,
     );
     mesh.name = this.id;
     mesh.userData['cairnCount'] = releases.length;
@@ -162,13 +179,52 @@ export class ReleaseMarkers implements WorldObject {
     mesh.receiveShadow = ctx.quality.shadows;
     this.mesh = mesh;
     ctx.scene.add(mesh);
+    if (jungle) {
+      this.disposed = false;
+      this.loadCairns(ctx);
+    }
   }
 
   update(): void {
     // Release dates are static repository data.
   }
 
+  /**
+   * Swaps the procedural stacks for the modelled cairns once they arrive, still one merged
+   * geometry and one draw call: each cairn is a baked copy of its variant, moved to its spot. The
+   * version labels stay where they are, since each variant keeps the stack's measurements. The
+   * copies are this object's own, so the model is handed straight back.
+   */
+  private loadCairns(ctx: WorldContext): void {
+    ctx.assets.model(CAIRN_MODEL).then(
+      (model) => {
+        const variants = [0, 1, 2].map((variant) => {
+          const node = model.getObjectByName(`cairn-${variant}`);
+          return node ? bakeGeometry(node) : null;
+        });
+        ctx.assets.releaseModel(CAIRN_MODEL);
+        const mesh = this.mesh;
+        if (!this.disposed && mesh && variants.every((variant) => variant !== null)) {
+          const placed = this.cairns.map(({ x, y, z }, index) =>
+            variants[index % 3]!.clone().translate(x, y, z),
+          );
+          const merged = mergeGeometries(placed);
+          placed.forEach((geometry) => geometry.dispose());
+          if (merged) {
+            mesh.geometry.dispose();
+            mesh.geometry = merged;
+          }
+        }
+        variants.forEach((variant) => variant?.dispose());
+      },
+      // A missing model is no error worth showing: the procedural cairns stay.
+      () => undefined,
+    );
+  }
+
   dispose(): void {
+    this.disposed = true;
+    this.cairns = [];
     this.labels.forEach(disposeObject3D);
     this.labels = [];
     if (this.sign) {

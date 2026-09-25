@@ -27,6 +27,11 @@ export class HazedCopies {
     return copy;
   }
 
+  /** Hazes a material the caller owns and disposes itself, in place rather than by copy. */
+  own<T extends MeshStandardMaterial>(material: T): T {
+    return withAtmosphere(material, this.shared);
+  }
+
   dispose(): void {
     for (const copy of this.copies.values()) {
       copy.dispose();
