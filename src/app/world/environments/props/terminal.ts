@@ -3,6 +3,7 @@ import {
   CanvasTexture,
   CylinderGeometry,
   Group,
+  Material,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
@@ -30,6 +31,7 @@ import {
 } from '@content/repository-data';
 import { rotatedAabb } from './footprint';
 import { createLabel } from '../../landmarks/base/label';
+import type { HazedCopies } from '../shaders/hazed-copies';
 
 const CANVAS_WIDTH = 1024;
 const CANVAS_HEIGHT = 640;
@@ -63,6 +65,12 @@ const INTERACT_RADIUS = 3;
 const READING_DISTANCE = 2.3;
 /** Radians the reader looks up while reading; positive pitch looks up. */
 const READING_PITCH = 0.2;
+/**
+ * The jungle stele's stone, modelled in Blender (scripts/blender/models/stele.py) to the
+ * procedural slab's envelope, so the screen panel and the plank label sit on it unchanged.
+ */
+export const STELE_MODEL = 'assets/models/stele.glb';
+
 const JUNGLE_SCREEN_WIDTH = 1.6;
 const JUNGLE_SCREEN_HEIGHT = 1;
 const JUNGLE_CASE_WIDTH = 1.69;
@@ -114,6 +122,8 @@ export interface TerminalOptions {
   readonly skin?: 'default' | 'jungle';
   /** The controls the terminal takes while it is used; headless specs may leave it out. */
   readonly input?: InputActionSource;
+  /** Hazes the stele model's materials into the environment's air; without it they stay plain. */
+  readonly haze?: HazedCopies;
 }
 
 /**
@@ -228,6 +238,11 @@ export class Terminal implements WorldObject {
   private readonly stopCapture: () => void;
   private readonly stopActions: () => void;
   private player: PlayerController | null = null;
+  /** The procedural slab and moss edges, until the stele model replaces them. */
+  private steleProxy: Mesh[] = [];
+  private steleModel: Group | null = null;
+  private assets: WorldContext['assets'] | null = null;
+  private disposed = false;
   private canvasContext: CanvasRenderingContext2D | null = null;
   private texture: CanvasTexture | null = null;
   private activeValue = false;
@@ -367,6 +382,13 @@ export class Terminal implements WorldObject {
     this.stopActions();
     this.stopCapture();
     this.player = null;
+    this.disposed = true;
+    if (this.steleModel) {
+      // The asset service owns the model's resources; `disposeObject3D` leaves them alone.
+      this.steleModel = null;
+      this.assets?.releaseModel(STELE_MODEL);
+    }
+    this.steleProxy = [];
     // Takes the canvas texture with it: `disposeObject3D` releases every map a material holds.
     disposeObject3D(this.group);
     this.group.clear();
@@ -482,7 +504,8 @@ export class Terminal implements WorldObject {
     slab.position.y = JUNGLE_SLAB_HEIGHT / 2;
     slab.castShadow = ctx.quality.shadows;
     this.group.add(slab);
-    this.addMossEdges(ctx.quality.shadows);
+    this.steleProxy = [slab, ...this.addMossEdges(ctx.quality.shadows)];
+    this.loadStele(ctx);
 
     const panel = new Group();
     panel.name = `${this.id}:panel`;
@@ -504,7 +527,38 @@ export class Terminal implements WorldObject {
     return panel;
   }
 
-  private addMossEdges(castShadow: boolean): void {
+  /** Swaps the procedural slab for the stele model once it arrives; without it the slab stays. */
+  private loadStele(ctx: WorldContext): void {
+    this.disposed = false;
+    this.assets = ctx.assets;
+    ctx.assets.model(STELE_MODEL).then(
+      (model) => {
+        if (this.disposed || this.steleModel) {
+          ctx.assets.releaseModel(STELE_MODEL);
+          return;
+        }
+        this.steleModel = model;
+        model.name = `${this.id}:stele`;
+        model.traverse((object) => {
+          if (object instanceof Mesh) {
+            object.castShadow = ctx.quality.shadows;
+            object.receiveShadow = ctx.quality.shadows;
+            if (this.options.haze) {
+              object.material = this.options.haze.of(object.material as Material);
+            }
+          }
+        });
+        for (const mesh of this.steleProxy) {
+          disposeObject3D(mesh);
+        }
+        this.steleProxy = [];
+        this.group.add(model);
+      },
+      () => undefined,
+    );
+  }
+
+  private addMossEdges(castShadow: boolean): Mesh[] {
     const edge = 0.045;
     const depth = JUNGLE_SLAB_DEPTH + 0.018;
     const edges = [
@@ -527,6 +581,7 @@ export class Terminal implements WorldObject {
         y: JUNGLE_SLAB_HEIGHT - edge / 2,
       },
     ];
+    const meshes: Mesh[] = [];
     for (const item of edges) {
       const edgeMesh = new Mesh(
         item.geometry,
@@ -536,7 +591,9 @@ export class Terminal implements WorldObject {
       edgeMesh.position.set(item.x, item.y, 0);
       edgeMesh.castShadow = castShadow;
       this.group.add(edgeMesh);
+      meshes.push(edgeMesh);
     }
+    return meshes;
   }
 
   private addPlankLabel(): void {

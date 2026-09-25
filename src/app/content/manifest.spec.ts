@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { ENVIRONMENT_MODELS } from '../../../scripts/lib/environment-models.mjs';
 import { mergedProjects } from '../../../scripts/lib/portfolio.mjs';
 
 interface ManifestEntry {
@@ -31,10 +32,13 @@ describe('assets manifest', () => {
     }
   });
 
-  it('groups a model under the project that names it, everything else under core', () => {
-    const owners = new Map(
-      PROJECTS.filter((p) => p.landmark.model).map((p) => [p.landmark.model, p.slug]),
-    );
+  it('groups a model under the project or environment that owns it, everything else under core', () => {
+    const owners = new Map([
+      ...Object.entries(ENVIRONMENT_MODELS).map(
+        ([file, environment]) => [`assets/models/${file}`, environment] as const,
+      ),
+      ...PROJECTS.filter((p) => p.landmark.model).map((p) => [p.landmark.model!, p.slug] as const),
+    ]);
     for (const entry of manifest.assets.filter((e) => e.url.endsWith('.glb'))) {
       expect(entry.group, entry.url).toBe(owners.get(entry.url) ?? 'core');
     }

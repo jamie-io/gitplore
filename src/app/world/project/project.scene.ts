@@ -14,6 +14,7 @@ import { ReleaseMarkers } from '../environments/data/release-markers';
 import { StarLanterns } from '../environments/data/star-lanterns';
 import { SeedLever } from '../environments/props/seed-lever';
 import { Terminal } from '../environments/props/terminal';
+import { HazedCopies } from '../environments/shaders/hazed-copies';
 import { Landmark, LandmarkPlacement, TextureProvider } from '../landmarks/base/landmark';
 import { ScreenLandmark, ScreenLandmarkOptions } from '../landmarks/base/screen.landmark';
 import { ReturnPortal } from './return.landmark';
@@ -188,6 +189,8 @@ export class ProjectScene implements WorldScene {
   /** The two toys every project world gets; public so specs can find them. */
   readonly terminal: Terminal;
   readonly seedLever: SeedLever;
+  /** Hazed copies of loaded models' materials, where the environment has an atmosphere to share. */
+  protected readonly haze: HazedCopies | null;
 
   private readonly parts: SceneObject[];
   private cachedColliders: readonly Collider[] | null = null;
@@ -196,6 +199,7 @@ export class ProjectScene implements WorldScene {
   constructor(options: ProjectSceneOptions) {
     this.environment = options.environment;
     this.project = options.project;
+    this.haze = options.environment.shared ? new HazedCopies(options.environment.shared) : null;
     this.id = `project:${options.project.slug}`;
     this.explorer = new Explorer({
       mood: options.environment.mood,
@@ -244,6 +248,7 @@ export class ProjectScene implements WorldScene {
       project: options.project,
       input: options.input,
       skin,
+      haze: this.haze ?? undefined,
     });
     this.seedLever = new SeedLever({
       id: `${this.id}:seed-lever`,
@@ -380,6 +385,7 @@ export class ProjectScene implements WorldScene {
 
   dispose(): void {
     this.parts.forEach((part) => part.dispose());
+    this.haze?.dispose();
     this.explorer.dispose();
     this.environment.dispose();
   }

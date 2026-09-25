@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import {
+  BoxGeometry,
   CanvasTexture,
   Group,
   Mesh,
@@ -10,15 +11,19 @@ import {
 } from 'three';
 import type { InputAction, InputActionSource } from '@engine/input.service';
 import { PLAYER_EYE_HEIGHT } from '@engine/player/player-controller';
-import { stubContext } from '@engine/testing/world-context';
+import { StubAssets, stubContext } from '@engine/testing/world-context';
 import type { Project } from '@content/project.model';
 import { PROJECT_FIXTURES } from '@content/testing/project-fixtures';
+import { DSCHUNGEL } from '../mood';
+import { HazedCopies } from '../shaders/hazed-copies';
+import { SharedUniforms } from '../shaders/shared-uniforms';
 import {
   buildTerminalPages,
   Terminal,
   TERMINAL_PROMPT,
   TERMINAL_LINES_PER_PAGE,
   TERMINAL_RELEASE_PROMPT,
+  STELE_MODEL,
   terminalFooter,
   wrapLine,
 } from './terminal';
@@ -295,6 +300,76 @@ describe('Terminal', () => {
     context.mockRestore();
   });
 
+  it('replaces jungle stele slab and moss with its model and hazes model materials', async () => {
+    const canvasContext = {
+      fillStyle: '',
+      fillRect: vi.fn(),
+      font: '',
+      textAlign: 'left',
+      textBaseline: 'alphabetic',
+      fillText: vi.fn(),
+      measureText: (text: string) => ({ width: text.length * 14 }),
+    } as unknown as CanvasRenderingContext2D;
+    const context = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue(canvasContext);
+    const assets = new StubAssets();
+    const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));
+    const target = new Terminal({
+      id: 'test:jungle-model',
+      position: new Vector3(0, 0, -2),
+      ground,
+      project: PROJECT,
+      skin: 'jungle',
+      haze,
+    });
+    const ctx = stubContext(assets);
+    const originalMaterial = new MeshStandardMaterial({ name: 'stele-stone' });
+    const modelMesh = new Mesh(new BoxGeometry(0.2, 0.2, 0.2), originalMaterial);
+    const model = new Group();
+    model.add(modelMesh);
+
+    target.init(ctx);
+    expect(assets.requested).toEqual([STELE_MODEL]);
+    await assets.resolve(model);
+
+    expect(ctx.scene.getObjectByName('test:jungle-model:slab')).toBeUndefined();
+    expect(ctx.scene.getObjectByName('test:jungle-model:moss-left')).toBeUndefined();
+    expect(ctx.scene.getObjectByName('test:jungle-model:moss-right')).toBeUndefined();
+    expect(ctx.scene.getObjectByName('test:jungle-model:moss-top')).toBeUndefined();
+    expect(ctx.scene.getObjectByName('test:jungle-model:stele')).toBe(model);
+    expect(ctx.scene.getObjectByName('test:jungle-model:panel')).toBeDefined();
+    expect(ctx.scene.getObjectByName('test:jungle-model:plank')).toBeDefined();
+    expect(ctx.scene.getObjectByName('test:jungle-model:label')).toBeDefined();
+    expect(modelMesh.material).toBe(haze.of(originalMaterial));
+
+    target.dispose();
+    target.dispose();
+    expect(assets.releasedModels).toEqual([STELE_MODEL]);
+    context.mockRestore();
+  });
+
+  it('releases a stele model that arrives after dispose without adding it', async () => {
+    const context = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const assets = new StubAssets();
+    const target = new Terminal({
+      id: 'test:jungle-late-model',
+      position: new Vector3(0, 0, -2),
+      ground,
+      project: PROJECT,
+      skin: 'jungle',
+    });
+    target.init(stubContext(assets));
+    target.dispose();
+
+    const model = new Group();
+    await assets.resolve(model);
+
+    expect(assets.releasedModels).toEqual([STELE_MODEL]);
+    expect(model.parent).toBeNull();
+    context.mockRestore();
+  });
+
   it('keeps default project header and does not load jungle fonts', () => {
     const fillText = vi.fn();
     const canvasContext = {
@@ -320,11 +395,13 @@ describe('Terminal', () => {
       ground,
       project: PROJECT,
     });
+    const assets = new StubAssets();
 
-    target.init(stubContext());
+    target.init(stubContext(assets));
 
     expect(fillText).toHaveBeenCalledWith(PROJECT.title, 48, 60, 928);
     expect(load).not.toHaveBeenCalled();
+    expect(assets.requested).toEqual([]);
     target.dispose();
     context.mockRestore();
     delete (document as { fonts?: FontFaceSet }).fonts;

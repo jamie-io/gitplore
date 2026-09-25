@@ -6,6 +6,7 @@ import type { EnvironmentId } from '@content/project.model';
 import type { LandmarkPlacement } from '../landmarks/base/landmark';
 import type { Mood } from './mood';
 import type { Position } from './placement';
+import type { SharedUniforms } from './shaders/shared-uniforms';
 
 /**
  * Where a scene may put a landmark. The same two fields a `Landmark` is constructed from, so it is
@@ -73,6 +74,11 @@ export interface Environment extends WorldObject {
   /** What the environment itself blocks — walls, trees, a fountain. */
   readonly colliders: readonly Collider[];
   readonly interactables?: readonly Interactable[];
+  /**
+   * The uniforms the environment's own surfaces share — sun, fog, dapple — if it has them; a
+   * scene hazes the models it places with them, so they stand in the same air.
+   */
+  readonly shared?: SharedUniforms;
   /**
    * The seed lever's hook: scatters the collider-free decoration again from every decoration seed
    * shifted by `offset`. Terrain, paths and anything that places a collider never move, and the

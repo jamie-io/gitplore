@@ -1,14 +1,21 @@
 import {
+  BoxGeometry,
   CanvasTexture,
   CylinderGeometry,
+  Group,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   PlaneGeometry,
   WebGLRenderer,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { StubAssets } from '@engine/testing/world-context';
+import { DSCHUNGEL } from '../../environments/mood';
+import { HazedCopies } from '../../environments/shaders/hazed-copies';
+import { SharedUniforms } from '../../environments/shaders/shared-uniforms';
 import { BADGE, FEED_CARDS } from './deslopify.data';
-import { FeedCard, FeedWall } from './feed-card';
+import { CARD_FRAME_MODEL, FeedCard, FeedWall } from './feed-card';
 
 interface CanvasFixture {
   readonly contexts: CanvasRenderingContext2D[];
@@ -112,6 +119,46 @@ describe('FeedCard', () => {
     });
 
     card.dispose();
+  });
+
+  it('loads the stand once, removes procedural frame parts, and hazes its materials', async () => {
+    const assets = new StubAssets();
+    const haze = new HazedCopies(new SharedUniforms(DSCHUNGEL));
+    const card = new FeedCard(FEED_CARDS[0]);
+    card.loadFrame(assets, false, haze);
+    card.loadFrame(assets, false, haze);
+
+    const originalMaterial = new MeshStandardMaterial({ name: 'card-frame-wood' });
+    const modelMesh = new Mesh(new BoxGeometry(0.2, 0.2, 0.2), originalMaterial);
+    const model = new Group();
+    model.add(modelMesh);
+    expect(assets.requested).toEqual([CARD_FRAME_MODEL]);
+    await assets.resolve(model);
+
+    expect(card.object.getObjectByName('feed-card-frame')).toBeUndefined();
+    expect(card.object.getObjectByName('feed-card-post-0')).toBeUndefined();
+    expect(card.object.getObjectByName('feed-card-post-1')).toBeUndefined();
+    expect(card.object.getObjectByName('feed-card-stand')).toBe(model);
+    expect(card.object.getObjectByName('feed-card-face')).toBeDefined();
+    expect(modelMesh.material).toBe(haze.of(originalMaterial));
+
+    card.dispose();
+    card.dispose();
+    expect(assets.releasedModels).toEqual([CARD_FRAME_MODEL]);
+  });
+
+  it('releases a stand model that arrives after dispose without adding it', async () => {
+    const assets = new StubAssets();
+    const card = new FeedCard(FEED_CARDS[0]);
+    card.loadFrame(assets);
+    card.dispose();
+
+    const model = new Group();
+    await assets.resolve(model);
+
+    expect(assets.releasedModels).toEqual([CARD_FRAME_MODEL]);
+    expect(model.parent).toBeNull();
+    expect(card.object.children).toEqual([]);
   });
 
   it('draws both 640 by 600 card states with canonical copy and typography', () => {

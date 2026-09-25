@@ -128,3 +128,7 @@ Each task runs in its own git worktree on a branch `lane/dj-<task>` off `feat/de
 ### Task 10 — Optional authored models (MID, optional)
 
 Author the lantern, stele, arch-bridge and card frame through `npm run assets:author` → `assets:optimize` only if the pipeline supports it within budget. Keep the procedural fallback.
+
+- [x] Modelled in Blender, headless: `scripts/blender/kit.py` (the modelling kit), one script per model in `scripts/blender/models/`, `scripts/blender/author.py` (bakes ambient occlusion into the vertex colours and exports), `scripts/blender/preview.py` (a four-view contact sheet for review). `npm run assets:author` runs them when Blender is on the PATH (or `BLENDER` names it) and leaves the committed sources alone otherwise.
+- [x] Budget: `jungle-arch.glb` 1954 triangles / 42 KB, `lantern.glb` 604 / 16 KB, `stele.glb` 888 / 20 KB, `card-frame.glb` 1268 / 21 KB after meshopt; no textures, one to three materials each. They are grouped under `jungle` in the manifest, so the hub never preloads them. The hub portal keeps its own `arch.glb`.
+- [x] Each prop keeps its procedural build until the model arrives (and for good if it never does); model materials are hazed with the jungle's atmosphere through `HazedCopies`, and the arch's amber line glows up as the slop lifts.

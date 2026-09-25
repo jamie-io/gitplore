@@ -1,4 +1,5 @@
 import {
+  BoxGeometry,
   Color,
   DirectionalLight,
   Fog,
@@ -39,7 +40,7 @@ import {
   STAGE_FLOOR,
   jungleHeightAt,
 } from './jungle';
-import { ARCH_MODEL } from './jungle-bridge';
+import { ARCH_GLOW_MATERIAL, ARCH_MODEL } from './jungle-bridge';
 import {
   ARCH,
   BRIDGE,
@@ -439,6 +440,34 @@ describe('JungleEnvironment', () => {
     environment.dispose();
     expect(assets.releasedModels).toEqual([ARCH_MODEL]);
     expect(ctx.scene.children).toHaveLength(0);
+  });
+
+  it('hazes the arch glow copy and changes its intensity with the clearing', async () => {
+    const assets = new StubAssets();
+    const ctx = stubContext(assets);
+    const environment = jungle();
+    const original = new MeshStandardMaterial({ name: ARCH_GLOW_MATERIAL });
+    const originalIntensity = original.emissiveIntensity;
+    const glow = new Mesh(new BoxGeometry(0.2, 0.2, 0.2), original);
+    const model = new Group();
+    model.add(glow);
+    environment.init(ctx);
+
+    await assets.resolve(model);
+
+    expect(glow.material).toBeInstanceOf(MeshStandardMaterial);
+    expect(glow.material).not.toBe(original);
+    expect(original.customProgramCacheKey()).not.toContain('atmosphere');
+    expect((glow.material as MeshStandardMaterial).customProgramCacheKey()).toContain('atmosphere');
+
+    environment.setSlop(1);
+    const slopIntensity = (glow.material as MeshStandardMaterial).emissiveIntensity;
+    environment.setSlop(0);
+    const clearIntensity = (glow.material as MeshStandardMaterial).emissiveIntensity;
+    expect(slopIntensity).toBeLessThan(clearIntensity);
+    expect(original.emissiveIntensity).toBe(originalIntensity);
+
+    environment.dispose();
   });
 
   it('builds the cave and disposes it with the jungle', () => {

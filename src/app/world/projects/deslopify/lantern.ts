@@ -3,6 +3,7 @@ import {
   ConeGeometry,
   CylinderGeometry,
   Group,
+  Material,
   Mesh,
   MeshStandardMaterial,
   Object3D,
@@ -14,6 +15,15 @@ import { disposeObject3D } from '@engine/dispose';
 import type { Collider } from '@engine/player/collision';
 import type { WorldContext } from '@engine/world-object';
 import type { SceneObject } from '../../project/project.scene';
+import type { HazedCopies } from '../../environments/shaders/hazed-copies';
+
+/**
+ * The Blender-authored lantern (scripts/blender/models/lantern.py): a `lantern-post` node and a
+ * `lantern-body` node built around the body's own origin, its glass in the `lantern-glass`
+ * material. The procedural lantern stands until it arrives, and for good if it never does.
+ */
+export const LANTERN_MODEL = 'assets/models/lantern.glb';
+export const LANTERN_GLASS_MATERIAL = 'lantern-glass';
 
 const POST_RADIUS = 0.14;
 const POST_LIGHT_RADIUS = 2.5;
@@ -33,6 +43,8 @@ export interface LanternOptions {
   readonly rotationY: number;
   /** Reduced motion removes ignition, carry, and extinguish easing. */
   readonly reducedMotion?: () => boolean;
+  /** Hazes the model's wood and iron into the environment's air; without it they stay plain. */
+  readonly haze?: HazedCopies;
 }
 
 /** A movable amber lantern that starts on a hook and can follow the explorer's hand. */
@@ -45,6 +57,7 @@ export class Lantern implements SceneObject {
   private readonly position: Vector3;
   private readonly rotationY: number;
   private readonly reducedMotion: () => boolean;
+  private readonly haze: HazedCopies | null;
   private readonly carryStart = new Vector3();
 
   private state: LanternState = 'unlit';
@@ -58,11 +71,17 @@ export class Lantern implements SceneObject {
   private glass: MeshStandardMaterial | null = null;
   private light: PointLight | null = null;
   private initialized = false;
+  /** The procedural post and body parts, until the model replaces them. */
+  private proxyPost: Mesh[] = [];
+  private proxyBody: Mesh[] = [];
+  private model: Group | null = null;
+  private assets: WorldContext['assets'] | null = null;
 
   constructor(options: LanternOptions) {
     this.position = options.position.clone();
     this.rotationY = options.rotationY;
     this.reducedMotion = options.reducedMotion ?? (() => false);
+    this.haze = options.haze ?? null;
 
     this.group.name = this.id;
     this.group.position.copy(this.position);
@@ -161,10 +180,19 @@ export class Lantern implements SceneObject {
     this.body.add(this.light);
 
     this.group.add(post, arm, this.body);
+    this.proxyPost = [post, arm];
+    this.proxyBody = this.body.children.filter((child): child is Mesh => child instanceof Mesh);
     this.initialized = true;
     this.applyGlow();
     ctx.scene.add(this.group);
     this.attachLight();
+
+    // A missing model is no error worth showing: the procedural lantern simply stays.
+    this.assets = ctx.assets;
+    ctx.assets.model(LANTERN_MODEL).then(
+      (model) => this.placeModel(ctx, model),
+      () => undefined,
+    );
   }
 
   update(dt: number): void {
@@ -247,6 +275,15 @@ export class Lantern implements SceneObject {
   }
 
   dispose(): void {
+    if (this.model) {
+      // The asset service owns the model's geometry and materials; `disposeObject3D` below
+      // leaves those alone and frees only the glass, which is this lantern's own.
+      this.model = null;
+      this.assets?.releaseModel(LANTERN_MODEL);
+    }
+    this.proxyPost = [];
+    this.proxyBody = [];
+    this.assets = null;
     if (this.body.parent !== this.group) {
       this.body.removeFromParent();
       disposeObject3D(this.body);
@@ -259,6 +296,51 @@ export class Lantern implements SceneObject {
     this.socket = null;
     this.lightSocket = null;
     this.initialized = false;
+  }
+
+  /**
+   * Swaps the procedural post and body for the model's. The body's parts go into the moving
+   * body group, wherever it hangs by now, and its glass takes this lantern's lit material.
+   */
+  private placeModel(ctx: WorldContext, model: Group): void {
+    const post = model.getObjectByName('lantern-post');
+    const body = model.getObjectByName('lantern-body');
+    if (!this.initialized || this.model || !post || !body || !this.glass) {
+      ctx.assets.releaseModel(LANTERN_MODEL);
+      return;
+    }
+    this.model = model;
+    const glass = this.glass;
+    for (const mesh of [...this.proxyPost, ...this.proxyBody]) {
+      // The glass material stays: the model's glass wears it from here on.
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+      if (mesh.material !== glass) {
+        (mesh.material as Material).dispose();
+      }
+    }
+    this.proxyPost = [];
+    this.proxyBody = [];
+
+    const shadows = ctx.quality.shadows;
+    const haze = this.haze;
+    const dress = (object: Object3D) => {
+      if (object instanceof Mesh) {
+        object.castShadow = shadows;
+        const material = object.material as Material;
+        if (material.name === LANTERN_GLASS_MATERIAL) {
+          object.material = glass;
+        } else if (haze) {
+          object.material = haze.of(material);
+        }
+      }
+    };
+    post.traverse(dress);
+    body.traverse(dress);
+    post.position.set(0, 0, 0);
+    body.position.set(0, 0, 0);
+    this.group.add(post);
+    this.body.add(body);
   }
 
   private igniteStep(dt: number, reduced: boolean): void {

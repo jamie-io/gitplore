@@ -739,6 +739,7 @@ export class JungleEnvironment implements Environment {
    */
   setSlop(value: number): void {
     this.slopAmount = clamp01(value);
+    this.bridge.setGlow(1 - this.slopAmount);
   }
 
   /**
