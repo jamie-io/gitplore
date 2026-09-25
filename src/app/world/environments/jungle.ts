@@ -77,6 +77,7 @@ import { withAtmosphere } from './shaders/atmosphere';
 import { withClearingRing } from './shaders/clearing-ring';
 import { withDapple } from './shaders/dapple';
 import { withFoliage } from './shaders/foliage';
+import { GroundHaze } from './shaders/ground-haze';
 import { withGroundDetail } from './shaders/ground-detail';
 import { SharedUniforms } from './shaders/shared-uniforms';
 import { withWind } from './shaders/wind';
@@ -396,7 +397,8 @@ export function jungleGround(x: number, z: number, height: number): Color {
 
 /**
  * The violet air the slop brings (Turn 2's south bank): DSCHUNGEL's fog, light and sky pulled
- * towards the slop colour #9a3f8d, the fog closer and thicker. `setSlop` blends between the two.
+ * towards the slop colour #9a3f8d, the fog closer and thicker. The slop itself lies on the ground
+ * as the ground haze; the air only leans `SLOP_TINT` of the way towards this.
  */
 export const SLOP_AIR = {
   fog: { color: 0x86608e, near: 3, far: 55, heightDensity: 0.075 },
@@ -404,6 +406,12 @@ export const SLOP_AIR = {
   sun: 0xf2d4ec,
   sky: { zenith: 0x5c5078, horizon: 0x9a7c9f, below: 0x4a3a52 },
 } as const;
+
+/**
+ * How far the air leans towards `SLOP_AIR` at full slop: a light tint, so the jungle keeps its own
+ * mood and the violet reads where the ground haze lies, not over the whole view.
+ */
+export const SLOP_TINT = 0.25;
 
 /** How much of the slop's haze still hangs over the north bank: it thins over the span. */
 export const NORTH_BANK_HAZE = 0.35;
@@ -427,6 +435,13 @@ const SLOPPED = {
   horizon: new Color(SLOP_AIR.sky.horizon),
   below: new Color(SLOP_AIR.sky.below),
 } as const;
+
+/** The surface the ground haze lies on: the ground, or the water's over the rill and the pool. */
+function hazeGroundAt(x: number, z: number): number {
+  const ground = jungleHeightAt(x, z);
+  const inPool = ((x - POOL.x) / POOL.rx) ** 2 + ((z - POOL.z) / POOL.rz) ** 2 < 1;
+  return Math.max(ground, inPool ? POOL.level : RILL_LEVEL);
+}
 
 /** The things the slop tints, found once the kit objects have built them. */
 interface Air {
@@ -458,8 +473,6 @@ export class JungleEnvironment implements Environment {
   readonly spawnYaw = PORTAL.yaw;
   /** The light and air of this place; the scene reads it to match whatever stands in it. */
   readonly mood = DSCHUNGEL;
-  /** Every shader in this world reads these; public so a test can watch time stand still. */
-  readonly shared = new SharedUniforms(DSCHUNGEL);
   /**
    * The clearing Deslopify spreads, as uniforms any material can take by identity: the ring's
    * centre in world space (`uClearOrigin`) and its radius in metres (`uClearRadius`), and how
@@ -471,6 +484,13 @@ export class JungleEnvironment implements Environment {
     radius: { value: 0 },
     glow: { value: 0 },
   };
+  /**
+   * The slop lying in the bowl: a violet haze on the ground that the ring and the lit lantern
+   * clear. `setSlop` sets how much of it there is; the scene writes the lantern's light.
+   */
+  readonly groundHaze = new GroundHaze({ heightAt: hazeGroundAt, clearing: this.clearing });
+  /** Every shader in this world reads these; public so a test can watch time stand still. */
+  readonly shared = new SharedUniforms(DSCHUNGEL, { groundHaze: this.groundHaze });
   readonly colliders: readonly Collider[];
   readonly interactables: readonly Interactable[] = [];
   /** The deck over the rill, and the arch on it. */
@@ -619,7 +639,7 @@ export class JungleEnvironment implements Environment {
   private scene: WorldContext['scene'] | null = null;
   private air: Air | null = null;
   private slopAmount = 1;
-  /** The blend last written into the air, so a still frame writes nothing. */
+  /** The haze last written into the air, so a still frame writes nothing. */
   private appliedHaze = -1;
   private hazeNow = 1;
 
@@ -704,13 +724,25 @@ export class JungleEnvironment implements Environment {
   }
 
   /**
-   * Blends the air between DSCHUNGEL (0) and the violet slop (1): fog colour, distance and
-   * density, the sky's colours and the sun and sky light's tints. The flow drives it, easing it
-   * however it likes; the jungle applies whatever it is given at once. Clamped to 0 … 1.
+   * How much slop there is, 0 … 1: the ground haze's amount, and a light tint of the air towards
+   * the violet (`SLOP_TINT` of the way at 1): fog colour, distance and density, the sky's colours
+   * and the sun and sky light's tints. The flow drives it, easing it however it likes; the jungle
+   * applies whatever it is given at once. Clamped to 0 … 1.
    */
   setSlop(value: number): void {
     this.slopAmount = clamp01(value);
     this.bridge.setGlow(1 - this.slopAmount);
+    this.setGroundHaze(this.slopAmount);
+  }
+
+  /** How much ground haze lies in the bowl, 0 … 1; `setSlop` sets it too. */
+  setGroundHaze(amount: number): void {
+    this.groundHaze.setAmount(amount);
+  }
+
+  /** Where the lantern's light clears the ground haze, each frame; a radius of 0 while it is dark. */
+  setHazeLight(x: number, z: number, radius: number): void {
+    this.groundHaze.setLight(x, z, radius);
   }
 
   /**
@@ -747,6 +779,8 @@ export class JungleEnvironment implements Environment {
   init(ctx: WorldContext): void {
     this.scene = ctx.scene;
     applyMood(ctx.scene, DSCHUNGEL);
+    // Before anything compiles, and before the water reads it: the march's step count.
+    this.groundHaze.setDetail(ctx.quality.shaderDetail);
 
     this.floor.init(ctx);
     this.sky.init(ctx);
@@ -821,13 +855,17 @@ export class JungleEnvironment implements Environment {
     this.sun.dispose();
     this.sky.dispose();
     this.floor.dispose();
+    this.groundHaze.dispose();
     if (this.scene) {
       clearMood(this.scene);
       this.scene = null;
     }
   }
 
-  /** Writes the slop, thinned by the bank the camera is over, into the fog, the sky and the light. */
+  /**
+   * Writes the slop's light tint, thinned by the bank the camera is over, into the fog, the sky and
+   * the light: `SLOP_TINT` of the way towards `SLOP_AIR` at full slop.
+   */
   private breathe(camera: Vector3): void {
     // 0 over the north end of the deck and beyond, 1 over its south end and beyond.
     const south = smoothstep(-DECK.halfLength, DECK.halfLength, camera.z - RILL.centreZ(camera.x));
@@ -835,7 +873,7 @@ export class JungleEnvironment implements Environment {
     if (!this.air || Math.abs(this.hazeNow - this.appliedHaze) < 1e-4) {
       return;
     }
-    const t = this.hazeNow;
+    const t = this.hazeNow * SLOP_TINT;
     const { fog, far, background, sun, hemisphere, sky } = this.air;
     fog.color.copy(CLEAR.fog).lerp(SLOPPED.fog, t);
     // The far hills ignore fog and mix towards their own airlight instead: the same colour.
@@ -854,7 +892,7 @@ export class JungleEnvironment implements Environment {
       (sky.uniforms['horizon'].value as Color).copy(CLEAR.horizon).lerp(SLOPPED.horizon, t);
       (sky.uniforms['below'].value as Color).copy(CLEAR.below).lerp(SLOPPED.below, t);
     }
-    this.appliedHaze = t;
+    this.appliedHaze = this.hazeNow;
   }
 
   /**

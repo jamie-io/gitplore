@@ -7,11 +7,13 @@ import { Material, WebGLProgramParametersWithUniforms } from 'three';
  *
  * `key` goes into the program cache key. Three otherwise keys programs on the source text of
  * `onBeforeCompile`, which is identical for every material patched through this wrapper, so
- * without it two materials with different patch sets would silently share a program.
+ * without it two materials with different patch sets would silently share a program. A function
+ * is read each time Three asks, for a patch whose source depends on something set after it is
+ * applied (the ground haze's step count, set when the world learns its tier).
  */
 export function patchMaterial<T extends Material>(
   material: T,
-  key: string,
+  key: string | (() => string),
   patch: (shader: WebGLProgramParametersWithUniforms) => void,
 ): T {
   const previousCompile = material.onBeforeCompile;
@@ -27,7 +29,8 @@ export function patchMaterial<T extends Material>(
     previousCompile.call(material, shader, renderer);
     patch(shader);
   };
-  material.customProgramCacheKey = () => `${previousKey()}|${key}`;
+  const keyNow = typeof key === 'string' ? () => key : key;
+  material.customProgramCacheKey = () => `${previousKey()}|${keyNow()}`;
 
   return material;
 }
