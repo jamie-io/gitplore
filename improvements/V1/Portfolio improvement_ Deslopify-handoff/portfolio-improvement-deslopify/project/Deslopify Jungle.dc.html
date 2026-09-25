@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Barlow:wght@500;600;700;800&family=Barlow+Semi+Condensed:wght@600;700&display=swap">
+<style>
+html{background:#0e1311}
+body{margin:0;background:#0e1311;color:#e8ede8;font-family:'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#e0a13c;text-decoration:underline;text-underline-offset:2px}
+a:hover{color:#f2c27a}
+*{box-sizing:border-box}
+</style>
+</helmet>
+
+<section id="turn-2" style="padding:64px 64px 40px;display:flex;flex-direction:column;gap:44px;width:2200px;border-bottom:1px solid #25302b">
+  <header style="display:flex;flex-direction:column;gap:12px;max-width:1150px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#9aa89f;letter-spacing:.08em;text-transform:uppercase">Gitplore · Dschungel / Deslopify · Turn 2</div>
+    <h1 style="margin:0;font-size:44px;font-weight:600;letter-spacing:-.01em;line-height:1.1">Der Weg durch den Slop <span style="color:#9aa89f;font-weight:400">· The way through the slop</span></h1>
+    <p style="margin:0;font-size:18px;line-height:1.55;color:#b9c4bd;text-wrap:pretty">A mix of <a href="#1a">1a</a>, <a href="#1b">1b</a> and <a href="#1c">1c</a> in which everything reacts to where you are. <a href="#2a">2a</a> plays the flow top-down. <a href="#2b">2b</a> is a real three.js slice of the south bank, rendered at three quality tiers, showing how the world can look less flat.</p>
+  </header>
+
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;max-width:1600px">
+    <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between"><span style="font:600 13px 'IBM Plex Mono',monospace;color:oklch(0.8 0.12 335)">01 SÜDUFER · south bank</span><span style="display:flex;gap:8px;font:500 12px 'IBM Plex Mono',monospace"><a href="#1b">1b</a><a href="#1c">1c</a><a href="#1a">1a</a></span></div>
+      <p style="margin:0;font-size:15px;line-height:1.55;color:#c9d2cc">Violet haze. An unlit lantern hangs at the start of the boardwalk and lights up as you come near. Four feed cards stand along the trail. Vines hang over it, and tags in them show the other things Deslopify fixes: chapters, audio, channel names and descriptions.</p>
+    </div>
+    <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">02 DER BOGEN · the arch</span><span style="display:flex;gap:8px;font:500 12px 'IBM Plex Mono',monospace"><a href="#1b">1b</a><a href="#1a">1a</a></span></div>
+      <p style="margin:0;font-size:15px;line-height:1.55;color:#c9d2cc">The Deslopify arch spans the stream. Walking under it switches the extension on: a ring spreads out from the arch, the haze lifts and every card, tag and vine turns to the original. From here on the change stays.</p>
+    </div>
+    <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:8px">
+      <div style="display:flex;justify-content:space-between"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">03 NORDUFER · north bank</span><span style="display:flex;gap:8px;font:500 12px 'IBM Plex Mono',monospace"><a href="#1a">1a</a><a href="#1g">1g</a></span></div>
+      <p style="margin:0;font-size:15px;line-height:1.55;color:#c9d2cc">The feed wall, the exhibit poster and the cave. E at the wall switches Deslopify off, and the slop grows back over the whole jungle for comparison. E again sends a new ring out from the wall.</p>
+    </div>
+  </div>
+
+  <div id="2a" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;gap:12px;align-items:center">
+      <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">2a</span>
+      <h2 style="margin:0;font-size:26px;font-weight:600">Flow prototype, top-down</h2>
+      <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f">click into the map · WASD / arrows · Shift runs · click to walk · E use · R restart</span>
+    </div>
+    <div style="display:flex;gap:36px;align-items:flex-start">
+      <div tabindex="0" ref="{{ mapRef }}" onKeyDown="{{ onKeyDown }}" onKeyUp="{{ onKeyUp }}" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}" onClick="{{ onMapClick }}" style="position:relative;width:960px;height:680px;flex:none;background:#22301f;border-radius:12px;overflow:hidden;outline:none;cursor:crosshair;border:1px solid #3a4a3f;user-select:none">
+        <sc-for list="{{ plants }}" as="p" hint-placeholder-count="0">
+          <div style="position:absolute;left:{{ p.left }}px;top:{{ p.top }}px;width:{{ p.s }}px;height:{{ p.s }}px;border-radius:50%;background:{{ p.c }};transition:left .8s,top .8s"></div>
+        </sc-for>
+        <div style="position:absolute;left:0;top:0;right:0;height:60px;background:#34443a"></div>
+        <div style="position:absolute;left:520px;top:0;width:22px;height:74px;background:#cfe6dc"></div>
+        <div style="position:absolute;left:482px;top:62px;width:96px;height:52px;border-radius:50%;background:#4f8580"></div>
+        <div style="position:absolute;left:0;right:0;top:298px;height:40px;background:#4f8b93;border-top:2px solid #8cc3c8"></div>
+        <svg width="960" height="680" style="position:absolute;left:0;top:0;pointer-events:none"><polyline points="490,672 390,560 470,440 490,344 490,290 570,210 530,125" fill="none" stroke="#5a3d27" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"></polyline></svg>
+        <div style="position:absolute;left:464px;top:288px;width:52px;height:60px;border-radius:26px 26px 6px 6px;background:#6b4712;border:4px solid {{ archBorder }};box-shadow:{{ archGlow }}"></div>
+        <sc-for list="{{ posts }}" as="q" hint-placeholder-count="0">
+          <div style="position:absolute;left:{{ q.left }}px;top:{{ q.top }}px;width:{{ q.s }}px;height:{{ q.s }}px;border-radius:50%;background:{{ q.bg }};box-shadow:{{ q.glow }}"></div>
+        </sc-for>
+        <div style="position:absolute;left:598px;top:432px;display:flex;gap:4px;align-items:flex-start;transform:translateX({{ bambooShift }}px)">
+          <div style="width:22px;height:22px;border-radius:50%;background:#7a9a3a;border:4px solid #d9b83a"></div>
+          <div style="width:13px;height:13px;border-radius:50%;background:#7a9a3a;border:3px solid #d0643a"></div>
+          <div style="width:7px;height:7px;border-radius:50%;background:#7a9a3a;border:2px solid #3a72b0"></div>
+          <div style="width:5px;height:5px;border-radius:50%;background:#7a9a3a;border:1px solid #6aa84f"></div>
+        </div>
+        <sc-if value="{{ bambooLabel }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:600px;top:400px;background:#5a3d27;color:#f4e6c8;font:700 13px/1.25 'Barlow Semi Condensed',sans-serif;padding:5px 9px;border-radius:3px;white-space:nowrap">JavaScript 81 % · HTML 16 % · Python 2 % · Shell &lt;1 %</div>
+        </sc-if>
+        <div style="position:absolute;left:312px;top:404px;width:16px;height:16px;border-radius:50%;background:#8a8f86;box-shadow:{{ cairnGlow }}"></div>
+        <sc-if value="{{ cairnLabel }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:236px;top:376px;background:#5a3d27;color:#f4e6c8;font:700 13px/1.25 'Barlow Semi Condensed',sans-serif;padding:5px 9px;border-radius:3px;white-space:nowrap">Noch kein Release · No release yet</div>
+        </sc-if>
+        <div style="position:absolute;left:546px;top:364px;width:30px;height:20px;background:#3b3f37;border-radius:4px;padding:3px"><div style="width:100%;height:100%;background:#e0a13c;opacity:{{ steleGlow }};border-radius:2px"></div></div>
+        <div style="position:absolute;left:392px;top:232px;width:16px;height:16px;border-radius:50%;background:#4c7a3a;border:3px solid #2e4a24;transform:scale({{ pullScale }})"></div>
+        <div style="position:absolute;left:600px;top:170px;width:170px;height:14px;background:#f1ede6;border-radius:2px;border:3px solid {{ wallEdge }}"></div>
+        <div style="position:absolute;left:600px;top:150px;font:500 11px 'IBM Plex Mono',monospace;color:#e8ede8">feed wall</div>
+        <div style="position:absolute;left:320px;top:150px;width:90px;height:12px;background:#141b17;border:2px solid #e0a13c;border-radius:2px"></div>
+        <div style="position:absolute;left:320px;top:130px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">exhibit</div>
+        <sc-for list="{{ cards }}" as="c" hint-placeholder-count="0">
+          <div style="position:absolute;left:{{ c.left }}px;top:{{ c.top }}px;width:34px;height:20px;background:#f1ede6;border:3px solid {{ c.bd }};border-radius:3px;font:600 10px/14px 'IBM Plex Mono',monospace;color:#16202a;text-align:center;box-shadow:{{ c.glow }}">{{ c.n }}</div>
+        </sc-for>
+        <sc-for list="{{ vines }}" as="v" hint-placeholder-count="0">
+          <div style="position:absolute;left:{{ v.left }}px;top:{{ v.top }}px;width:{{ v.d }}px;height:{{ v.d }}px;border-radius:50%;background:repeating-linear-gradient(45deg,oklch(0.68 0.19 335) 0 2px,transparent 2px 6px);border:2px solid oklch(0.6 0.19 335);opacity:{{ v.o }}"></div>
+        </sc-for>
+        <sc-for list="{{ tags }}" as="t" hint-placeholder-count="0">
+          <div style="position:absolute;left:{{ t.left }}px;top:{{ t.top }}px;width:28px;height:12px;background:{{ t.bg }};border:2px solid {{ t.bd }};border-radius:2px;transform:scaleX({{ t.sx }})"></div>
+        </sc-for>
+        <div style="position:absolute;left:0;top:0;width:960px;height:680px;pointer-events:none;background:oklch(0.52 0.19 335 / .34);-webkit-mask-image:{{ hazeMask }};mask-image:{{ hazeMask }};opacity:{{ hazeO }}"></div>
+        <sc-if value="{{ ringShow }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:{{ ringLeft }}px;top:{{ ringTop }}px;width:{{ ringD }}px;height:{{ ringD }}px;border-radius:50%;border:3px solid #e0a13c;opacity:{{ ringO }};pointer-events:none;box-shadow:0 0 30px rgba(224,161,60,.5),inset 0 0 30px rgba(224,161,60,.35)"></div>
+        </sc-if>
+        <div style="position:absolute;left:{{ lightLeft }}px;top:{{ lightTop }}px;width:{{ lightD }}px;height:{{ lightD }}px;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(240,190,90,.42),rgba(224,161,60,.12) 55%,rgba(224,161,60,0) 72%)"></div>
+        <sc-for list="{{ flies }}" as="f" hint-placeholder-count="0">
+          <div style="position:absolute;left:{{ f.left }}px;top:{{ f.top }}px;width:4px;height:4px;border-radius:50%;background:#e8ffc0;box-shadow:0 0 6px 2px rgba(232,255,192,.6);opacity:{{ f.o }};pointer-events:none"></div>
+        </sc-for>
+        <sc-if value="{{ lanternOnPost }}" hint-placeholder-val="{{ true }}">
+          <div style="position:absolute;left:446px;top:624px;width:12px;height:12px;border-radius:50%;background:#6b6b5a;border:2px solid #2a2a22"></div>
+          <div style="position:absolute;left:400px;top:640px;font:500 11px 'IBM Plex Mono',monospace;color:#c9d2cc">Laterne</div>
+        </sc-if>
+        <div style="position:absolute;left:{{ playerLeft }}px;top:{{ playerTop }}px;width:16px;height:16px;border-radius:50%;background:{{ playerBg }};border:3px solid #1a1408;box-shadow:{{ playerGlow }}"></div>
+        <div style="position:absolute;left:16px;top:70px;font:500 11px 'IBM Plex Mono',monospace;color:#9aa89f">NORDUFER · north</div>
+        <div style="position:absolute;left:16px;top:350px;font:500 11px 'IBM Plex Mono',monospace;color:oklch(0.85 0.08 335)">SÜDUFER · south</div>
+        <p style="position:absolute;left:16px;top:10px;margin:0;font:500 14px/1.4 system-ui,sans-serif;color:#fff;text-shadow:0 1px 3px rgb(0 0 0 / 70%)">Dschungel — Deslopify</p>
+        <sc-if value="{{ hasPrompt }}" hint-placeholder-val="{{ false }}">
+          <p style="position:absolute;left:0;right:0;bottom:40px;margin:0;text-align:center;font:500 16.8px/1.4 system-ui,sans-serif;color:#fff;text-shadow:0 1px 3px rgb(0 0 0 / 70%);pointer-events:none"><kbd style="display:inline-block;min-width:1.4em;padding:.05em .4em;border:1px solid rgb(255 255 255 / 70%);border-radius:.3em;background:rgb(0 0 0 / 70%);font:inherit;text-align:center;text-shadow:none">E</kbd> {{ prompt }}</p>
+        </sc-if>
+        <sc-if value="{{ showFocusHint }}" hint-placeholder-val="{{ true }}">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(14,19,17,.45);pointer-events:none">
+            <div style="background:#141b17;border:1px solid #3a4a3f;border-radius:10px;padding:16px 22px;display:flex;flex-direction:column;gap:6px;align-items:center">
+              <span style="font:600 16px 'IBM Plex Sans',sans-serif;color:#e8ede8">Click into the map to walk</span>
+              <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f">Go to the lantern first, then follow the boardwalk north</span>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="width:600px;display:flex;flex-direction:column;gap:18px">
+        <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px;min-height:420px">
+          <div style="display:flex;justify-content:space-between"><span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Im Blick · what the camera sees</span><span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f">{{ viewCaption }}</span></div>
+          <sc-if value="{{ viewIsCard }}" hint-placeholder-val="{{ false }}">
+            <div style="width:420px;align-self:center;background:#f4f2ee;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:12px;box-shadow:0 0 0 3px {{ view.edge }}">
+              <div style="position:relative;aspect-ratio:16/9;border-radius:7px;overflow:hidden;background:{{ view.bg }}">
+                <div style="position:absolute;left:18px;top:16px;font:800 58px/1 'Barlow',sans-serif;color:{{ view.wordColor }};letter-spacing:-.02em">{{ view.word }}</div>
+                <div style="position:absolute;left:20px;top:84px;font:500 16px 'IBM Plex Mono',monospace;color:#f4efe4">{{ view.sub }}</div>
+                <div style="position:absolute;inset:0;clip-path:inset(0 0 0 {{ view.wipePct }}%)">
+                  <div style="position:absolute;left:14px;top:44px;transform:rotate(-3deg);background:#fff;padding:5px 10px;font:700 24px/1.1 Arial,sans-serif;color:#111;box-shadow:0 2px 0 rgba(0,0,0,.3);white-space:nowrap">{{ view.slopThumb }}</div>
+                  <div style="position:absolute;left:10px;top:10px;background:oklch(0.52 0.19 335);color:#fff;font:600 12px 'IBM Plex Sans',sans-serif;padding:3px 7px;border-radius:3px">KI-übersetzt</div>
+                </div>
+                <div style="position:absolute;left:{{ view.wipePct }}%;top:0;bottom:0;width:4px;background:#e0a13c;box-shadow:0 0 16px 6px rgba(224,161,60,.6);opacity:{{ view.seamO }}"></div>
+                <div style="position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.82);color:#fff;font:500 12px 'IBM Plex Mono',monospace;padding:2px 6px;border-radius:3px">{{ view.dur }}</div>
+              </div>
+              <div style="display:grid;grid-template-columns:38px 1fr;gap:12px">
+                <div style="width:38px;height:38px;border-radius:50%;background:{{ view.avatarBg }};color:#fff;font:700 17px 'Barlow',sans-serif;display:flex;align-items:center;justify-content:center">{{ view.avatar }}</div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <div style="font:700 21px/1.25 'Barlow',sans-serif;color:#16202a">{{ view.title }}</div>
+                  <div style="font:500 14px 'Barlow',sans-serif;color:#5b6670">{{ view.meta }}</div>
+                  <div style="display:flex"><span style="background:{{ view.badgeBg }};color:{{ view.badgeInk }};font:600 12px 'IBM Plex Sans',sans-serif;padding:3px 8px;border-radius:999px">{{ view.badge }}</span></div>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ viewIsTag }}" hint-placeholder-val="{{ false }}">
+            <div style="align-self:center;display:flex;flex-direction:column;align-items:center;padding:30px 0">
+              <div style="width:3px;height:40px;background:{{ view.bd }}"></div>
+              <div style="background:{{ view.bg }};border:4px solid {{ view.bd }};border-radius:8px;padding:16px 24px;display:flex;flex-direction:column;gap:6px;max-width:460px;transform:scaleX({{ view.sx }}) rotate(-2deg)">
+                <span style="font:600 13px 'IBM Plex Mono',monospace;color:{{ view.kickerInk }};text-transform:uppercase;letter-spacing:.05em">{{ view.kicker }}</span>
+                <span style="font:700 32px/1.1 'Barlow Semi Condensed',sans-serif;color:{{ view.ink }}">{{ view.text }}</span>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ viewIsStele }}" hint-placeholder-val="{{ false }}">
+            <div style="align-self:center;width:540px;background:#3b3f37;border-radius:18px 18px 6px 6px;padding:14px;opacity:{{ steleGlow }}">
+              <div style="height:290px;background:#141b17;border-radius:8px;padding:22px 24px 16px;display:flex;flex-direction:column;gap:10px">
+                <span style="font:800 30px/1 'Barlow',sans-serif;color:#e0a13c">Projekt <span style="color:#8a7a5c;font-weight:600;font-size:20px">· Project</span></span>
+                <div style="height:2px;background:linear-gradient(90deg,#e0a13c,rgba(224,161,60,0))"></div>
+                <div style="font:500 22px/1.35 'Barlow',sans-serif;color:#f4efe4;text-wrap:pretty">Ersetzt von YouTube automatisch übersetzte Titel, Thumbnails, Beschreibungen und Tonspuren durch die Originale.</div>
+                <div style="font:500 15px 'IBM Plex Mono',monospace;color:#9aa89f">github.com/jamie-io/deslopify</div>
+                <div style="margin-top:auto;font:500 14px 'Barlow',sans-serif;color:#b9c4bd">{{ steleHint }}</div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ viewIsNone }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;font-size:15px;line-height:1.55;color:#7f8d85;padding:40px">Nothing in reach. Walk up to a card, a tag or the stele.</div>
+          </sc-if>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 170px;gap:16px">
+          <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;min-height:240px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Was passiert · events</span>
+            <sc-for list="{{ events }}" as="ev" hint-placeholder-count="1">
+              <div style="display:grid;grid-template-columns:40px 1fr;gap:10px;font-size:14px;line-height:1.4;opacity:{{ ev.o }}">
+                <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;padding-top:2px">{{ ev.t }}</span>
+                <span style="display:flex;flex-direction:column"><span style="color:#e8ede8">{{ ev.de }}</span><span style="color:#8a988f;font-size:12px">{{ ev.en }}</span></span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Entslopt</span>
+            <span style="font:600 34px/1 'IBM Plex Sans',sans-serif;color:#e0a13c">{{ progressText }}</span>
+            <div style="height:6px;background:#26312c;border-radius:3px;overflow:hidden"><div style="height:100%;width:{{ progressPct }}%;background:#e0a13c"></div></div>
+            <span style="font:500 12px/1.5 'IBM Plex Mono',monospace;color:#9aa89f">{{ stateText }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="2b" style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;gap:12px;align-items:center">
+      <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">2b</span>
+      <h2 style="margin:0;font-size:26px;font-weight:600">Lookdev: the south bank in three.js</h2>
+      <a href="Deslopify Lookdev.html" target="_blank" style="font:500 13px 'IBM Plex Mono',monospace">open full screen ↗</a>
+    </div>
+    <p style="margin:0;font-size:16px;line-height:1.6;color:#c9d2cc;max-width:1200px;text-wrap:pretty">Built on the same three.js version family, with the DSCHUNGEL mood colours and a copy of <code style="font-family:'IBM Plex Mono',monospace;font-size:13px">detectTier()</code> including the one-time step-down after 3 s over 24 ms. Walk to the lantern: it lights up, moves to your hand, the vines pull back from its light and creep back once you pass, the tags spin round, the cards wipe, the rail posts light up and the fireflies follow you. Use the buttons at the top right to switch tiers.</p>
+    <div style="width:1600px;height:900px;border-radius:12px;overflow:hidden;border:1px solid #3a4a3f;background:#0e1311">
+      <iframe src="Deslopify Lookdev.html" title="Deslopify lookdev" style="width:100%;height:100%;border:0;display:block"></iframe>
+    </div>
+
+    <div style="display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:28px;max-width:1600px">
+      <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:8px 22px 16px;display:grid;grid-template-columns:200px repeat(3,minmax(0,1fr));font-size:14px;line-height:1.5">
+        <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;padding:14px 0 8px">WHAT</span><span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;padding:14px 0 8px">LOW</span><span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;padding:14px 0 8px">MEDIUM</span><span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;padding:14px 0 8px">HIGH</span>
+        <span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#e8ede8">Ground</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">Smooth normals, vertex colours</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">+ colour noise, wet patches with low roughness that reflect the sky, moving canopy dapple</span><span style="border-top:1px solid #25302b;padding:9px 0;color:#c9d2cc">+ leaf-litter speckle</span>
+        <span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#e8ede8">Foliage</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">320 clusters, wind sway, bends away from the player</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">900 + backlit translucency toward the sun</span><span style="border-top:1px solid #25302b;padding:9px 0;color:#c9d2cc">1400, stronger translucency, canopy 200</span>
+        <span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#e8ede8">Light</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">No shadows; lantern point light; environment map from the sky</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">Sun shadows 1024², PCF soft</span><span style="border-top:1px solid #25302b;padding:9px 0;color:#c9d2cc">2048² shadows + bloom (threshold 1.0, as post-stack.ts)</span>
+        <span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#e8ede8">Life</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">40 fireflies, vines, tags, card wipe, waterfall</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">90 fireflies, shafts at full strength</span><span style="border-top:1px solid #25302b;padding:9px 0;color:#c9d2cc">160; seam, buds and fireflies bloom</span>
+        <span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#e8ede8">Resolution</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">DPR 1, no AA</span><span style="border-top:1px solid #25302b;padding:9px 10px 9px 0;color:#c9d2cc">DPR ≤ 1.5</span><span style="border-top:1px solid #25302b;padding:9px 0;color:#c9d2cc">DPR ≤ 2, composer ≤ 1.5</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px">
+          <span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">THE VISIBLE TRIANGLES</span>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:#c9d2cc;text-wrap:pretty"><code style="font-family:'IBM Plex Mono',monospace;font-size:12px">ProceduralGround</code> faceted the ground on purpose: <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">toNonIndexed()</code> + one normal and one colour per triangle (<code style="font-family:'IBM Plex Mono',monospace;font-size:12px">faceColours</code>). Near the camera each triangle catches the sun, the dapple and the shadow differently, so the grid shows around the player. <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">flora.ts</code> does the same with the leaves.</p>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:#c9d2cc;text-wrap:pretty">Fix: keep the geometry indexed, call <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">computeVertexNormals()</code>, and sample <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">colorAt</code> per vertex. Smooth normals need no screen-space derivatives, so the SwiftShader problem that led to faceting does not come back. If dark triangles remain in the shadow, raise <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">normalBias</code> in sun.ts (the lookdev uses 0.03). The lookdev ground above is built this way.</p>
+        </div>
+        <div style="background:#151c19;border:1px solid #25302b;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:10px">
+          <span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">MODELS WORTH AUTHORING</span>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:#c9d2cc;text-wrap:pretty">Through the existing <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">assets:author</code> → <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">assets:optimize</code> pipeline (glTF, meshopt): the lantern, the explorer (rounded rather than boxy, with a hand socket for the lantern), the stone stele, the arch as a bridge, a bevelled card frame and a set of leaf clusters. Vines and tags stay procedural, because their shape is driven at runtime.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="turn-1" style="padding:64px;display:flex;flex-direction:column;gap:56px;width:2200px">
+
+  <header style="display:flex;flex-direction:column;gap:12px;max-width:1100px">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:#9aa89f;letter-spacing:.08em;text-transform:uppercase">Gitplore · Dschungel / Deslopify · Turn 1</div>
+    <h1 style="margin:0;font-size:44px;font-weight:600;letter-spacing:-.01em;line-height:1.1">Reworking the Deslopify world</h1>
+    <p style="margin:0;font-size:18px;line-height:1.55;color:#b9c4bd;text-wrap:pretty">Three layout directions (<a href="#1a">1a</a>, <a href="#1b">1b</a>, <a href="#1c">1c</a>) that tie the jungle to what Deslopify does: the jungle is overgrown with slop, and the extension clears it. Below them is a shared set of surfaces (<a href="#1d">1d</a> to <a href="#1i">1i</a>) that each direction would use: palette, feed cards, signs, exhibit poster, terminal page and the shared toys restyled for the jungle.</p>
+  </header>
+
+  <sc-if value="{{ showCurrent }}" hint-placeholder-val="{{ true }}">
+  <div id="current" style="display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:40px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:28px">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:10px;align-items:center">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;background:#2a3530;color:#e8ede8;padding:4px 10px;border-radius:6px">Current</span>
+        <span style="font-size:15px;color:#9aa89f">What the scene does today (overview screenshot)</span>
+      </div>
+      <div style="position:relative;aspect-ratio:2534/1314;border-radius:10px;overflow:hidden">
+        <img src="shots/overview.png" alt="Current Deslopify world" style="width:100%;display:block">
+        <sc-if value="{{ showAnnotations }}" hint-placeholder-val="{{ true }}">
+          <div style="position:absolute;left:41%;top:24%;width:26px;height:26px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 13px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5)">1</div>
+          <div style="position:absolute;left:49%;top:47%;width:26px;height:26px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 13px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5)">2</div>
+          <div style="position:absolute;left:63%;top:41%;width:26px;height:26px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 13px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5)">3</div>
+          <div style="position:absolute;left:83%;top:22%;width:26px;height:26px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 13px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5)">4</div>
+          <div style="position:absolute;left:24%;top:51%;width:26px;height:26px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 13px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5)">5</div>
+          <div style="position:absolute;left:60%;top:60%;width:26px;height:26px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 13px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5)">6</div>
+          <div style="position:absolute;left:40%;top:74%;width:26px;height:26px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 13px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.5)">7</div>
+        </sc-if>
+      </div>
+    </div>
+    <ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:16px;align-self:center">
+      <li style="display:grid;grid-template-columns:30px 1fr;gap:10px;font-size:15px;line-height:1.5;color:#c9d2cc"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">1</span><span><b style="color:#e8ede8;font-weight:600">Generic label.</b> <code style="font-family:'IBM Plex Mono',monospace;font-size:13px">createLabel</code> fills a fixed 1024×256 canvas and passes <code style="font-family:'IBM Plex Mono',monospace;font-size:13px">maxWidth</code> to <code style="font-family:'IBM Plex Mono',monospace;font-size:13px">fillText</code>, so long text gets squashed. Floating, with no object attached.</span></li>
+      <li style="display:grid;grid-template-columns:30px 1fr;gap:10px;font-size:15px;line-height:1.5;color:#c9d2cc"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">2</span><span><b style="color:#e8ede8;font-weight:600">Empty exhibit.</b> Deslopify has no screenshot, so the ScreenLandmark shows a dark red plane. This is the object the arrival spawn faces.</span></li>
+      <li style="display:grid;grid-template-columns:30px 1fr;gap:10px;font-size:15px;line-height:1.5;color:#c9d2cc"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">3</span><span><b style="color:#e8ede8;font-weight:600">Wall doesn't read as a feed.</b> The cards are hue blocks with a play triangle. Only the title changes, and the 0.3 s squash is over before you notice it.</span></li>
+      <li style="display:grid;grid-template-columns:30px 1fr;gap:10px;font-size:15px;line-height:1.5;color:#c9d2cc"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">4</span><span><b style="color:#e8ede8;font-weight:600">Terminal outshines the demo.</b> It is the largest and brightest object, with small type, and the camera looks up at it from below.</span></li>
+      <li style="display:grid;grid-template-columns:30px 1fr;gap:10px;font-size:15px;line-height:1.5;color:#c9d2cc"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">5</span><span><b style="color:#e8ede8;font-weight:600">Signs repeat the wall.</b> The four boards show the same pairs as the cards, squashed into one line.</span></li>
+      <li style="display:grid;grid-template-columns:30px 1fr;gap:10px;font-size:15px;line-height:1.5;color:#c9d2cc"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">6</span><span><b style="color:#e8ede8;font-weight:600">Unexplained primitives.</b> The yellow pillar, the coloured blocks and the lever have no labels and no link to the jungle.</span></li>
+      <li style="display:grid;grid-template-columns:30px 1fr;gap:10px;font-size:15px;line-height:1.5;color:#c9d2cc"><span style="font:600 13px 'IBM Plex Mono',monospace;color:#e0a13c">7</span><span><b style="color:#e8ede8;font-weight:600">Theme red in teal fog.</b> <code style="font-family:'IBM Plex Mono',monospace;font-size:13px">#8f2f2f</code> turns brown-grey at a distance and clashes with the mood's amber accent <code style="font-family:'IBM Plex Mono',monospace;font-size:13px">#e0a13c</code>.</span></li>
+    </ol>
+  </div>
+  </sc-if>
+
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <h2 style="margin:0;font-size:26px;font-weight:600">Layout directions</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start">
+
+      <!-- 1a -->
+      <article id="1a" style="width:680px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1a</span>
+            <span style="font-size:14px;color:#9aa89f">One switch, the whole jungle reacts</span>
+          </div>
+          <h3 style="margin:0;font-size:32px;font-weight:600;line-height:1.15">Freischlagen <span style="color:#9aa89f;font-weight:400">· Cut back the slop</span></h3>
+          <p style="margin:0;font-size:16px;line-height:1.6;color:#c9d2cc;text-wrap:pretty">Violet slop vines hang across the trail, and every free-standing board turns into a machine-translated tag caught in them. The feed wall stands in the clearing. Pressing E switches Deslopify on, and the clearing spreads outward from the wall: cards flip one after another, the vines pull back into the canopy, the tags turn over to the originals and the haze thins until the waterfall shows.</p>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Plan, top-down</div>
+          <div style="position:relative;width:620px;height:440px;background:#22301f;border-radius:10px;overflow:hidden;border:1px solid #3a4a3f">
+            <div style="position:absolute;left:0;top:0;right:0;height:52px;background:#34443a"></div>
+            <div style="position:absolute;left:335px;top:0;width:18px;height:60px;background:#cfe6dc"></div>
+            <div style="position:absolute;left:305px;top:44px;width:70px;height:40px;border-radius:50%;background:#4f8580"></div>
+            <div style="position:absolute;left:190px;top:-11px;width:240px;height:240px;border-radius:50%;border:2px dashed #e0a13c;opacity:.8"></div>
+            <div style="position:absolute;left:300px;top:110px;width:20px;height:290px;background:#5a3d27"></div>
+            <div style="position:absolute;left:170px;top:300px;width:280px;height:16px;background:repeating-linear-gradient(90deg,oklch(0.68 0.19 335) 0 3px,transparent 3px 10px);opacity:.9"></div>
+            <div style="position:absolute;left:170px;top:240px;width:280px;height:16px;background:repeating-linear-gradient(90deg,oklch(0.68 0.19 335) 0 3px,transparent 3px 10px);opacity:.9"></div>
+            <div style="position:absolute;left:170px;top:180px;width:280px;height:16px;background:repeating-linear-gradient(90deg,oklch(0.68 0.19 335) 0 3px,transparent 3px 10px);opacity:.9"></div>
+            <div style="position:absolute;left:216px;top:303px;width:26px;height:10px;background:oklch(0.52 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:372px;top:303px;width:26px;height:10px;background:oklch(0.52 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:356px;top:243px;width:26px;height:10px;background:oklch(0.52 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:228px;top:183px;width:26px;height:10px;background:oklch(0.52 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:220px;top:104px;width:180px;height:10px;background:#f1ede6;border-radius:2px"></div>
+            <div style="position:absolute;left:412px;top:106px;width:44px;height:8px;background:#141b17;border:1px solid #e0a13c;border-radius:2px"></div>
+            <div style="position:absolute;left:228px;top:84px;font:500 11px 'IBM Plex Mono',monospace;color:#f1ede6">feed wall</div>
+            <div style="position:absolute;left:412px;top:86px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">exhibit</div>
+            <div style="position:absolute;left:462px;top:236px;font:500 11px 'IBM Plex Mono',monospace;color:oklch(0.78 0.14 335)">vine bands + tags</div>
+            <div style="position:absolute;left:444px;top:146px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">clearing ring →</div>
+            <div style="position:absolute;left:170px;top:112px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">T</div>
+            <div style="position:absolute;left:400px;top:196px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">P</div>
+            <div style="position:absolute;left:204px;top:262px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">C</div>
+            <div style="position:absolute;left:420px;top:300px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">L</div>
+            <div style="position:absolute;left:326px;top:340px;font:500 11px 'IBM Plex Mono',monospace;color:#c8a27c">boardwalk = commit ridge</div>
+            <div style="position:absolute;left:303px;top:403px;width:14px;height:14px;border-radius:50%;background:#e0a13c"></div>
+            <div style="position:absolute;left:326px;top:403px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">arrival</div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 16px;font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">
+            <span>T stele (terminal)</span><span>P bamboo (languages)</span><span>C cairns (releases)</span><span>L vine pull (seed lever)</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Mocked over your screenshot</div>
+          <div style="position:relative;aspect-ratio:2552/1316;border-radius:10px;overflow:hidden">
+            <img src="shots/waterfall.png" alt="" style="width:100%;display:block;margin-top:-3.53%">
+            <sc-if value="{{ showAnnotations }}" hint-placeholder-val="{{ true }}">
+              <div style="position:absolute;left:8%;right:10%;top:0;height:46%;background:repeating-linear-gradient(90deg,oklch(0.6 0.19 335 / .55) 0 4px,transparent 4px 34px);-webkit-mask-image:linear-gradient(180deg,#000 30%,transparent);mask-image:linear-gradient(180deg,#000 30%,transparent)"></div>
+              <div style="position:absolute;left:25%;top:42%;width:11%;height:10%;border:2px solid oklch(0.72 0.19 335);background:oklch(0.52 0.19 335 / .55);border-radius:3px"></div>
+              <div style="position:absolute;left:71%;top:44%;width:11%;height:14%;border:2px solid oklch(0.72 0.19 335);background:oklch(0.52 0.19 335 / .55);border-radius:3px"></div>
+              <div style="position:absolute;left:18%;top:82%;width:64%;height:30%;border-radius:50%;border:3px dashed #e0a13c"></div>
+              <div style="position:absolute;left:14%;top:14%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">1</div>
+              <div style="position:absolute;left:24%;top:36%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">2</div>
+              <div style="position:absolute;left:58%;top:24%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">3</div>
+              <div style="position:absolute;left:78%;top:84%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">4</div>
+            </sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.5;color:#9aa89f">
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">1</b> Vines hang from the canopy line and are only visual. PLAN.md says nothing may block the way.</span>
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">2</b> The boards become tags hanging in the vines, showing only the German slop title.</span>
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">3</b> The waterfall and cave are hazed over until the clearing reaches them.</span>
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">4</b> The clearing ring expands from the feed wall (behind the camera here).</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Beats</div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">01 Arrival</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">Violet haze and vines over the trail, with tags reading "Rost in 100 Sekunden".</span></div>
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">02 The wall</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">The feed shows the translated state (<a href="#1e">1e</a>). The prompt reads "E Deslopify einschalten".</span></div>
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">03 Clearing</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">A ring spreads at about 8 m/s. The mood blends from a slop variant to DSCHUNGEL. Pressing E again regrows everything.</span></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:10px 16px;font-size:14px;line-height:1.55;border-top:1px solid #25302b;padding-top:18px">
+          <span style="color:#9aa89f">Keeps</span><span style="color:#c9d2cc">VideoWall (new textures), exhibit, return portal, all toys</span>
+          <span style="color:#9aa89f">Replaces</span><span style="color:#c9d2cc">JungleSigns → SlopTags in vine meshes</span>
+          <span style="color:#9aa89f">Adds</span><span style="color:#c9d2cc">A <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">clearRadius</code> uniform shared by the vine and tag materials, plus a mood blend between two Mood records</span>
+          <span style="color:#9aa89f">Effort</span><span style="color:#c9d2cc">Medium</span>
+        </div>
+      </article>
+
+      <!-- 1b -->
+      <article id="1b" style="width:680px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1b</span>
+            <span style="font-size:14px;color:#9aa89f">Before and after, as places</span>
+          </div>
+          <h3 style="margin:0;font-size:32px;font-weight:600;line-height:1.15">Zwei Ufer <span style="color:#9aa89f;font-weight:400">· Two banks</span></h3>
+          <p style="margin:0;font-size:16px;line-height:1.6;color:#c9d2cc;text-wrap:pretty">A stream from the waterfall pool cuts the clearing in two. The arrival bank is overgrown and hazy, and its feed wall shows the translated state. The Deslopify arch (<code style="font-family:'IBM Plex Mono',monospace;font-size:13px">arch.glb</code>, already in the assets) is the bridge. On the far bank, in clear light, the same four videos stand in their original form. The demo is the walk across, so no key is needed to see it.</p>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Plan, top-down</div>
+          <div style="position:relative;width:620px;height:440px;background:#22301f;border-radius:10px;overflow:hidden;border:1px solid #3a4a3f">
+            <div style="position:absolute;left:0;right:0;top:226px;bottom:0;background:oklch(0.52 0.19 335 / .16)"></div>
+            <div style="position:absolute;left:0;top:0;right:0;height:52px;background:#34443a"></div>
+            <div style="position:absolute;left:335px;top:0;width:18px;height:60px;background:#cfe6dc"></div>
+            <div style="position:absolute;left:305px;top:44px;width:70px;height:40px;border-radius:50%;background:#4f8580"></div>
+            <div style="position:absolute;left:-20px;top:196px;width:660px;height:30px;background:#4f8b93;transform:rotate(-4deg)"></div>
+            <div style="position:absolute;left:302px;top:236px;width:16px;height:170px;background:#5a3d27"></div>
+            <div style="position:absolute;left:302px;top:84px;width:16px;height:104px;background:#5a3d27"></div>
+            <div style="position:absolute;left:290px;top:180px;width:40px;height:58px;background:#5a3d27;border:2px solid #e0a13c;border-radius:4px"></div>
+            <div style="position:absolute;left:338px;top:196px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">arch = bridge</div>
+            <div style="position:absolute;left:120px;top:300px;width:160px;height:10px;background:#f1ede6;border:2px solid oklch(0.68 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:120px;top:280px;font:500 11px 'IBM Plex Mono',monospace;color:oklch(0.78 0.14 335)">wall A · übersetzt</div>
+            <div style="position:absolute;left:350px;top:130px;width:160px;height:10px;background:#f1ede6;border:2px solid #e0a13c;border-radius:2px"></div>
+            <div style="position:absolute;left:350px;top:110px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">wall B · original</div>
+            <div style="position:absolute;left:180px;top:132px;width:48px;height:8px;background:#141b17;border:1px solid #e0a13c;border-radius:2px"></div>
+            <div style="position:absolute;left:180px;top:112px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">exhibit</div>
+            <div style="position:absolute;left:336px;top:258px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">T</div>
+            <div style="position:absolute;left:200px;top:350px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">P</div>
+            <div style="position:absolute;left:440px;top:300px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">C</div>
+            <div style="position:absolute;left:240px;top:150px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">L</div>
+            <div style="position:absolute;left:326px;top:340px;font:500 11px 'IBM Plex Mono',monospace;color:#c8a27c">boardwalk = commit ridge</div>
+            <div style="position:absolute;left:24px;top:410px;font:500 11px 'IBM Plex Mono',monospace;color:oklch(0.78 0.14 335)">slop haze (south bank)</div>
+            <div style="position:absolute;left:303px;top:403px;width:14px;height:14px;border-radius:50%;background:#e0a13c"></div>
+            <div style="position:absolute;left:326px;top:403px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">arrival</div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 16px;font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">
+            <span>T stele at bridge head</span><span>P bamboo</span><span>C cairns</span><span>L vine pull (far bank)</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Mocked over your screenshot</div>
+          <div style="position:relative;aspect-ratio:2534/1314;border-radius:10px;overflow:hidden">
+            <img src="shots/overview.png" alt="" style="width:100%;display:block">
+            <sc-if value="{{ showAnnotations }}" hint-placeholder-val="{{ true }}">
+              <div style="position:absolute;left:0;right:0;top:66%;bottom:0;background:oklch(0.52 0.19 335 / .22)"></div>
+              <div style="position:absolute;left:-4%;width:108%;top:62%;height:7%;background:rgba(110,180,196,.55);border-top:2px solid rgba(220,245,250,.7);transform:rotate(-2deg)"></div>
+              <div style="position:absolute;left:41%;top:52%;width:12%;height:24%;border:3px dashed #e0a13c;border-radius:48% 48% 6px 6px"></div>
+              <div style="position:absolute;left:18%;top:52%;width:14%;height:15%;border:2px solid oklch(0.72 0.19 335);background:oklch(0.52 0.19 335 / .45);border-radius:3px"></div>
+              <div style="position:absolute;left:55%;top:44%;width:19%;height:11%;border:2px solid #e0a13c;background:rgba(224,161,60,.18);border-radius:3px"></div>
+              <div style="position:absolute;left:44%;top:46%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">1</div>
+              <div style="position:absolute;left:17%;top:46%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">2</div>
+              <div style="position:absolute;left:73%;top:38%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">3</div>
+              <div style="position:absolute;left:4%;top:60%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">4</div>
+            </sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.5;color:#9aa89f">
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">1</b> The arch replaces the dark exhibit screen as the object you walk towards first.</span>
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">2</b> Wall A stands where the left sign is now: translated titles and thumbnails.</span>
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">3</b> Wall B stands across the water, mirroring wall A card for card.</span>
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">4</b> The stream runs from the pool, and the haze covers only the arrival bank.</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Beats</div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">01 South bank</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">Wall A carries the heading "Ohne Deslopify / Without". Dub badges, violet haze.</span></div>
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">02 The arch</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">The HUD area line changes to "Deslopify an". Fog density drops over the span.</span></div>
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">03 North bank</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">Wall B shows the originals. Both walls are visible from the bridge, so the pair can be compared.</span></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:10px 16px;font-size:14px;line-height:1.55;border-top:1px solid #25302b;padding-top:18px">
+          <span style="color:#9aa89f">Keeps</span><span style="color:#c9d2cc">VideoWall with a fixed <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">state</code> option instead of a toggle, used twice; exhibit; toys</span>
+          <span style="color:#9aa89f">Removes</span><span style="color:#c9d2cc">JungleSigns (the walls take over their job)</span>
+          <span style="color:#9aa89f">Adds</span><span style="color:#c9d2cc">A stream cut in <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">jungleHeightAt</code>, water reused from the pool, a bridge walk surface and a haze volume per bank</span>
+          <span style="color:#9aa89f">Effort</span><span style="color:#c9d2cc">Medium to high (terrain and water)</span>
+        </div>
+      </article>
+
+      <!-- 1c -->
+      <article id="1c" style="width:680px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:10px;align-items:center">
+            <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1c</span>
+            <span style="font-size:14px;color:#9aa89f">Walking is scrolling</span>
+          </div>
+          <h3 style="margin:0;font-size:32px;font-weight:600;line-height:1.15">Der Feed als Pfad <span style="color:#9aa89f;font-weight:400">· The feed is the trail</span></h3>
+          <p style="margin:0;font-size:16px;line-height:1.6;color:#c9d2cc;text-wrap:pretty">Eight video cards stand along a winding trail, one after another like a feed, their edges overgrown. The explorer carries a lantern, and the lantern is Deslopify. A card inside its light (about 5 m) shows the original title and thumbnail. Outside the light it shows the translated one. Cards turn as you reach them and turn back once you pass.</p>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Plan, top-down</div>
+          <div style="position:relative;width:620px;height:440px;background:#22301f;border-radius:10px;overflow:hidden;border:1px solid #3a4a3f">
+            <div style="position:absolute;left:0;top:0;right:0;height:52px;background:#34443a"></div>
+            <div style="position:absolute;left:335px;top:0;width:18px;height:60px;background:#cfe6dc"></div>
+            <div style="position:absolute;left:305px;top:44px;width:70px;height:40px;border-radius:50%;background:#4f8580"></div>
+            <div style="position:absolute;left:230px;top:188px;width:140px;height:140px;border-radius:50%;background:radial-gradient(circle,rgba(224,161,60,.42),rgba(224,161,60,0) 70%)"></div>
+            <div style="position:absolute;left:310px;top:397px;width:151px;height:16px;background:#5a3d27;transform-origin:0 50%;transform:rotate(-128deg)"></div>
+            <div style="position:absolute;left:217px;top:278px;width:200px;height:16px;background:#5a3d27;transform-origin:0 50%;transform:rotate(-33.4deg)"></div>
+            <div style="position:absolute;left:384px;top:168px;width:98px;height:16px;background:#5a3d27;transform-origin:0 50%;transform:rotate(-116deg)"></div>
+            <div style="position:absolute;left:271px;top:366px;width:22px;height:9px;background:#f1ede6;border:2px solid oklch(0.68 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:225px;top:312px;width:22px;height:9px;background:#f1ede6;border:2px solid oklch(0.68 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:251px;top:262px;width:22px;height:9px;background:#f1ede6;border:2px solid #e0a13c;border-radius:2px"></div>
+            <div style="position:absolute;left:289px;top:234px;width:22px;height:9px;background:#f1ede6;border:2px solid #e0a13c;border-radius:2px"></div>
+            <div style="position:absolute;left:327px;top:209px;width:22px;height:9px;background:#f1ede6;border:2px solid #e0a13c;border-radius:2px"></div>
+            <div style="position:absolute;left:369px;top:190px;width:22px;height:9px;background:#f1ede6;border:2px solid oklch(0.68 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:381px;top:140px;width:22px;height:9px;background:#f1ede6;border:2px solid oklch(0.68 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:341px;top:112px;width:22px;height:9px;background:#f1ede6;border:2px solid oklch(0.68 0.19 335);border-radius:2px"></div>
+            <div style="position:absolute;left:294px;top:252px;width:12px;height:12px;border-radius:50%;background:#e0a13c;box-shadow:0 0 0 3px #22301f"></div>
+            <div style="position:absolute;left:386px;top:250px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">lantern ≈ 5 m</div>
+            <div style="position:absolute;left:400px;top:106px;width:48px;height:8px;background:#141b17;border:1px solid #e0a13c;border-radius:2px"></div>
+            <div style="position:absolute;left:400px;top:86px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">exhibit</div>
+            <div style="position:absolute;left:180px;top:282px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">T</div>
+            <div style="position:absolute;left:420px;top:220px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">P</div>
+            <div style="position:absolute;left:236px;top:196px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">C</div>
+            <div style="position:absolute;left:414px;top:130px;width:20px;height:20px;border-radius:50%;background:#e8ede8;color:#141c17;font:600 11px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">L</div>
+            <div style="position:absolute;left:24px;top:350px;font:500 11px 'IBM Plex Mono',monospace;color:#9aa89f;line-height:1.5">■ violet edge: translated<br>■ amber edge: original</div>
+            <div style="position:absolute;left:303px;top:403px;width:14px;height:14px;border-radius:50%;background:#e0a13c"></div>
+            <div style="position:absolute;left:326px;top:403px;font:500 11px 'IBM Plex Mono',monospace;color:#e0a13c">arrival</div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px 16px;font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">
+            <span>Toys stand as chapter breaks between cards</span><span>the ridge is the trail's edge rail</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Mocked over your screenshot</div>
+          <div style="position:relative;aspect-ratio:2552/1316;border-radius:10px;overflow:hidden">
+            <img src="shots/sign-ahead.png" alt="" style="width:100%;display:block;margin-top:-3.53%">
+            <sc-if value="{{ showAnnotations }}" hint-placeholder-val="{{ true }}">
+              <div style="position:absolute;left:28%;top:58%;width:44%;height:40%;border-radius:50%;background:radial-gradient(ellipse,rgba(224,161,60,.38),rgba(224,161,60,0) 70%)"></div>
+              <div style="position:absolute;left:42%;top:41%;width:15%;height:20%;border:3px solid #e0a13c;background:rgba(241,237,230,.2);border-radius:4px"></div>
+              <div style="position:absolute;left:77%;top:48%;width:14%;height:20%;border:3px solid oklch(0.72 0.19 335);background:oklch(0.52 0.19 335 / .4);border-radius:4px"></div>
+              <div style="position:absolute;left:66%;top:44%;width:9%;height:13%;border:2px solid oklch(0.72 0.19 335);background:oklch(0.52 0.19 335 / .4);border-radius:3px"></div>
+              <div style="position:absolute;left:59%;top:42%;width:6%;height:9%;border:2px solid oklch(0.72 0.19 335);background:oklch(0.52 0.19 335 / .4);border-radius:3px"></div>
+              <div style="position:absolute;left:43%;top:34%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">1</div>
+              <div style="position:absolute;left:84%;top:42%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">2</div>
+              <div style="position:absolute;left:30%;top:86%;width:24px;height:24px;border-radius:50%;background:#e0a13c;color:#1a1408;font:600 12px 'IBM Plex Mono',monospace;display:flex;align-items:center;justify-content:center">3</div>
+            </sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.5;color:#9aa89f">
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">1</b> The card nearest the lantern shows the original. The board it replaces sits in the same spot.</span>
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">2</b> Cards further along the boardwalk still show the translated state.</span>
+            <span><b style="color:#e0a13c;font-family:'IBM Plex Mono',monospace">3</b> Warm light pool around the explorer: one point light, no shadow.</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Beats</div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">01 Distance</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">Every card ahead reads as translated and violet-tinged, with vines over the edges.</span></div>
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">02 Passing</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">Each card wipes to the original as the light reaches it (<a href="#1e">1e</a> wipe). It happens card by card and never all at once.</span></div>
+            <div style="background:#1b2420;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:6px"><span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c">03 Lantern off</span><span style="font-size:14px;line-height:1.5;color:#c9d2cc">E dims the lantern and everything reverts. The exhibit waits at the end of the trail by the pool.</span></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:10px 16px;font-size:14px;line-height:1.55;border-top:1px solid #25302b;padding-top:18px">
+          <span style="color:#9aa89f">Keeps</span><span style="color:#c9d2cc">Card textures from VideoWall, exhibit, toys</span>
+          <span style="color:#9aa89f">Replaces</span><span style="color:#c9d2cc">VideoWall + JungleSigns → FeedTrail: N standing cards, each holding its own state from distance to the player</span>
+          <span style="color:#9aa89f">Adds</span><span style="color:#c9d2cc">Lantern point light on the Explorer, and a texture atlas (8 cards × 2 states)</span>
+          <span style="color:#9aa89f">Effort</span><span style="color:#c9d2cc">Medium</span>
+        </div>
+      </article>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <h2 style="margin:0;font-size:26px;font-weight:600">Surfaces (shared by all three)</h2>
+      <p style="margin:0;font-size:15px;color:#9aa89f">Each one is drawn the way it would be drawn to its canvas texture, at half the canvas resolution.</p>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start">
+
+      <!-- 1d palette -->
+      <article id="1d" style="width:680px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1d</span>
+          <h3 style="margin:0;font-size:22px;font-weight:600">Palette: original vs. slop</h3>
+        </div>
+        <p style="margin:0;font-size:15px;line-height:1.6;color:#c9d2cc;text-wrap:pretty">There are two meaning colours. Amber, the mood's own accent, marks <i>original</i>. Violet, a hue that never occurs in this jungle, marks <i>slop</i>. Theme red goes away because it reads as neither. On the fog below, both stay distinct at a distance.</p>
+        <div style="background:#7ba592;border-radius:10px;padding:26px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:14px">
+            <div style="flex:1;background:#8f2f2f;border-radius:6px;padding:14px;color:#fff;font:700 20px 'Barlow',sans-serif;display:flex;flex-direction:column;gap:4px;opacity:.72"><span>Heute · #8f2f2f</span><span style="font:500 12px 'IBM Plex Mono',monospace">muddy at 30 m</span></div>
+            <div style="flex:1;background:#6b4712;border-radius:6px;padding:14px;color:#f4e6c8;font:700 20px 'Barlow',sans-serif;display:flex;flex-direction:column;gap:4px"><span>Theme · #6b4712</span><span style="font:500 12px 'IBM Plex Mono',monospace">labels, ridge</span></div>
+          </div>
+          <div style="display:flex;gap:14px">
+            <div style="flex:1;background:#e0a13c;border-radius:6px;padding:14px;color:#1a1408;font:700 20px 'Barlow',sans-serif;display:flex;flex-direction:column;gap:4px"><span>Original · #e0a13c</span><span style="font:500 12px 'IBM Plex Mono',monospace">mood accent, glow</span></div>
+            <div style="flex:1;background:oklch(0.52 0.19 335);border-radius:6px;padding:14px;color:#fff;font:700 20px 'Barlow',sans-serif;display:flex;flex-direction:column;gap:4px"><span>Slop · oklch .52 .19 335</span><span style="font:500 12px 'IBM Plex Mono',monospace">vines, tags, badges</span></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px">
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:6px;background:#5a3d27"></div><span style="font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">wood #5a3d27</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:6px;background:#141b17"></div><span style="font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">stele #141b17</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:6px;background:#f4efe4"></div><span style="font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">ink #f4efe4</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:6px;background:#f4e6c8"></div><span style="font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">engrave #f4e6c8</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px"><div style="height:44px;border-radius:6px;background:oklch(0.68 0.19 335)"></div><span style="font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">slop line</span></div>
+        </div>
+        <pre style="margin:0;background:#0e1311;border-radius:8px;padding:14px 16px;font:400 13px/1.6 'IBM Plex Mono',monospace;color:#c9d2cc;white-space:pre-wrap">// repo-overrides.ts · deslopify
+theme: { primary: '#6b4712', accent: '#f4e6c8' },</pre>
+      </article>
+
+      <!-- 1e feed cards -->
+      <article id="1e" style="width:1396px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1e</span>
+          <h3 style="margin:0;font-size:22px;font-weight:600">Feed card: translated → original</h3>
+        </div>
+        <p style="margin:0;font-size:15px;line-height:1.6;color:#c9d2cc;max-width:1000px;text-wrap:pretty">A generic video card with no platform logos or branding, but the parts people recognise: a 16:9 thumbnail with duration, a channel avatar, title, views and age. What Deslopify changes is what changes on the card: the <b style="color:#e8ede8">title</b>, the <b style="color:#e8ede8">text baked into the thumbnail</b> and the <b style="color:#e8ede8">audio badge</b>. The meta line stays German, because the extension restores the creator's content and leaves the viewer's UI language alone. Canvas: 640×600 → plane 1.9 × 1.78 m.</p>
+
+        <div style="display:grid;grid-template-columns:repeat(4,300px);gap:26px;align-items:start">
+          <!-- Rust slop -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:oklch(0.78 0.14 335)">ÜBERSETZT · translated</span>
+            <div style="width:300px;background:#f4f2ee;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:10px;box-shadow:0 0 0 3px oklch(0.52 0.19 335)">
+              <div style="position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#1b1d1f">
+                <div style="position:absolute;left:14px;top:12px;font:800 58px/1 'Barlow',sans-serif;color:#e0a13c;letter-spacing:-.02em">RUST</div>
+                <div style="position:absolute;left:16px;top:74px;font:500 14px 'IBM Plex Mono',monospace;color:#f4efe4">in 100 seconds</div>
+                <div style="position:absolute;left:10px;top:34px;transform:rotate(-3deg);background:#fff;padding:4px 8px;font:700 21px/1.1 Arial,sans-serif;color:#111;box-shadow:0 2px 0 rgba(0,0,0,.3)">ROST IN 100 SEKUNDEN</div>
+                <div style="position:absolute;left:8px;top:8px;background:oklch(0.52 0.19 335);color:#fff;font:600 10px 'IBM Plex Sans',sans-serif;padding:3px 6px;border-radius:3px">KI-übersetzt</div>
+                <div style="position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.82);color:#fff;font:500 11px 'IBM Plex Mono',monospace;padding:2px 5px;border-radius:3px">1:40</div>
+              </div>
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:10px">
+                <div style="width:32px;height:32px;border-radius:50%;background:#b5532a;color:#fff;font:700 15px 'Barlow',sans-serif;display:flex;align-items:center;justify-content:center">F</div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="font:700 17px/1.25 'Barlow',sans-serif;color:#16202a">Rost in 100 Sekunden</div>
+                  <div style="font:500 13px 'Barlow',sans-serif;color:#5b6670">ferris.dev · 1,2 Mio. Aufrufe · vor 3 Jahren</div>
+                  <div style="display:flex"><span style="background:oklch(0.52 0.19 335);color:#fff;font:600 11px 'IBM Plex Sans',sans-serif;padding:3px 7px;border-radius:999px">Automatisch übersetzt · Audio: Deutsch (KI)</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Rust original -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#e0a13c">ORIGINAL</span>
+            <div style="width:300px;background:#f4f2ee;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:10px;box-shadow:0 0 0 3px #e0a13c">
+              <div style="position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#1b1d1f">
+                <div style="position:absolute;left:14px;top:12px;font:800 58px/1 'Barlow',sans-serif;color:#e0a13c;letter-spacing:-.02em">RUST</div>
+                <div style="position:absolute;left:16px;top:74px;font:500 14px 'IBM Plex Mono',monospace;color:#f4efe4">in 100 seconds</div>
+                <div style="position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.82);color:#fff;font:500 11px 'IBM Plex Mono',monospace;padding:2px 5px;border-radius:3px">1:40</div>
+              </div>
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:10px">
+                <div style="width:32px;height:32px;border-radius:50%;background:#b5532a;color:#fff;font:700 15px 'Barlow',sans-serif;display:flex;align-items:center;justify-content:center">F</div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="font:700 17px/1.25 'Barlow',sans-serif;color:#16202a">Rust in 100 Seconds</div>
+                  <div style="font:500 13px 'Barlow',sans-serif;color:#5b6670">ferris.dev · 1,2 Mio. Aufrufe · vor 3 Jahren</div>
+                  <div style="display:flex"><span style="background:#e0a13c;color:#1a1408;font:600 11px 'IBM Plex Sans',sans-serif;padding:3px 7px;border-radius:999px">Original · Englisch</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Keyboard slop -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:oklch(0.78 0.14 335)">ÜBERSETZT · translated</span>
+            <div style="width:300px;background:#f4f2ee;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:10px;box-shadow:0 0 0 3px oklch(0.52 0.19 335)">
+              <div style="position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#2f5d57">
+                <div style="position:absolute;left:14px;top:14px;font:800 30px/1 'Barlow',sans-serif;color:#f4efe4">FROM<br>SCRATCH</div>
+                <div style="position:absolute;right:14px;bottom:22px;display:grid;grid-template-columns:repeat(6,14px);gap:4px">
+                  <div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#e0a13c;border-radius:3px"></div>
+                  <div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div>
+                </div>
+                <div style="position:absolute;left:18px;top:26px;transform:rotate(2deg);background:#fff;padding:4px 8px;font:700 22px/1.1 Arial,sans-serif;color:#111;box-shadow:0 2px 0 rgba(0,0,0,.3)">VON KRATZER</div>
+                <div style="position:absolute;left:8px;top:8px;background:oklch(0.52 0.19 335);color:#fff;font:600 10px 'IBM Plex Sans',sans-serif;padding:3px 6px;border-radius:3px">KI-übersetzt</div>
+                <div style="position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.82);color:#fff;font:500 11px 'IBM Plex Mono',monospace;padding:2px 5px;border-radius:3px">18:22</div>
+              </div>
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:10px">
+                <div style="width:32px;height:32px;border-radius:50%;background:#2f5d57;color:#fff;font:700 15px 'Barlow',sans-serif;display:flex;align-items:center;justify-content:center">K</div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="font:700 17px/1.25 'Barlow',sans-serif;color:#16202a">Ich habe eine Tastatur von Kratzer gebaut</div>
+                  <div style="font:500 13px 'Barlow',sans-serif;color:#5b6670">keeb lab · 418.000 Aufrufe · vor 1 Jahr</div>
+                  <div style="display:flex"><span style="background:oklch(0.52 0.19 335);color:#fff;font:600 11px 'IBM Plex Sans',sans-serif;padding:3px 7px;border-radius:999px">Automatisch übersetzt · Audio: Deutsch (KI)</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Keyboard original -->
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#e0a13c">ORIGINAL</span>
+            <div style="width:300px;background:#f4f2ee;border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:10px;box-shadow:0 0 0 3px #e0a13c">
+              <div style="position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#2f5d57">
+                <div style="position:absolute;left:14px;top:14px;font:800 30px/1 'Barlow',sans-serif;color:#f4efe4">FROM<br>SCRATCH</div>
+                <div style="position:absolute;right:14px;bottom:22px;display:grid;grid-template-columns:repeat(6,14px);gap:4px">
+                  <div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#e0a13c;border-radius:3px"></div>
+                  <div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div><div style="height:14px;background:#f4efe4;border-radius:3px"></div>
+                </div>
+                <div style="position:absolute;right:6px;bottom:6px;background:rgba(0,0,0,.82);color:#fff;font:500 11px 'IBM Plex Mono',monospace;padding:2px 5px;border-radius:3px">18:22</div>
+              </div>
+              <div style="display:grid;grid-template-columns:32px 1fr;gap:10px">
+                <div style="width:32px;height:32px;border-radius:50%;background:#2f5d57;color:#fff;font:700 15px 'Barlow',sans-serif;display:flex;align-items:center;justify-content:center">K</div>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <div style="font:700 17px/1.25 'Barlow',sans-serif;color:#16202a">I built a keyboard from scratch</div>
+                  <div style="font:500 13px 'Barlow',sans-serif;color:#5b6670">keeb lab · 418.000 Aufrufe · vor 1 Jahr</div>
+                  <div style="display:flex"><span style="background:#e0a13c;color:#1a1408;font:600 11px 'IBM Plex Sans',sans-serif;padding:3px 7px;border-radius:999px">Original · Englisch</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:30px;border-top:1px solid #25302b;padding-top:20px">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;text-transform:uppercase;letter-spacing:.06em">Transition: wipe instead of squash</span>
+            <div style="display:flex;gap:14px">
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="position:relative;width:176px;aspect-ratio:16/9;border-radius:5px;overflow:hidden;background:#1b1d1f">
+                  <div style="position:absolute;left:8px;top:6px;font:800 34px/1 'Barlow',sans-serif;color:#e0a13c">RUST</div>
+                  <div style="position:absolute;left:6px;top:22px;transform:rotate(-3deg);background:#fff;padding:2px 5px;font:700 12px Arial,sans-serif;color:#111">ROST IN 100 SEKUNDEN</div>
+                </div>
+                <span style="font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">0 ms</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="position:relative;width:176px;aspect-ratio:16/9;border-radius:5px;overflow:hidden;background:#1b1d1f">
+                  <div style="position:absolute;left:8px;top:6px;font:800 34px/1 'Barlow',sans-serif;color:#e0a13c">RUST</div>
+                  <div style="position:absolute;left:6px;top:22px;transform:rotate(-3deg);background:#fff;padding:2px 5px;font:700 12px Arial,sans-serif;color:#111;clip-path:inset(0 0 0 50%)">ROST IN 100 SEKUNDEN</div>
+                  <div style="position:absolute;left:50%;top:0;bottom:0;width:3px;background:#e0a13c;box-shadow:0 0 12px 4px rgba(224,161,60,.6)"></div>
+                </div>
+                <span style="font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">180 ms · amber seam</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <div style="position:relative;width:176px;aspect-ratio:16/9;border-radius:5px;overflow:hidden;background:#1b1d1f">
+                  <div style="position:absolute;left:8px;top:6px;font:800 34px/1 'Barlow',sans-serif;color:#e0a13c">RUST</div>
+                  <div style="position:absolute;left:10px;top:42px;font:500 10px 'IBM Plex Mono',monospace;color:#f4efe4">in 100 seconds</div>
+                </div>
+                <span style="font:400 12px 'IBM Plex Mono',monospace;color:#9aa89f">360 ms</span>
+              </div>
+            </div>
+          </div>
+          <ul style="margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.55;color:#c9d2cc">
+            <li>A seam sweeps across the card, driven by one uniform (<code style="font-family:'IBM Plex Mono',monospace;font-size:12px">uWipe</code>) mixing the two canvas maps. Cards start 120 ms apart.</li>
+            <li>The title swaps when the seam reaches the text block, and the badge colour changes last.</li>
+            <li>Under reduced motion the swap is instant, as it is today.</li>
+            <li>The four video pairs are kept from <code style="font-family:'IBM Plex Mono',monospace;font-size:12px">EXAMPLE_VIDEOS</code>. Channel names are invented.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- 1f signs -->
+      <article id="1f" style="width:680px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1f</span>
+          <h3 style="margin:0;font-size:22px;font-weight:600">Signs & labels</h3>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f">TODAY · createLabel, 1024×256, bold 120px, maxWidth</span>
+          <div style="width:512px;height:128px;background:#5a3d27;display:flex;align-items:center;justify-content:center;overflow:hidden">
+            <span style="display:inline-block;white-space:nowrap;font:bold 60px system-ui,sans-serif;color:#fff;transform:scaleX(.4)">Rost in 100 Sekunden → Rust in 100 Seconds</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f">PROPOSED · wayfinding plank, width fits the text</span>
+          <div style="display:inline-flex;align-self:flex-start;flex-direction:column;gap:2px;background:#5a3d27;padding:14px 26px 16px;border-radius:4px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18),inset 0 2px 0 rgba(255,255,255,.06)">
+            <span style="font:700 40px/1.05 'Barlow Semi Condensed',sans-serif;color:#f4e6c8;letter-spacing:.01em">Commits im Lebensverlauf</span>
+            <span style="font:600 20px/1.2 'Barlow Semi Condensed',sans-serif;color:#d2b98f">Commits over the project's life</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f">PROPOSED · slop tag in the vines (1a) and its flipped side</span>
+          <div style="display:flex;gap:18px;align-items:flex-start">
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div style="width:2px;height:22px;background:oklch(0.68 0.19 335)"></div>
+              <div style="background:#efe8ee;border:3px solid oklch(0.52 0.19 335);border-radius:6px;padding:10px 16px;display:flex;flex-direction:column;gap:4px;transform:rotate(-2deg)">
+                <span style="font:600 11px 'IBM Plex Mono',monospace;color:oklch(0.45 0.19 335);text-transform:uppercase;letter-spacing:.05em">maschinell übersetzt</span>
+                <span style="font:700 26px/1.1 'Barlow Semi Condensed',sans-serif;color:#1d1320">Rost in 100 Sekunden</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center">
+              <div style="width:2px;height:22px;background:#5a3d27"></div>
+              <div style="background:#5a3d27;border:3px solid #e0a13c;border-radius:6px;padding:10px 16px;display:flex;flex-direction:column;gap:4px">
+                <span style="font:600 11px 'IBM Plex Mono',monospace;color:#e0a13c;text-transform:uppercase;letter-spacing:.05em">Original</span>
+                <span style="font:700 26px/1.1 'Barlow Semi Condensed',sans-serif;color:#f4e6c8">Rust in 100 Seconds</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <pre style="margin:0;background:#0e1311;border-radius:8px;padding:14px 16px;font:400 13px/1.6 'IBM Plex Mono',monospace;color:#c9d2cc;white-space:pre-wrap">// label.ts: measure first, size the canvas and plane to fit
+ctx.font = '700 120px "Barlow Semi Condensed"';
+const w = Math.ceil(ctx.measureText(text).width) + PAD * 2;
+canvas.width = nextPow2(w);          // no maxWidth on fillText
+plane = new PlaneGeometry(HEIGHT * w / CANVAS_H, HEIGHT);
+// await document.fonts.load(...) before drawing</pre>
+      </article>
+
+      <!-- 1g exhibit -->
+      <article id="1g" style="width:680px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1g</span>
+          <h3 style="margin:0;font-size:22px;font-weight:600">Exhibit poster (no-screenshot fallback)</h3>
+        </div>
+        <p style="margin:0;font-size:15px;line-height:1.6;color:#c9d2cc;text-wrap:pretty">When a project has no screenshot, ScreenLandmark draws this poster instead of an empty plane. The poster itself shows the before and after, so the exhibit explains the project from a distance.</p>
+        <div style="width:620px;aspect-ratio:16/10;background:#141b17;border-radius:6px;padding:30px 32px;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:26px;box-shadow:0 0 0 10px #0b0f0d">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <span style="font:600 12px 'IBM Plex Mono',monospace;color:#e0a13c;text-transform:uppercase;letter-spacing:.06em">Projekt · Browser-Erweiterung</span>
+            <span style="font:800 50px/1 'Barlow',sans-serif;color:#f4efe4;letter-spacing:-.01em">Deslopify</span>
+            <span style="font:500 15px/1.45 'Barlow',sans-serif;color:#d9d3c6;text-wrap:pretty">Browser-Erweiterung, die von YouTube automatisch übersetzte Titel, Thumbnails, Beschreibungen und Tonspuren durch die Originale der Urheber ersetzt.</span>
+            <span style="font:500 13px/1.4 'Barlow',sans-serif;color:#9aa89f;font-style:italic">Remove AI auto-translated titles, thumbnails, descriptions, and audio from YouTube.</span>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
+              <span style="font:500 11px 'IBM Plex Mono',monospace;color:#f4efe4;border:1px solid #3a463f;padding:3px 7px;border-radius:4px">JavaScript</span>
+              <span style="font:500 11px 'IBM Plex Mono',monospace;color:#f4efe4;border:1px solid #3a463f;padding:3px 7px;border-radius:4px">Chrome Extension</span>
+              <span style="font:500 11px 'IBM Plex Mono',monospace;color:#f4efe4;border:1px solid #3a463f;padding:3px 7px;border-radius:4px">MV3</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;justify-content:center">
+            <div style="background:#1f1720;border-left:4px solid oklch(0.6 0.19 335);padding:10px 12px;display:flex;flex-direction:column;gap:3px">
+              <span style="font:600 10px 'IBM Plex Mono',monospace;color:oklch(0.78 0.14 335)">OHNE · WITHOUT</span>
+              <span style="font:700 18px/1.2 'Barlow Semi Condensed',sans-serif;color:#e8dfe8">Ich habe eine Tastatur von Kratzer gebaut</span>
+            </div>
+            <div style="font:600 18px 'IBM Plex Mono',monospace;color:#e0a13c;padding-left:14px">↓</div>
+            <div style="background:#221c10;border-left:4px solid #e0a13c;padding:10px 12px;display:flex;flex-direction:column;gap:3px">
+              <span style="font:600 10px 'IBM Plex Mono',monospace;color:#e0a13c">MIT · WITH</span>
+              <span style="font:700 18px/1.2 'Barlow Semi Condensed',sans-serif;color:#f4efe4">I built a keyboard from scratch</span>
+            </div>
+          </div>
+          <div style="grid-column:1 / -1;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #2a3530;padding-top:12px">
+            <span style="font:500 13px 'IBM Plex Mono',monospace;color:#9aa89f">github.com/jamie-io/deslopify</span>
+            <span style="display:flex;gap:8px;align-items:center;font:600 14px 'Barlow',sans-serif;color:#f4efe4"><span style="border:1.5px solid #f4efe4;border-radius:4px;padding:1px 7px;font:600 12px 'IBM Plex Mono',monospace">E</span>Details, README &amp; Code</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- 1h terminal -->
+      <article id="1h" style="width:1396px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:20px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1h</span>
+          <h3 style="margin:0;font-size:22px;font-weight:600">Terminal page → stele page</h3>
+        </div>
+        <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f">TODAY · 1024×640, body 36px, 8 entries per page</span>
+            <div style="position:relative;width:512px;height:320px;background:#0f171d;font-family:system-ui,sans-serif">
+              <div style="position:absolute;left:24px;top:17px;font-size:13px;color:#8fa9b1">Deslopify</div>
+              <div style="position:absolute;left:24px;top:35px;font-weight:bold;font-size:27px;color:#86e0cf">Projekt</div>
+              <div style="position:absolute;left:24px;top:68px;width:464px;height:1px;background:#86e0cf"></div>
+              <div style="position:absolute;left:24px;top:86px;width:464px;font-size:18px;line-height:24px;color:#d8f3ec">Deslopify<br>Browser-Erweiterung, die von YouTube automatisch<br>übersetzte Titel, Thumbnails, Beschreibungen und<br>Tonspuren durch die Originale der Urheber ersetzt.<br>https://github.com/jamie-io/deslopify</div>
+              <div style="position:absolute;left:24px;top:292px;font-size:13px;color:#8fa9b1">Seite 1 von 4 · ↑ ↓ blättern · E oder Esc: verlassen</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f">PROPOSED · same canvas, body 44px, max 5 lines, set in stone</span>
+            <div style="position:relative;width:540px;height:348px;background:#3b3f37;border-radius:18px 18px 6px 6px;padding:14px;box-shadow:inset 0 -8px 0 rgba(0,0,0,.25)">
+              <div style="width:512px;height:320px;background:#141b17;border-radius:8px;padding:22px 24px 16px;display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;justify-content:space-between;align-items:baseline">
+                  <span style="font:800 30px/1 'Barlow',sans-serif;color:#e0a13c">Projekt <span style="color:#8a7a5c;font-weight:600;font-size:20px">· Project</span></span>
+                  <span style="display:flex;gap:6px"><span style="width:8px;height:8px;border-radius:50%;background:#e0a13c"></span><span style="width:8px;height:8px;border-radius:50%;background:#3a463f"></span><span style="width:8px;height:8px;border-radius:50%;background:#3a463f"></span><span style="width:8px;height:8px;border-radius:50%;background:#3a463f"></span></span>
+                </div>
+                <div style="height:2px;background:linear-gradient(90deg,#e0a13c,rgba(224,161,60,0))"></div>
+                <div style="font:500 22px/1.35 'Barlow',sans-serif;color:#f4efe4;text-wrap:pretty">Ersetzt von YouTube automatisch übersetzte Titel, Thumbnails, Beschreibungen und Tonspuren durch die Originale.</div>
+                <div style="font:500 15px 'IBM Plex Mono',monospace;color:#9aa89f">github.com/jamie-io/deslopify</div>
+                <div style="margin-top:auto;display:flex;gap:16px;font:500 14px 'Barlow',sans-serif;color:#b9c4bd">
+                  <span style="display:flex;gap:6px;align-items:center"><span style="border:1.5px solid #b9c4bd;border-radius:4px;padding:0 6px;font:600 12px 'IBM Plex Mono',monospace">↑↓</span>blättern</span>
+                  <span style="display:flex;gap:6px;align-items:center"><span style="border:1.5px solid #b9c4bd;border-radius:4px;padding:0 6px;font:600 12px 'IBM Plex Mono',monospace">Esc</span>verlassen</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <ul style="margin:0;padding:0 0 0 18px;display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.55;color:#c9d2cc;max-width:260px">
+            <li>The project name moves out of the page header and becomes the stele's plank label (<a href="#1f">1f</a>).</li>
+            <li>The page 1 summary is shortened so it fits in 3 lines at the larger size.</li>
+            <li>Page dots replace "Seite 1 von 4", and keycaps replace the prose key hint.</li>
+            <li>The screen centre drops from 2.95 m to about 2.1 m, tilted back 12°, so the reading pitch can be close to 0.</li>
+          </ul>
+        </div>
+      </article>
+
+      <!-- 1i toys -->
+      <article id="1i" style="width:680px;background:#151c19;border:1px solid #25302b;border-radius:14px;padding:30px;display:flex;flex-direction:column;gap:18px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <span style="font:600 14px 'IBM Plex Mono',monospace;background:#e0a13c;color:#1a1408;padding:4px 10px;border-radius:6px">1i</span>
+          <h3 style="margin:0;font-size:22px;font-weight:600">Shared toys, jungle-styled</h3>
+        </div>
+        <p style="margin:0;font-size:15px;line-height:1.6;color:#c9d2cc;text-wrap:pretty">The data and behaviour stay as they are. Each environment supplies a skin, and every toy gets a plank label (<a href="#1f">1f</a>) so it explains itself.</p>
+        <div style="display:grid;grid-template-columns:130px minmax(0,1fr) minmax(0,1.3fr);gap:0;font-size:14px;line-height:1.5">
+          <span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;padding:0 0 8px">TOY</span><span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;padding:0 0 8px">TODAY</span><span style="font:500 12px 'IBM Plex Mono',monospace;color:#9aa89f;padding:0 0 8px">JUNGLE</span>
+          <span style="border-top:1px solid #25302b;padding:10px 0;color:#e8ede8;font-weight:600">Terminal</span><span style="border-top:1px solid #25302b;padding:10px 8px 10px 0;color:#9aa89f">Grey monitor on a post</span><span style="border-top:1px solid #25302b;padding:10px 0;color:#c9d2cc">Moss-edged stone stele with the screen set into it (<a href="#1h">1h</a>)</span>
+          <span style="border-top:1px solid #25302b;padding:10px 0;color:#e8ede8;font-weight:600">Seed lever</span><span style="border-top:1px solid #25302b;padding:10px 8px 10px 0;color:#9aa89f">Green pipe lever on a rock</span><span style="border-top:1px solid #25302b;padding:10px 0;color:#c9d2cc">A liana hanging from a branch. Pulling it shakes the canopy and reseeds the undergrowth.</span>
+          <span style="border-top:1px solid #25302b;padding:10px 0;color:#e8ede8;font-weight:600">Commit ridge</span><span style="border-top:1px solid #25302b;padding:10px 8px 10px 0;color:#9aa89f">Red slabs next to the path</span><span style="border-top:1px solid #25302b;padding:10px 0;color:#c9d2cc">A boardwalk you walk on, with rail posts along it whose height shows commits per bucket</span>
+          <span style="border-top:1px solid #25302b;padding:10px 0;color:#e8ede8;font-weight:600">Languages</span><span style="border-top:1px solid #25302b;padding:10px 8px 10px 0;color:#9aa89f">Yellow pillar, coloured blocks</span><span style="border-top:1px solid #25302b;padding:10px 0;color:#c9d2cc">A bamboo stalk per language, height = share, with a coloured band near the top</span>
+          <span style="border-top:1px solid #25302b;padding:10px 0;color:#e8ede8;font-weight:600">Releases</span><span style="border-top:1px solid #25302b;padding:10px 8px 10px 0;color:#9aa89f">Cairns</span><span style="border-top:1px solid #25302b;padding:10px 0;color:#c9d2cc">Kept as cairns, with moss caps and the version carved on the top stone</span>
+          <span style="border-top:1px solid #25302b;padding:10px 0;color:#e8ede8;font-weight:600">Star lanterns</span><span style="border-top:1px solid #25302b;padding:10px 8px 10px 0;color:#9aa89f">Floating lights</span><span style="border-top:1px solid #25302b;padding:10px 0;color:#c9d2cc">Firefly swarms in the amber accent, one swarm per star</span>
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showAnnotations&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;View&quot;},&quot;showCurrent&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;View&quot;}}">
+const VIDEOS = [
+  { slop: 'Rost in 100 Sekunden', orig: 'Rust in 100 Seconds', bg: '#1b1d1f', word: 'RUST', wc: '#e0a13c', sub: 'in 100 seconds', slopThumb: 'ROST IN 100 SEKUNDEN', av: 'F', avBg: '#b5532a', meta: 'ferris.dev · 1,2 Mio. Aufrufe · vor 3 Jahren', dur: '1:40' },
+  { slop: 'Ich habe eine Tastatur von Kratzer gebaut', orig: 'I built a keyboard from scratch', bg: '#2f5d57', word: 'SCRATCH', wc: '#f4efe4', sub: 'keyboard build', slopThumb: 'VON KRATZER', av: 'K', avBg: '#2f5d57', meta: 'keeb lab · 418.000 Aufrufe · vor 1 Jahr', dur: '18:22' },
+  { slop: 'Warum der Himmel blau ist', orig: 'Why the sky is blue', bg: '#2b5f8f', word: 'BLUE?', wc: '#f4efe4', sub: 'rayleigh scattering', slopThumb: 'WARUM BLAU?', av: 'S', avBg: '#2b5f8f', meta: 'sky physics · 86.000 Aufrufe · vor 2 Jahren', dur: '9:05' },
+  { slop: 'Git Basis neu, erklärt', orig: 'Git rebase, explained', bg: '#26262e', word: 'REBASE', wc: '#86e0cf', sub: 'git rebase -i', slopThumb: 'BASIS NEU', av: 'G', avBg: '#6b4712', meta: 'git gud · 240.000 Aufrufe · vor 5 Jahren', dur: '12:31' },
+];
+const CARD_POS = [[352, 584], [352, 494], [505, 480], [432, 390]];
+const TAG_DATA = [
+  { x: 412, y: 592, kS: 'Kapitel · übersetzt', tS: 'Kapitel 3: Die Platine löten', kO: 'Chapter · original', tO: 'Chapter 3: Soldering the PCB' },
+  { x: 398, y: 522, kS: 'Tonspur · KI', tS: 'Deutsch (KI-Synchronisation)', kO: 'Audio · original', tO: 'English (original)' },
+  { x: 458, y: 462, kS: 'Kanalname · übersetzt', tS: 'Schlüsselbrett-Labor', kO: 'Channel · original', tO: 'keeb lab' },
+  { x: 512, y: 404, kS: 'Beschreibung · übersetzt', tS: 'In diesem Video bauen wir …', kO: 'Description · original', tO: 'In this video we build …' },
+];
+const VINE_DATA = [[470,622,16],[430,598,18],[400,566,16],[408,530,20],[432,492,16],[456,456,18],[476,412,16],[488,372,18],[360,622,14],[532,600,16],[542,500,18],[350,450,16],[520,250,14],[455,205,16],[590,215,12]];
+const TRAIL = [[490,672],[390,560],[470,440],[490,344]];
+const BUCKETS = [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0];
+const POST = [452, 630], ARCH = [490, 317], WALL = [685, 177];
+const SPOTS = {
+  stele: { x: 561, y: 374, r: 62 }, pull: { x: 400, y: 240, r: 46 }, wall: { x: 685, y: 177, r: 82 },
+  exhibit: { x: 365, y: 156, r: 60 }, cave: { x: 531, y: 84, r: 46 }, bamboo: { x: 615, y: 442, r: 64 }, cairn: { x: 320, y: 412, r: 54 },
+};
+const dist = (ax, ay, bx, by) => Math.hypot(ax - bx, ay - by);
+function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function samplePosts() {
+  const segs = []; let total = 0;
+  for (let i = 0; i < TRAIL.length - 1; i++) { const [ax, ay] = TRAIL[i], [bx, by] = TRAIL[i + 1]; const l = dist(ax, ay, bx, by); segs.push({ ax, ay, bx, by, l }); total += l; }
+  return BUCKETS.map((b, i) => {
+    let d = (i + 0.5) / BUCKETS.length * total;
+    for (const s of segs) { if (d <= s.l) { const t = d / s.l; const nx = -(s.by - s.ay) / s.l, ny = (s.bx - s.ax) / s.l; return { x: s.ax + (s.bx - s.ax) * t + nx * 14, y: s.ay + (s.by - s.ay) * t + ny * 14, s: 5 + b * 3, lit: false }; } d -= s.l; }
+    return { x: 490, y: 344, s: 5, lit: false };
+  });
+}
+
+class Component extends DCLogic {
+  mapRef = React.createRef();
+  keys = new Set();
+
+  fresh() {
+    const r = mulberry(11);
+    return {
+      px: 490, py: 660, tx: null, ty: null, lit: false, installed: false, off: false,
+      ring: 0, ringOrigin: ARCH, haze: 1, time: 0, seed: 1, pullPulse: 0, sway: 0, steleWake: 0.15, steleOpen: false,
+      vines: VINE_DATA.map(([x, y, r]) => ({ x, y, r, grow: 1 })),
+      tags: TAG_DATA.map((t) => ({ ...t, w: 0, seen: false })),
+      cards: CARD_POS.map(([x, y], i) => ({ x, y, v: VIDEOS[i], w: 0, seen: false })),
+      posts: samplePosts(),
+      flies: Array.from({ length: 18 }, () => { const x = 120 + r() * 720, y = 80 + r() * 580; return { x, y, hx: x, hy: y, ph: r() * 6.28 }; }),
+      once: {}, events: [{ time: 0, de: 'Ankunft am Südufer', en: 'Arrived on the south bank' }],
+    };
+  }
+
+  componentDidMount() {
+    this.sim = this.fresh();
+    this.last = performance.now();
+    const loop = (now) => { this.step(Math.min((now - this.last) / 1000, 0.05)); this.last = now; this.forceUpdate(); this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+
+  log(de, en, key) {
+    const s = this.sim;
+    if (key) { if (s.once[key]) return; s.once[key] = true; }
+    s.events.unshift({ time: s.time, de, en });
+    s.events = s.events.slice(0, 7);
+  }
+
+  globalClear(x, y) {
+    const s = this.sim;
+    return s.installed && !s.off && dist(x, y, s.ringOrigin[0], s.ringOrigin[1]) < s.ring;
+  }
+
+  step(dt) {
+    const s = this.sim; if (!s) return;
+    s.time += dt;
+    // movement
+    let vx = 0, vy = 0;
+    const k = this.keys;
+    if (k.has('w') || k.has('arrowup')) vy -= 1;
+    if (k.has('s') || k.has('arrowdown')) vy += 1;
+    if (k.has('a') || k.has('arrowleft')) vx -= 1;
+    if (k.has('d') || k.has('arrowright')) vx += 1;
+    const speed = k.has('shift') ? 170 : 95;
+    if (vx || vy) { s.tx = null; const l = Math.hypot(vx, vy); vx /= l; vy /= l; }
+    else if (s.tx !== null) { const d = dist(s.px, s.py, s.tx, s.ty); if (d < 3) s.tx = null; else { vx = (s.tx - s.px) / d; vy = (s.ty - s.py) / d; } }
+    const nx = Math.max(10, Math.min(950, s.px + vx * speed * dt));
+    const ny = Math.max(70, Math.min(670, s.py + vy * speed * dt));
+    const onBridge = (x) => x > 468 && x < 512;
+    const inStream = (y) => y > 294 && y < 342;
+    if (!inStream(ny) || onBridge(nx)) { s.px = nx; s.py = ny; } else if (!inStream(s.py) || onBridge(s.px)) { s.px = nx; }
+    // lantern
+    if (!s.lit && dist(s.px, s.py, POST[0], POST[1]) < 44) { s.lit = true; this.log('Laterne entzündet', 'The lantern lights up as you come near', 'lit'); }
+    // arch
+    if (!s.installed && onBridge(s.px) && s.py < 326) {
+      s.installed = true; s.lit = true; s.ring = 0; s.ringOrigin = ARCH;
+      this.log('Deslopify eingeschaltet: die Lichtung breitet sich aus', 'Deslopify on: the clearing spreads out from the arch', 'install');
+    }
+    if (s.installed && !s.off) s.ring = Math.min(1400, s.ring + 340 * dt);
+    s.haze += ((s.installed && !s.off ? Math.max(0, 1 - s.ring / 700) : 1) - s.haze) * Math.min(1, dt * 2);
+    const R = s.lit ? 84 : 0;
+    const inLight = (x, y) => R > 0 && dist(x, y, s.px, s.py) < R;
+    for (const v of s.vines) {
+      const clear = inLight(v.x, v.y) || this.globalClear(v.x, v.y);
+      v.grow = Math.max(0, Math.min(1, v.grow + (clear ? -dt * 3.2 : dt * 0.33)));
+    }
+    if (s.vines.some((v) => v.grow < 0.2)) this.log('Ranken ziehen sich vor dem Licht zurück', 'Vines pull back from the light', 'vine');
+    for (const t of s.tags) {
+      const on = inLight(t.x, t.y) || this.globalClear(t.x, t.y);
+      t.w = Math.max(0, Math.min(1, t.w + (on ? dt * 2.6 : -dt * 1.4)));
+      if (t.w >= 1 && !t.seen) { t.seen = true; this.log(`Tag: ${t.tO}`, `Tag flipped from “${t.tS}”`); }
+    }
+    for (const c of s.cards) {
+      const on = inLight(c.x, c.y) || this.globalClear(c.x, c.y);
+      c.w = Math.max(0, Math.min(1, c.w + (on ? dt * 2.2 : -dt * 1.1)));
+      if (c.w >= 1 && !c.seen) { c.seen = true; this.log(`Karte: ${c.v.orig}`, `Card wiped from “${c.v.slop}”`); }
+    }
+    for (const p of s.posts) if (!p.lit && dist(p.x, p.y, s.px, s.py) < 36) p.lit = true;
+    if (s.posts.some((p) => p.lit)) this.log('Geländer leuchtet: Commit-Verlauf', 'Rail posts light up: commit history', 'posts');
+    for (const f of s.flies) {
+      let tx = f.hx + Math.cos(s.time * 0.6 + f.ph) * 16, ty = f.hy + Math.sin(s.time * 0.5 + f.ph) * 12;
+      if (s.lit && dist(f.x, f.y, s.px, s.py) < 170) { tx = s.px + Math.cos(s.time * 1.4 + f.ph) * 34; ty = s.py + Math.sin(s.time * 1.4 + f.ph) * 26; }
+      f.x += (tx - f.x) * Math.min(1, dt * 1.5); f.y += (ty - f.y) * Math.min(1, dt * 1.5);
+    }
+    // proximity
+    let near = null, nd = Infinity;
+    for (const [id, sp] of Object.entries(SPOTS)) { const d = dist(s.px, s.py, sp.x, sp.y); if (d < sp.r && d < nd) { near = id; nd = d; } }
+    s.near = near;
+    const dStele = dist(s.px, s.py, SPOTS.stele.x, SPOTS.stele.y);
+    s.steleWake += ((dStele < 75 ? 1 : 0.15) - s.steleWake) * Math.min(1, dt * 3);
+    if (dStele < 75) this.log('Die Stele erwacht', 'The stele wakes up and shows page 1', 'stele');
+    if (!near || near !== 'stele') s.steleOpen = false;
+    s.sway = near === 'bamboo' ? Math.min(1, s.sway + dt * 3) : Math.max(0, s.sway - dt);
+    if (near === 'bamboo') this.log('Bambus raschelt: Sprachen', 'Bamboo rustles: languages', 'bamboo');
+    if (near === 'cairn') this.log('Steinmännchen: noch kein Release', 'Cairn: no release yet', 'cairn');
+    s.pullPulse = Math.max(0, s.pullPulse - dt * 2);
+  }
+
+  interact() {
+    const s = this.sim; if (!s) return;
+    if (s.near === 'pull') { s.seed++; s.pullPulse = 1; this.log('Liane gezogen: Unterholz neu gewachsen', 'Liana pulled: the undergrowth reshuffles'); }
+    else if (s.near === 'wall' && s.installed) {
+      s.off = !s.off;
+      if (s.off) this.log('Deslopify aus: der Slop wächst zurück', 'Deslopify off: the slop grows back');
+      else { s.ring = 0; s.ringOrigin = WALL; this.log('Deslopify an: neuer Ring von der Wand', 'Deslopify on: a new ring from the wall'); }
+    } else if (s.near === 'stele') { s.steleOpen = !s.steleOpen; if (s.steleOpen) this.log('Terminal bedient', 'Terminal takes the controls'); }
+    else if (s.near === 'exhibit') this.log('Panel öffnet /p/deslopify/info', 'The project panel opens');
+    else if (s.near === 'cave') this.log('Höhle hinter dem Wasserfall', 'The cave behind the waterfall');
+  }
+
+  promptFor() {
+    const s = this.sim;
+    switch (s.near) {
+      case 'pull': return 'Liane ziehen';
+      case 'wall': return s.installed ? (s.off ? 'Deslopify einschalten' : 'Deslopify ausschalten') : null;
+      case 'stele': return s.steleOpen ? 'Terminal verlassen' : 'Terminal bedienen';
+      case 'exhibit': return 'Details, README & Code';
+      case 'cave': return 'Höhle betreten';
+      default: return null;
+    }
+  }
+
+  plants() {
+    const s = this.sim;
+    if (this._plantSeed === s.seed) return this._plants;
+    const r = mulberry(s.seed * 97), out = [];
+    const greens = ['#3f6e34', '#4f8a3a', '#2f5a30', '#5d8f3c'];
+    while (out.length < 70) {
+      const x = r() * 950, y = 64 + r() * 610;
+      if (y > 290 && y < 346) continue;
+      const sz = 6 + r() * 14;
+      out.push({ left: x - sz / 2, top: y - sz / 2, s: sz, c: greens[out.length % 4] });
+    }
+    this._plantSeed = s.seed; this._plants = out;
+    return out;
+  }
+
+  view() {
+    const s = this.sim;
+    let best = null, bd = 120;
+    for (const c of s.cards) { const d = dist(c.x, c.y, s.px, s.py); if (d < bd) { bd = d; best = { kind: 'card', c }; } }
+    for (const t of s.tags) { const d = dist(t.x, t.y, s.px, s.py); if (d < bd - 10) { bd = d; best = { kind: 'tag', t }; } }
+    if (!best && dist(s.px, s.py, SPOTS.stele.x, SPOTS.stele.y) < 90) best = { kind: 'stele' };
+    if (!best) return { kind: 'none', caption: '' };
+    if (best.kind === 'stele') return { kind: 'stele', caption: 'Stele · terminal' };
+    if (best.kind === 'card') {
+      const { c } = best, v = c.v, o = c.w > 0.5;
+      return { kind: 'card', caption: o ? 'Original' : 'Übersetzt · translated', edge: o ? '#e0a13c' : 'oklch(0.52 0.19 335)',
+        bg: v.bg, word: v.word, wordColor: v.wc, sub: v.sub, slopThumb: v.slopThumb, wipePct: (c.w * 100).toFixed(1),
+        seamO: c.w > 0.02 && c.w < 0.98 ? 1 : 0, dur: v.dur, avatar: v.av, avatarBg: v.avBg, title: o ? v.orig : v.slop, meta: v.meta,
+        badge: o ? 'Original · Englisch' : 'Automatisch übersetzt · Audio: Deutsch (KI)', badgeBg: o ? '#e0a13c' : 'oklch(0.52 0.19 335)', badgeInk: o ? '#1a1408' : '#fff' };
+    }
+    const { t } = best, o = t.w > 0.5;
+    return { kind: 'tag', caption: o ? 'Original' : 'Übersetzt · translated', sx: Math.max(0.04, Math.abs(Math.cos(t.w * Math.PI))).toFixed(3),
+      bg: o ? '#5a3d27' : '#efe8ee', bd: o ? '#e0a13c' : 'oklch(0.52 0.19 335)', kicker: o ? t.kO : t.kS, kickerInk: o ? '#e0a13c' : 'oklch(0.45 0.19 335)',
+      ink: o ? '#f4e6c8' : '#1d1320', text: o ? t.tO : t.tS };
+  }
+
+  renderVals() {
+    const base = { showAnnotations: this.props.showAnnotations ?? true, showCurrent: this.props.showCurrent ?? true, mapRef: this.mapRef };
+    const s = this.sim;
+    const handlers = {
+      onKeyDown: (e) => {
+        const k = e.key.toLowerCase();
+        if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
+        if (k === 'e' && !e.repeat) this.interact();
+        else if (k === 'r') { this.sim = this.fresh(); }
+        else this.keys.add(k);
+      },
+      onKeyUp: (e) => this.keys.delete(e.key.toLowerCase()),
+      onFocus: () => { this.focused = true; this.everFocused = true; },
+      onBlur: () => { this.focused = false; this.keys.clear(); },
+      onMapClick: (e) => {
+        const el = e.currentTarget; el.focus();
+        const r = el.getBoundingClientRect(), sc = r.width / 960;
+        if (this.sim) { this.sim.tx = (e.clientX - r.left) / sc; this.sim.ty = (e.clientY - r.top) / sc; }
+      },
+    };
+    if (!s) return { ...base, ...handlers, plants: [], posts: [], cards: [], vines: [], tags: [], flies: [], events: [], showFocusHint: true, lanternOnPost: true, viewIsNone: true };
+    const on = s.installed && !s.off;
+    const R = s.lit ? 84 : 0;
+    const v = this.view();
+    const prompt = this.promptFor();
+    const cleared = s.cards.filter((c) => c.w > 0.5).length + s.tags.filter((t) => t.w > 0.5).length + s.vines.filter((x) => x.grow < 0.3).length;
+    const total = s.cards.length + s.tags.length + s.vines.length;
+    const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+    return {
+      ...base, ...handlers,
+      plants: this.plants(),
+      posts: s.posts.map((p) => ({ left: p.x - p.s / 2, top: p.y - p.s / 2, s: p.s, bg: p.lit ? '#f2c27a' : '#6b5a44', glow: p.lit ? '0 0 10px 3px rgba(224,161,60,.55)' : 'none' })),
+      cards: s.cards.map((c, i) => ({ left: c.x - 17, top: c.y - 10, n: i + 1, bd: c.w > 0.5 ? '#e0a13c' : 'oklch(0.6 0.19 335)', glow: c.w > 0.02 && c.w < 0.98 ? '0 0 14px 4px rgba(224,161,60,.6)' : 'none' })),
+      vines: s.vines.map((x) => { const d = x.r * 2 * (0.25 + 0.75 * x.grow); return { left: x.x - d / 2, top: x.y - d / 2, d, o: (0.15 + 0.85 * x.grow).toFixed(2) }; }),
+      tags: s.tags.map((t) => ({ left: t.x - 14, top: t.y - 6, bg: t.w > 0.5 ? '#5a3d27' : '#efe8ee', bd: t.w > 0.5 ? '#e0a13c' : 'oklch(0.52 0.19 335)', sx: Math.max(0.08, Math.abs(Math.cos(t.w * Math.PI))).toFixed(2) })),
+      flies: s.flies.map((f, i) => ({ left: f.x - 2, top: f.y - 2, o: (0.5 + 0.5 * Math.sin(s.time * 3 + i)).toFixed(2) })),
+      hazeMask: s.lit ? `radial-gradient(circle at ${s.px.toFixed(0)}px ${s.py.toFixed(0)}px, transparent 0, transparent 60px, #000 110px)` : 'none',
+      hazeO: s.haze.toFixed(3),
+      ringShow: s.installed && !s.off && s.ring < 1300,
+      ringLeft: s.ringOrigin[0] - s.ring, ringTop: s.ringOrigin[1] - s.ring, ringD: s.ring * 2, ringO: Math.max(0, 1 - s.ring / 1300).toFixed(2),
+      lightLeft: s.px - R * 1.3, lightTop: s.py - R * 1.3, lightD: R * 2.6,
+      lanternOnPost: !s.lit,
+      playerLeft: s.px - 8, playerTop: s.py - 8, playerBg: s.lit ? '#f2c27a' : '#c9b48a', playerGlow: s.lit ? '0 0 18px 6px rgba(240,190,90,.55)' : 'none',
+      archBorder: on ? '#e0a13c' : '#8a7a5c', archGlow: on ? '0 0 22px 6px rgba(224,161,60,.5)' : 'none',
+      wallEdge: on ? '#e0a13c' : 'oklch(0.6 0.19 335)',
+      bambooShift: (Math.sin(s.time * 9) * 3 * s.sway).toFixed(2), bambooLabel: s.near === 'bamboo',
+      cairnGlow: s.near === 'cairn' ? '0 0 14px 4px rgba(224,161,60,.6)' : 'none', cairnLabel: s.near === 'cairn',
+      steleGlow: s.steleWake.toFixed(2), steleHint: s.steleOpen ? 'Seite 1 von 4 · ↑↓ blättern · Esc verlassen' : 'E  Terminal bedienen',
+      pullScale: (1 + s.pullPulse * 0.5).toFixed(2),
+      hasPrompt: !!prompt, prompt: prompt || '',
+      showFocusHint: !this.everFocused,
+      view: v, viewCaption: v.caption, viewIsCard: v.kind === 'card', viewIsTag: v.kind === 'tag', viewIsStele: v.kind === 'stele', viewIsNone: v.kind === 'none',
+      events: s.events.map((e, i) => ({ t: fmt(e.time), de: e.de, en: e.en, o: (1 - i * 0.11).toFixed(2) })),
+      progressText: `${cleared}/${total}`, progressPct: ((cleared / total) * 100).toFixed(0),
+      stateText: `Laterne ${s.lit ? 'an' : 'aus'} · Deslopify ${s.installed ? (s.off ? 'aus' : 'an') : 'noch nicht'}`,
+    };
+  }
+}
+</script>
+</body>
+</html>

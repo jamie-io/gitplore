@@ -1,0 +1,4 @@
+Updated and committed `CHANGELOG.md` with dated `**CODEX:**` fixed entries.
+
+Commit: `34c6855 Document Deslopify fixes`  
+Worktree clean.

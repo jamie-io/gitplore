@@ -1,0 +1,33 @@
+1. `src/app/features/world/scene-director.ts:86-94` — high — Superseded builds return without disposing environment/scene; card/tag textures, meshes, and Terminal listeners leak during rapid navigation. — Dispose abandoned environment or scene; make ownership idempotent.
+
+2. `src/app/world/projects/deslopify/deslopify.scene.ts:315-345` — high — `R` resets flow, cards, lantern, and air, but not vine `grow` or tag `w`; restarted world retains transitioned visuals. — Add `reset()` to `SlopVines`/`SlopTags`, snap state and visuals, call from restart.
+
+3. `src/app/world/environments/jungle.ts:670-679` — medium — Cave creates `HiddenPlace` without `onEnter`, therefore exposes no interactable and never offers required `Höhle betreten`. — Add Jungle cave interactable with exact prompt and callback.
+
+4. `src/app/world/landmarks/base/screen.landmark.ts:45-55` — medium — Deslopify exhibit prompt remains `${title} ansehen`; required `Details, README & Code` export is unused. — Add configurable landmark prompt and pass `PROMPTS.exhibit`.
+
+5. `src/app/world/projects/deslopify/feed-card.ts:195-205` — medium — `smoothstep(1.0, 0.96, uWipe)` has reversed edges; GLSL result is undefined near completion, unsafe on SwiftShader/WebGL1. — Use `1.0 - smoothstep(0.96, 1.0, uWipe)`.
+
+6. `src/app/world/environments/jungle.ts:592-605` — medium — Fireflies always use input count `120`; actual counts become roughly `15/72/120`, not required `40/90/160`, and no lantern-follow behavior exists. — Add tier-keyed counts and drive follow target/offsets from lantern state.
+
+7. `src/app/world/environments/sun.ts:6-31,80-96` — medium — Jungle passes only `normalBias`; shadow box remains extent `64`, far `250`, instead of required extent `26`, far `90`. — Add scoped shadow options and pass Jungle values; preserve other-world defaults.
+
+8. `src/app/world/environments/jungle-layout.ts:338-385` — medium — Jungle creates 15 vine slots, while plan/spec requires 26 procedural vines. — Add remaining canonical slots and assert count.
+
+9. `src/app/world/projects/deslopify/slop-vines.ts:15-20,122-141` — medium — Uses retreat/regrow `2.6/.3` instead of plan contract `3.2/.33`; transition changes only length, not required diameter/opacity. — Apply canonical rates and visual diameter/opacity formulas.
+
+10. `src/app/world/projects/deslopify/deslopify.data.ts:127-128` — medium — `CAPTION` is canonical but never rendered; cards lack required translated/original caption strip. — Render caption above thumbnail and test canvas output.
+
+11. `src/app/world/projects/deslopify/deslopify.scene.ts:243-272,357-429` — medium — Update loop allocates closures, `FlowLight` objects, ring getter objects, offer arrays, spreads, and status strings. — Cache callbacks/state/arrays; rebuild offers and publish status only on changes.
+
+12. `src/app/world/projects/deslopify/deslopify.scene.ts:367-380` — medium — Card wipe starts only after flow progress exceeds `.5`; visual timeline begins ~227 ms after clearing, then adds 360 ms, violating required 120/180/360 ms sequence. — Trigger card wipe at clear onset using flow timestamps.
+
+13. `src/app/world/landmarks/base/label.ts:62-74` — medium — Font-load callback can run after disposal and assign fresh geometry to detached mesh, leaking geometry across world exits. — Add disposed guard and ignore late callback.
+
+14. `src/app/world/environments/data/commit-ridge.ts:185-205` — low — Jungle route emits `floor(25.96/.32)=81` planks; required boardwalk count is 108. Constant currently acts only as cap. — Place exactly 108 planks or extend boardwalk path.
+
+15. `tests/deslopify.spec.ts:31-37` — low — Browser gate jumps through panel hook, directly installs wall state, and never crosses bridge/arch; broken collision or trigger can pass. — Walk actual route or add explicit arch-crossing hook and assertions.
+
+16. `src/app/world/environments/flora.ts:347-380` — low — `bigLeafPlant` and `groundFern` have no runtime consumers after foliage refactor; remain only as stale exports/spec fixtures. — Remove dead factories/tests or retain through deliberate compatibility use.
+
+Overall verdict: REQUEST CHANGES. Core interaction, reset lifecycle, resource disposal, shader safety, quality tiers, vine behavior, captions, and browser coverage contain confirmed defects.

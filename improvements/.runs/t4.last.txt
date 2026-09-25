@@ -1,0 +1,14 @@
+Fixed all 8 review points.
+
+- Default terminal header restored.
+- Jungle stele rebuilt with grounded tapered slab, recessed tilted panel, slab collider, correct sizes, fonts, dots, keycaps, label sizing, and font reload.
+- Liana now swings independently; branch and trunk stay fixed.
+- Specs expanded for all corrected behavior.
+
+Verification:
+
+- Focused specs: 20/20 pass.
+- Full suite: 1176 pass; 37 known Node 25 `localStorage.clear` failures.
+- `npx tsc -b --noEmit`: pass.
+- ESLint changed files: pass.
+- No commit. `CHANGELOG.md` absent.

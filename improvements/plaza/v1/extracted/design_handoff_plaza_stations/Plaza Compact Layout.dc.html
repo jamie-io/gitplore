@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<style>
+body{margin:0;background:#F7F3EC;color:#26221E;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#B8583A}a:hover{color:#26221E}
+</style>
+</helmet>
+
+<div style="max-width:1240px;margin:0 auto;padding:56px 40px 96px;display:flex;flex-direction:column;gap:64px">
+
+<header style="display:flex;flex-direction:column;gap:14px;max-width:760px">
+<div style="font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6B635A">gitplore · Plaza · layout plan · 25 Sep 2026</div>
+<h1 style="margin:0;font-size:44px;line-height:1.05;font-weight:600;letter-spacing:-.02em">A smaller Plaza: every prop within 4 seconds</h1>
+<p style="margin:0;font-size:17px;line-height:1.55;color:#4A443D;text-wrap:pretty">Today the square is 72 m across and the props stand on a 20 m arc, so most of what a visitor sees is empty paving. The three layouts below shrink the square to a stage, keep the fountain, mosaic ring, festoons, pastel houses and return portal, and drop the hidden rooftop and the seed lever. Distances use the current walk speed of 4.5 m/s.</p>
+</header>
+
+<section id="2a" style="display:flex;flex-direction:column;gap:28px;background:#fff;border-radius:12px;padding:32px">
+<div style="display:flex;flex-direction:column;gap:10px;max-width:820px">
+<div style="display:flex;align-items:center;gap:10px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;background:#B8583A;color:#fff;padding:3px 8px;border-radius:4px">2a</span><span style="font-size:13px;color:#6B635A">Build spec for <a href="#1b">1b</a> · chosen 25 Sep 2026</span></div>
+<h2 style="margin:0;font-size:30px;font-weight:600;letter-spacing:-.01em">Stations: coordinates, glide, models</h2>
+<p style="margin:0;font-size:15px;line-height:1.55;color:#4A443D;text-wrap:pretty">World units as in <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza.ts</span>: metres, fountain at the origin, −Z is north and the direction <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">spawnYaw = 0</span> looks. <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">rotationY</span> follows the exhibit convention, 0 faces +Z. Every prop faces the fountain; its glide stop is 3 m in front of it on an 8 m circle.</p>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<h3 style="margin:0;font-size:18px;font-weight:600">Constants</h3>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1px;background:#E6DED2;border:1px solid #E6DED2;border-radius:8px;overflow:hidden;font-size:14px;line-height:1.4">
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">SIZE</span><span>130 → 60</span></div>
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">FACADE</span><span>36 → 18</span></div>
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">HOUSE_DEPTH</span><span>9 → 4, height 7–10 m</span></div>
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">STREET</span><span>5 → 3, south side only</span></div>
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">STATION_RADIUS</span><span>new · 11 (props)</span></div>
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">GLIDE_RADIUS</span><span>new · 8 (stops and path)</span></div>
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">tiles.ring</span><span>inner 5.2 → 4.2, outer 9.8 → 7</span></div>
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">FOUNTAIN.lower.radius</span><span>3, collider 3.2</span></div>
+<div style="background:#fff;padding:12px 14px;display:flex;flex-direction:column;gap:3px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">spawn / spawnYaw</span><span>(0, 0, 17.5) / 0 · player lands ≈ (0, 13.5)</span></div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<h3 style="margin:0;font-size:18px;font-weight:600">Stations</h3>
+<div style="display:grid;grid-template-columns:auto minmax(120px,1fr) minmax(140px,1.2fr) minmax(90px,.7fr) minmax(130px,1fr) minmax(0,1.6fr);font-size:14px;line-height:1.4;border:1px solid #E6DED2;border-radius:8px;overflow:hidden">
+<div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-weight:600">Key</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-weight:600">Prop</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-weight:600">Position (x, z)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-weight:600">rotationY</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-weight:600">Glide stop</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-weight:600">Source</div>
+<div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace">1</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2">Terminal · SW</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">(−7.8, 7.8)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">2.356</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">(−5.66, 5.66)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">toyLayout().terminal</span></div>
+<div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace">2</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2">Project board · NW</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">(−7.8, −7.8)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">0.785</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">(−5.66, −5.66)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">anchors(1)</span>, replaces the arc</div>
+<div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace">3</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2">Commit ridge · NE</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">(5.7, −9.9) → (9.9, −5.7)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2">tangent</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">(5.66, −5.66)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">ridge</span>; <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">releases</span> and <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">stars</span> share the segment</div>
+<div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace">4</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2">Language pillars · SE</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">(7.8, 7.8)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">−2.356</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2;font-family:ui-monospace,Menlo,monospace;font-size:13px">(5.66, 5.66)</div><div style="padding:10px 12px;border-bottom:1px solid #E6DED2"><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">languages</span>, row along the tangent</div>
+<div style="padding:10px 12px;font-family:ui-monospace,Menlo,monospace">—</div><div style="padding:10px 12px">Return portal · S street</div><div style="padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:13px">(0, 17.5)</div><div style="padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:13px">−π</div><div style="padding:10px 12px">none, it sits behind the arrival</div><div style="padding:10px 12px">derived from <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">spawn</span> as today</div>
+</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px">
+<div style="display:flex;flex-direction:column;gap:12px">
+<h3 style="margin:0;font-size:18px;font-weight:600">Dressing</h3>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px;line-height:1.45">
+<div style="color:#6B635A">Masts</div><div style="font-family:ui-monospace,Menlo,monospace;font-size:13px">(±12, ±12)</div>
+<div style="color:#6B635A">Festoons</div><div>the four sides between masts, plus both diagonals, as today</div>
+<div style="color:#6B635A">Benches</div><div>4 at r = 5.2 on N, E, S, W, facing the fountain; clear of the 8 m glide circle</div>
+<div style="color:#6B635A">Cypresses</div><div>8 at <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">(±9, ±16.5)</span> and <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">(±16.5, ±9)</span></div>
+<div style="color:#6B635A">Lamps</div><div>wall lamps on the houses instead of 8 posts</div>
+<div style="color:#6B635A">Medallions</div><div>4 mosaic discs, Ø 1.8 m, at the glide stops; they are the click targets on the floor</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<h3 style="margin:0;font-size:18px;font-weight:600">Glide</h3>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px;line-height:1.45">
+<div style="color:#6B635A">Trigger</div><div>click a prop or its medallion, or press 1–4</div>
+<div style="color:#6B635A">Path</div><div>straight to the 8 m circle, the shorter arc along it, then stop; never through the fountain</div>
+<div style="color:#6B635A">Timing</div><div><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">clamp(length / 10, 0.8, 2.2)</span> s, ease in and out</div>
+<div style="color:#6B635A">Camera</div><div>third-person follow as today; yaw eases onto the prop in the last 0.5 s</div>
+<div style="color:#6B635A">Cancel</div><div>any movement key or mouse look hands control back at once</div>
+<div style="color:#6B635A">Reduced motion</div><div>0.2 s fade to black, place, fade in</div>
+<div style="color:#6B635A">HUD</div><div>bottom centre, next to the prompt: <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">1–4</span> Stationen</div>
+</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<h3 style="margin:0;font-size:18px;font-weight:600">Code changes</h3>
+<div style="display:grid;grid-template-columns:minmax(200px,auto) 1fr;gap:10px 20px;font-size:14px;line-height:1.45">
+<div style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza.ts</div><div>new constants; <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">houseRow(side, seed, street)</span> so only the south row opens; delete rooftop, stairs, guards, <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">flatRoofHouse</span>; implement <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">toyLayout()</span>, <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">anchors()</span> and <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">stations</span>; load the GLBs below</div>
+<div style="font-family:ui-monospace,Menlo,monospace;font-size:13px">environment.ts</div><div>optional <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">stations?: readonly Station[]</span> with <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">{ key, label, stop, yaw, targetId }</span>; <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">ToyLayout.lever</span> becomes optional</div>
+<div style="font-family:ui-monospace,Menlo,monospace;font-size:13px">project.scene.ts</div><div>build <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">SeedLever</span> only when the layout has a lever</div>
+<div style="font-family:ui-monospace,Menlo,monospace;font-size:13px">player-controller.ts</div><div><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">glide(path, duration)</span> with cancel; stations in any world use it</div>
+<div style="font-family:ui-monospace,Menlo,monospace;font-size:13px">HUD</div><div>station hint, keys 1–4</div>
+<div style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza.spec.ts</div><div>drop rooftop tests; add: glide path clears every collider by 0.5 m, every prop is within 25 m of the arrival</div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:12px">
+<h3 style="margin:0;font-size:18px;font-weight:600">Blender export rules</h3>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 28px;font-size:14px;line-height:1.5;color:#26221E">
+<div>Metres, Y up on export, front faces +Z, pivot on the ground at the footprint centre.</div>
+<div>One file per model in <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">assets-src/models/</span>, prefixed <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza-</span>: <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza-fountain.glb</span>, <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza-house-a…f.glb</span>, <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza-corner.glb</span>, <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza-arch.glb</span>.</div>
+<div>Stucco, shutter and awning faces in separate vertex-colour groups named <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">stucco</span>, <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">shutter</span>, <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">awning</span>, so <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">STUCCO</span> and <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">SHUTTERS</span> keep tinting per house.</div>
+<div>An empty named <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">collider</span> box per model sets the footprint; the loader reads it instead of hand-written AABBs.</div>
+<div>House fronts sit exactly on the model's +Z face at z = depth / 2, so <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">houseRow</span> places them flush on <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">FACADE</span>.</div>
+<div>Then <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">npm run assets:optimize</span> as today.</div>
+</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:20px">
+<h2 style="margin:0;font-size:22px;font-weight:600">To scale</h2>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<svg viewBox="-46 -46 92 92" style="width:100%;background:#fff;border-radius:6px">
+<rect x="-45" y="-45" width="90" height="90" fill="#E8C48A"></rect><rect x="-36" y="-36" width="72" height="72" fill="#EADCC2"></rect>
+<circle r="10" fill="none" stroke="#B8583A" stroke-width="1.2"></circle><circle r="4.5" fill="#7FC8D0"></circle>
+<circle cx="-7.1" cy="1.4" r="1.6" fill="#F2C230" stroke="#26221E" stroke-width=".4"></circle>
+</svg>
+<div style="font-size:14px;font-weight:600">Today · 72 m square</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<svg viewBox="-46 -46 92 92" style="width:100%;background:#fff;border-radius:6px">
+<rect x="-45" y="-45" width="90" height="90" fill="none" stroke="#D9CFBF" stroke-width=".5" stroke-dasharray="1.5 1.5"></rect>
+<rect x="-14" y="-14" width="28" height="28" fill="#E8C48A"></rect><rect x="-11" y="-11" width="22" height="22" fill="#EADCC2"></rect>
+<circle r="4.5" fill="none" stroke="#B8583A" stroke-width=".8"></circle><circle r="2.2" fill="#7FC8D0"></circle>
+<circle cx="0" cy="8" r="1.2" fill="#F2C230" stroke="#26221E" stroke-width=".3"></circle>
+</svg>
+<div style="font-size:14px;font-weight:600"><a href="#1a" style="color:inherit;text-decoration:none">1a</a> · 22 m square</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<svg viewBox="-46 -46 92 92" style="width:100%;background:#fff;border-radius:6px">
+<rect x="-45" y="-45" width="90" height="90" fill="none" stroke="#D9CFBF" stroke-width=".5" stroke-dasharray="1.5 1.5"></rect>
+<rect x="-22" y="-22" width="44" height="44" fill="#E8C48A"></rect><rect x="-18" y="-18" width="36" height="36" fill="#EADCC2"></rect>
+<circle r="7" fill="none" stroke="#B8583A" stroke-width="1"></circle><circle r="3" fill="#7FC8D0"></circle>
+<circle cx="0" cy="13" r="1.4" fill="#F2C230" stroke="#26221E" stroke-width=".3"></circle>
+</svg>
+<div style="font-size:14px;font-weight:600"><a href="#1b" style="color:inherit;text-decoration:none">1b</a> · 36 m square</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<svg viewBox="-46 -46 92 92" style="width:100%;background:#fff;border-radius:6px">
+<rect x="-45" y="-45" width="90" height="90" fill="none" stroke="#D9CFBF" stroke-width=".5" stroke-dasharray="1.5 1.5"></rect>
+<rect x="-16" y="-16" width="32" height="32" fill="#E8C48A"></rect><rect x="-13" y="-13" width="26" height="26" fill="#EADCC2"></rect>
+<circle r="5" fill="none" stroke="#B8583A" stroke-width=".8"></circle><circle r="2.5" fill="#7FC8D0"></circle>
+<circle r="11" fill="none" stroke="#26221E" stroke-width=".4" stroke-dasharray="1 1"></circle>
+</svg>
+<div style="font-size:14px;font-weight:600"><a href="#1c" style="color:inherit;text-decoration:none">1c</a> · 26 m square</div>
+</div>
+</div>
+<p style="margin:0;font-size:14px;color:#6B635A">Dashed outline: today's footprint. Yellow: spawn. Dashed circle in 1c: camera orbit.</p>
+</section>
+
+<section style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:40px;align-items:start">
+<svg viewBox="-46 -46 92 92" style="width:100%;background:#fff;border-radius:6px">
+<rect x="-45" y="-45" width="40" height="9" fill="#E8C48A"></rect><rect x="5" y="-45" width="40" height="9" fill="#EAB4AE"></rect>
+<rect x="-45" y="36" width="40" height="9" fill="#C4D2B0"></rect><rect x="5" y="36" width="40" height="9" fill="#F0B98F"></rect>
+<rect x="-45" y="-36" width="9" height="31" fill="#B8CADB"></rect><rect x="-45" y="5" width="9" height="31" fill="#F2E4C8"></rect>
+<rect x="36" y="-36" width="9" height="31" fill="#E39A7C"></rect><rect x="36" y="5" width="9" height="31" fill="#F0D88C"></rect>
+<rect x="-36" y="-36" width="72" height="72" fill="#EADCC2"></rect>
+<rect x="-6" y="-26" width="4.4" height="3.2" fill="#35609A" opacity=".85"></rect>
+<text x="-3.8" y="-27.2" font-size="2.4" text-anchor="middle" fill="#35609A">rooftop</text>
+<circle r="10" fill="none" stroke="#35609A" stroke-width="1.2"></circle><circle r="8.6" fill="none" stroke="#B8583A" stroke-width=".8"></circle>
+<circle r="4.5" fill="#7FC8D0"></circle>
+<line x1="-6.5" y1="-1.1" x2="-1.6" y2="-18.5" stroke="#4A2F8F" stroke-width="1.4"></line>
+<path d="M-7.1 1.4 L0 -20.5" stroke="#26221E" stroke-width=".5" stroke-dasharray="1.2 1" fill="none"></path>
+<circle cx="0" cy="-20.5" r="1.5" fill="#26221E"></circle><circle cx="-9.3" cy="-6.6" r="1.5" fill="#26221E"></circle>
+<circle cx="-0.2" cy="-9.5" r="1.5" fill="#26221E"></circle><circle cx="-6.5" cy="-15.5" r="1.5" fill="#26221E"></circle>
+<circle cx="-8.1" cy="4.3" r="1.5" fill="#26221E"></circle>
+<circle cx="-7.1" cy="1.4" r="1.4" fill="#F2C230" stroke="#26221E" stroke-width=".4"></circle>
+<text x="3" y="-10" font-size="2.6" fill="#26221E">23 m · 5.1 s</text>
+<line x1="-40" y1="41" x2="-30" y2="41" stroke="#26221E" stroke-width=".6"></line><text x="-28.5" y="42" font-size="2.6" fill="#26221E">10 m</text>
+</svg>
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#6B635A">Today</div>
+<h2 style="margin:0;font-size:28px;font-weight:600;letter-spacing:-.01em">72 × 72 m, props clustered on one side</h2>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:10px 20px;font-size:15px;line-height:1.45">
+<div style="color:#6B635A">House fronts</div><div>36 m from centre, four open streets to the hills</div>
+<div style="color:#6B635A">Exhibits</div><div>semicircle, r = 20 m, 198° arc</div>
+<div style="color:#6B635A">Spawn → board</div><div>23 m, 5.1 s straight line</div>
+<div style="color:#6B635A">Arrival frame</div><div>fountain, bench and avatar fill the view; board and ridge sit small and overlap</div>
+<div style="color:#6B635A">Removed</div><div>rooftop house, 17-step stair, guard rails; seed lever</div>
+</div>
+<p style="margin:0;font-size:15px;line-height:1.55;color:#4A443D;text-wrap:pretty">The project content fits inside a 21 m circle, but the square is built for 72 m. Every option below starts from that 21 m and builds the houses directly around it.</p>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:24px">
+<h2 style="margin:0;font-size:22px;font-weight:600">Three layouts</h2>
+<div style="display:flex;flex-wrap:wrap;gap:28px;align-items:stretch">
+
+<div id="1a" style="flex:1 1 340px;min-width:0;background:#fff;border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:10px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;background:#26221E;color:#fff;padding:3px 8px;border-radius:4px">1a</span><span style="font-size:13px;color:#6B635A">Walkable</span></div>
+<h3 style="margin:0;font-size:22px;font-weight:600;line-height:1.2">Diorama: everything in the first frame</h3>
+<svg viewBox="-15 -15 30 30" style="width:100%;background:#FBF8F3;border-radius:6px">
+<rect x="-14" y="-14" width="5.5" height="3" fill="#E8C48A"></rect><rect x="-8.5" y="-14" width="5.5" height="3" fill="#EAB4AE"></rect><rect x="-3" y="-14" width="5.5" height="3" fill="#C4D2B0"></rect><rect x="2.5" y="-14" width="5.5" height="3" fill="#F0B98F"></rect><rect x="8" y="-14" width="6" height="3" fill="#B8CADB"></rect>
+<rect x="-14" y="11" width="6" height="3" fill="#F2E4C8"></rect><rect x="-8" y="11" width="6" height="3" fill="#E39A7C"></rect><rect x="2" y="11" width="6" height="3" fill="#F0D88C"></rect><rect x="8" y="11" width="6" height="3" fill="#EAB4AE"></rect>
+<rect x="-14" y="-11" width="3" height="7" fill="#F0B98F"></rect><rect x="-14" y="-4" width="3" height="7" fill="#B8CADB"></rect><rect x="-14" y="3" width="3" height="8" fill="#E8C48A"></rect>
+<rect x="11" y="-11" width="3" height="8" fill="#F2E4C8"></rect><rect x="11" y="-3" width="3" height="7" fill="#E39A7C"></rect><rect x="11" y="4" width="3" height="7" fill="#C4D2B0"></rect>
+<rect x="-11" y="-11" width="22" height="22" fill="#EADCC2"></rect>
+<line x1="-10.5" y1="-10.5" x2="10.5" y2="10.5" stroke="#E39A7C" stroke-width=".1" stroke-dasharray=".3 .3"></line><line x1="10.5" y1="-10.5" x2="-10.5" y2="10.5" stroke="#E39A7C" stroke-width=".1" stroke-dasharray=".3 .3"></line>
+<circle r="4.5" fill="none" stroke="#35609A" stroke-width=".5"></circle><circle r="3.9" fill="none" stroke="#B8583A" stroke-width=".3"></circle>
+<circle r="2.2" fill="#7FC8D0"></circle><circle r="0.9" fill="#D9CFBF"></circle>
+<rect x="-1.5" y="-7.9" width="4" height=".8" fill="#4A2F8F"></rect>
+<path d="M0 8 Q 4 0 0.5 -7" stroke="#26221E" stroke-width=".14" stroke-dasharray=".4 .3" fill="none"></path>
+<circle cx="-6.5" cy="-1.5" r=".7" fill="#26221E"></circle><text x="-6.5" y="-1.2" font-size=".8" text-anchor="middle" fill="#fff">1</text>
+<circle cx="-4" cy="-6" r=".7" fill="#26221E"></circle><text x="-4" y="-5.7" font-size=".8" text-anchor="middle" fill="#fff">2</text>
+<circle cx="0.5" cy="-9" r=".7" fill="#26221E"></circle><text x="0.5" y="-8.7" font-size=".8" text-anchor="middle" fill="#fff">3</text>
+<circle cx="5" cy="-5.5" r=".7" fill="#26221E"></circle><text x="5" y="-5.2" font-size=".8" text-anchor="middle" fill="#fff">4</text>
+<circle cx="0" cy="11.2" r=".7" fill="#26221E"></circle><text x="0" y="11.5" font-size=".8" text-anchor="middle" fill="#fff">5</text>
+<circle cx="0" cy="8" r=".6" fill="#F2C230" stroke="#26221E" stroke-width=".12"></circle>
+<text x="3.3" y="3.2" font-size=".9" fill="#26221E">17 m · 3.8 s</text>
+<line x1="-13" y1="13.4" x2="-8" y2="13.4" stroke="#26221E" stroke-width=".15"></line><text x="-7.5" y="13.7" font-size=".8" fill="#26221E">5 m</text>
+</svg>
+<div style="font-size:13px;line-height:1.6;color:#4A443D">1 Terminal · 2 Project board · 3 Commit ridge · 4 Language pillars · 5 Return portal (south street)</div>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px;line-height:1.45">
+<div style="color:#6B635A">Square</div><div>22 × 22 m, houses 3 m deep, one street (south)</div>
+<div style="color:#6B635A">Props</div><div>north half of an 8 m circle, all within ±36° of the spawn's view</div>
+<div style="color:#6B635A">Farthest walk</div><div>17 m around the basin, 3.8 s</div>
+<div style="color:#6B635A">Controls</div><div>unchanged: WASD, mouse, E</div>
+<div style="color:#6B635A">Engine</div><div>no changes; new constants and colliders in <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza.ts</span></div>
+</div>
+<p style="margin:0;font-size:14px;line-height:1.55;color:#4A443D;text-wrap:pretty">The smallest change. Closing three streets turns the houses into a wall that frames the props; the south street holds the portal behind the visitor, like an entrance they just came through.</p>
+</div>
+
+<div id="1b" style="flex:1 1 340px;min-width:0;background:#fff;border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:10px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;background:#26221E;color:#fff;padding:3px 8px;border-radius:4px">1b</span><span style="font-size:13px;color:#6B635A">Walkable + travel · chosen, see <a href="#2a">2a</a></span></div>
+<h3 style="margin:0;font-size:22px;font-weight:600;line-height:1.2">Four stations, click to glide there</h3>
+<svg viewBox="-23 -23 46 46" style="width:100%;background:#FBF8F3;border-radius:6px">
+<rect x="-22" y="-22" width="9" height="4" fill="#E8C48A"></rect><rect x="-13" y="-22" width="9" height="4" fill="#EAB4AE"></rect><rect x="-4" y="-22" width="9" height="4" fill="#C4D2B0"></rect><rect x="5" y="-22" width="8" height="4" fill="#F0B98F"></rect><rect x="13" y="-22" width="9" height="4" fill="#B8CADB"></rect>
+<rect x="-22" y="18" width="9.5" height="4" fill="#F2E4C8"></rect><rect x="-12.5" y="18" width="9.5" height="4" fill="#E39A7C"></rect><rect x="3" y="18" width="9.5" height="4" fill="#F0D88C"></rect><rect x="12.5" y="18" width="9.5" height="4" fill="#EAB4AE"></rect>
+<rect x="-22" y="-18" width="4" height="12" fill="#F0B98F"></rect><rect x="-22" y="-6" width="4" height="12" fill="#B8CADB"></rect><rect x="-22" y="6" width="4" height="12" fill="#E8C48A"></rect>
+<rect x="18" y="-18" width="4" height="12" fill="#F2E4C8"></rect><rect x="18" y="-6" width="4" height="12" fill="#E39A7C"></rect><rect x="18" y="6" width="4" height="12" fill="#C4D2B0"></rect>
+<rect x="-18" y="-18" width="36" height="36" fill="#EADCC2"></rect>
+<line x1="-17" y1="-17" x2="17" y2="17" stroke="#E39A7C" stroke-width=".15" stroke-dasharray=".5 .5"></line><line x1="17" y1="-17" x2="-17" y2="17" stroke="#E39A7C" stroke-width=".15" stroke-dasharray=".5 .5"></line>
+<circle r="11" fill="none" stroke="#B8583A" stroke-width=".25" stroke-dasharray="1 .6"></circle>
+<circle r="7" fill="none" stroke="#35609A" stroke-width=".7"></circle><circle r="6.2" fill="none" stroke="#B8583A" stroke-width=".4"></circle>
+<circle r="3" fill="#7FC8D0"></circle><circle r="1.2" fill="#D9CFBF"></circle>
+<circle cx="-7.8" cy="7.8" r="1.8" fill="none" stroke="#B8583A" stroke-width=".3"></circle><circle cx="-7.8" cy="-7.8" r="1.8" fill="none" stroke="#B8583A" stroke-width=".3"></circle><circle cx="7.8" cy="-7.8" r="1.8" fill="none" stroke="#B8583A" stroke-width=".3"></circle><circle cx="7.8" cy="7.8" r="1.8" fill="none" stroke="#B8583A" stroke-width=".3"></circle>
+<path d="M0 13 A 13 13 0 0 1 -7.8 -7.8" stroke="#26221E" stroke-width=".2" stroke-dasharray=".6 .4" fill="none"></path>
+<circle cx="-7.8" cy="7.8" r="1" fill="#26221E"></circle><text x="-7.8" y="8.25" font-size="1.2" text-anchor="middle" fill="#fff">1</text>
+<circle cx="-7.8" cy="-7.8" r="1" fill="#26221E"></circle><text x="-7.8" y="-7.35" font-size="1.2" text-anchor="middle" fill="#fff">2</text>
+<circle cx="7.8" cy="-7.8" r="1" fill="#26221E"></circle><text x="7.8" y="-7.35" font-size="1.2" text-anchor="middle" fill="#fff">3</text>
+<circle cx="7.8" cy="7.8" r="1" fill="#26221E"></circle><text x="7.8" y="8.25" font-size="1.2" text-anchor="middle" fill="#fff">4</text>
+<circle cx="0" cy="19.5" r="1" fill="#26221E"></circle><text x="0" y="19.95" font-size="1.2" text-anchor="middle" fill="#fff">5</text>
+<circle cx="0" cy="13" r=".9" fill="#F2C230" stroke="#26221E" stroke-width=".18"></circle>
+<text x="-16.5" y="2.5" font-size="1.3" fill="#26221E">20 m</text><text x="-16.5" y="4.2" font-size="1.3" fill="#26221E">walk 4.4 s</text><text x="-16.5" y="5.9" font-size="1.3" fill="#26221E">glide ≤ 2.2 s</text>
+<line x1="-20" y1="21" x2="-15" y2="21" stroke="#26221E" stroke-width=".2"></line><text x="-14.3" y="21.4" font-size="1.2" fill="#26221E">5 m</text>
+</svg>
+<div style="font-size:13px;line-height:1.6;color:#4A443D">1 Terminal · 2 Project board · 3 Commit ridge · 4 Language pillars · 5 Return portal. Rings: mosaic medallions marking each station.</div>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px;line-height:1.45">
+<div style="color:#6B635A">Square</div><div>36 × 36 m, houses 4 m deep, one street (south)</div>
+<div style="color:#6B635A">Props</div><div>four stations on an 11 m circle, one per diagonal</div>
+<div style="color:#6B635A">Farthest walk</div><div>20 m, 4.4 s on foot; at most 2.2 s gliding</div>
+<div style="color:#6B635A">Controls</div><div>WASD as today, plus click a station or press 1–4 to glide there; any movement key cancels</div>
+<div style="color:#6B635A">Engine</div><div>new auto-walk along the ring in the player controller; reusable in every world</div>
+</div>
+<p style="margin:0;font-size:14px;line-height:1.55;color:#4A443D;text-wrap:pretty">Keeps the most of today's sense of place. The glide follows the ring, so the camera never cuts through the fountain and the visitor sees the square turn around them.</p>
+</div>
+
+<div id="1c" style="flex:1 1 340px;min-width:0;background:#fff;border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:10px"><span style="font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:700;background:#26221E;color:#fff;padding:3px 8px;border-radius:4px">1c</span><span style="font-size:13px;color:#6B635A">No walking</span></div>
+<h3 style="margin:0;font-size:22px;font-weight:600;line-height:1.2">Orbit stage: drag to turn, click to open</h3>
+<svg viewBox="-17 -17 34 34" style="width:100%;background:#FBF8F3;border-radius:6px">
+<rect x="-16" y="-16" width="6.4" height="3" fill="#E8C48A"></rect><rect x="-9.6" y="-16" width="6.4" height="3" fill="#EAB4AE"></rect><rect x="-3.2" y="-16" width="6.4" height="3" fill="#C4D2B0"></rect><rect x="3.2" y="-16" width="6.4" height="3" fill="#F0B98F"></rect><rect x="9.6" y="-16" width="6.4" height="3" fill="#B8CADB"></rect>
+<rect x="-16" y="13" width="6.4" height="3" fill="#F2E4C8"></rect><rect x="-9.6" y="13" width="6.4" height="3" fill="#E39A7C"></rect><rect x="-3.2" y="13" width="6.4" height="3" fill="#F0D88C"></rect><rect x="3.2" y="13" width="6.4" height="3" fill="#EAB4AE"></rect><rect x="9.6" y="13" width="6.4" height="3" fill="#C4D2B0"></rect>
+<rect x="-16" y="-13" width="3" height="8.7" fill="#F0B98F"></rect><rect x="-16" y="-4.3" width="3" height="8.6" fill="#B8CADB"></rect><rect x="-16" y="4.3" width="3" height="8.7" fill="#E8C48A"></rect>
+<rect x="13" y="-13" width="3" height="8.7" fill="#F2E4C8"></rect><rect x="13" y="-4.3" width="3" height="8.6" fill="#E39A7C"></rect><rect x="13" y="4.3" width="3" height="8.7" fill="#C4D2B0"></rect>
+<rect x="-13" y="-13" width="26" height="26" fill="#EADCC2"></rect>
+<line x1="-12.5" y1="-12.5" x2="12.5" y2="12.5" stroke="#E39A7C" stroke-width=".12" stroke-dasharray=".4 .4"></line><line x1="12.5" y1="-12.5" x2="-12.5" y2="12.5" stroke="#E39A7C" stroke-width=".12" stroke-dasharray=".4 .4"></line>
+<circle r="11" fill="none" stroke="#26221E" stroke-width=".18" stroke-dasharray=".6 .4"></circle>
+<circle r="5" fill="none" stroke="#35609A" stroke-width=".5"></circle><circle r="4.4" fill="none" stroke="#B8583A" stroke-width=".3"></circle>
+<circle r="2.5" fill="#7FC8D0"></circle><circle r="1" fill="#D9CFBF"></circle>
+<circle cx="-4.7" cy="6.5" r=".8" fill="#26221E"></circle><text x="-4.7" y="6.85" font-size=".95" text-anchor="middle" fill="#fff">1</text>
+<circle cx="0" cy="-8" r=".8" fill="#26221E"></circle><text x="0" y="-7.65" font-size=".95" text-anchor="middle" fill="#fff">2</text>
+<circle cx="7.6" cy="-2.5" r=".8" fill="#26221E"></circle><text x="7.6" y="-2.15" font-size=".95" text-anchor="middle" fill="#fff">3</text>
+<circle cx="4.7" cy="6.5" r=".8" fill="#26221E"></circle><text x="4.7" y="6.85" font-size=".95" text-anchor="middle" fill="#fff">4</text>
+<circle cx="-7.6" cy="-2.5" r=".8" fill="#26221E"></circle><text x="-7.6" y="-2.15" font-size=".95" text-anchor="middle" fill="#fff">5</text>
+<rect x="-.6" y="10.4" width="1.2" height="1.2" fill="#F2C230" stroke="#26221E" stroke-width=".12" transform="rotate(45 0 11)"></rect>
+<text x="1.4" y="12.2" font-size=".9" fill="#26221E">camera, 7 m up</text>
+<line x1="-15" y1="15.3" x2="-10" y2="15.3" stroke="#26221E" stroke-width=".15"></line><text x="-9.5" y="15.6" font-size=".85" fill="#26221E">5 m</text>
+</svg>
+<div style="font-size:13px;line-height:1.6;color:#4A443D">1 Terminal · 2 Project board · 3 Commit ridge · 4 Language pillars · 5 Return portal. Diamond: camera start on the 11 m orbit.</div>
+<div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:14px;line-height:1.45">
+<div style="color:#6B635A">Square</div><div>26 × 26 m, closed on all sides</div>
+<div style="color:#6B635A">Props</div><div>five on an 8 m circle, evenly spaced, facing outward</div>
+<div style="color:#6B635A">To any prop</div><div>one click, 1.0 s camera ease to its preset view</div>
+<div style="color:#6B635A">Controls</div><div>drag or ← → to orbit, click or 1–5 to focus, Esc to pull back</div>
+<div style="color:#6B635A">Engine</div><div>new orbit camera mode; no avatar or colliders in this world</div>
+</div>
+<p style="margin:0;font-size:14px;line-height:1.55;color:#4A443D;text-wrap:pretty">The fastest to take in and the closest to a product page. It breaks with the other worlds, which stay walkable, so it only works if the hub also moves to orbit, or the Plaza is framed as a deliberate exception.</p>
+</div>
+
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:20px">
+<h2 style="margin:0;font-size:22px;font-weight:600">Side by side</h2>
+<div style="display:grid;grid-template-columns:minmax(140px,auto) repeat(3,minmax(0,1fr));font-size:14px;line-height:1.45;background:#fff;border-radius:10px;overflow:hidden">
+<div style="padding:12px 16px;border-bottom:1px solid #E6DED2"></div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2;font-weight:600"><a href="#1a">1a</a> Diorama</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2;font-weight:600"><a href="#1b">1b</a> Stations</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2;font-weight:600"><a href="#1c">1c</a> Orbit</div>
+<div style="padding:12px 16px;border-bottom:1px solid #E6DED2;color:#6B635A">Paved area</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">484 m² (9 % of today)</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">1 296 m² (25 %)</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">676 m² (13 %)</div>
+<div style="padding:12px 16px;border-bottom:1px solid #E6DED2;color:#6B635A">Spawn → farthest</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">3.8 s walk</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">≤ 2.2 s glide · 4.4 s walk</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">1.0 s, one click</div>
+<div style="padding:12px 16px;border-bottom:1px solid #E6DED2;color:#6B635A">All props in first frame</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">yes</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">two of four</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">three of five, rest one drag away</div>
+<div style="padding:12px 16px;border-bottom:1px solid #E6DED2;color:#6B635A">Engine work</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">none</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">auto-walk</div><div style="padding:12px 16px;border-bottom:1px solid #E6DED2">orbit camera mode</div>
+<div style="padding:12px 16px;color:#6B635A">Fits other worlds</div><div style="padding:12px 16px">yes</div><div style="padding:12px 16px">yes, and they gain glide too</div><div style="padding:12px 16px">only if they follow</div>
+</div>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:20px">
+<div style="display:flex;flex-direction:column;gap:8px;max-width:760px">
+<h2 style="margin:0;font-size:22px;font-weight:600">Blender prop list</h2>
+<p style="margin:0;font-size:15px;line-height:1.55;color:#4A443D;text-wrap:pretty">Same list for all three layouts; sizes change only for the fountain and the house kit. Every model: meshopt with quantisation, baked AO, vertex colour for anything the palette in <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza.ts</span> tints, KTX2 only where a texture carries detail.</p>
+</div>
+<div style="display:grid;grid-template-columns:minmax(150px,1.1fr) minmax(0,.8fr) minmax(0,.7fr) minmax(0,.9fr) minmax(0,1.6fr);font-size:14px;line-height:1.45;background:#fff;border-radius:10px;overflow:hidden">
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2;font-weight:600">Model</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2;font-weight:600">Size</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2;font-weight:600">Triangles</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2;font-weight:600">Texture</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2;font-weight:600">Notes</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Fountain, two-tier</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Ø 4.4 m (1a) · 6 m (1b) · 5 m (1c)</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">2 500</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">stone 512², KTX2</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Hero piece. Jets and water surface stay in code; the basin rim is also the collider.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Mosaic ring</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Ø 9 / 14 / 10 m</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">256</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">1024², KTX2</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Flat annulus with a painted mosaic. 1b adds four small medallions from the same sheet.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">House kit</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">5 · 6 · 6.5 m wide, 2 and 3 floors</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">800–1 200 each</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">vertex colour</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Six variants with modelled shutters, balconies, awnings and roof tiles. Only the front and roof are detailed; the square is closed, so backs are never seen.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Corner house</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">L-shaped, 3 floors</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">1 500</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">vertex colour</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Closes the four corners so no gaps show at the small scale.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Return portal archway</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">3 × 4.5 m</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">1 200</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">stone 512², shared</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Stone arch spanning the south street; replaces today's portal frame. Start from <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">arch.glb</span>.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Terminal kiosk</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">1.6 × 2.4 m</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">900</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">vertex colour</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Newsstand-style board with a small tiled roof. The screen stays a runtime texture.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Project board</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">2 × 2.6 m</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">700</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">vertex colour</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Notice-board frame on two posts. Start from <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">card-frame.glb</span>.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Commit step</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">0.5 × 0.8 m module</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">60</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">vertex colour</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Instanced per commit bucket; heights stay data-driven. Bevelled stone block instead of today's box.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Language pillar</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">0.6 m Ø, height scaled</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">300</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">instance colour</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Column with base and capital; shaft scales, ends do not.</div>
+<div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Festoon mast</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">4.5 m</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">200</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">vertex colour</div><div style="padding:10px 14px;border-bottom:1px solid #E6DED2">Wall bracket version too, so strings can hang house to house. Bulbs stay instanced emissive.</div>
+<div style="padding:10px 14px">Dressing</div><div style="padding:10px 14px">—</div><div style="padding:10px 14px">150–600 each</div><div style="padding:10px 14px">vertex colour</div><div style="padding:10px 14px">Cypress (two LODs), terracotta pot, bench, wall lamp. Fewer than today: 6–8 cypresses instead of 24.</div>
+</div>
+<p style="margin:0;font-size:14px;color:#6B635A">Estimated total: 35–45k triangles, about 1 MB compressed.</p>
+</section>
+
+<section style="display:flex;flex-direction:column;gap:12px;max-width:760px">
+<h2 style="margin:0;font-size:22px;font-weight:600">Removed with this change</h2>
+<div style="font-size:15px;line-height:1.6;color:#4A443D;display:flex;flex-direction:column;gap:6px">
+<div>Rooftop house, 17-step stair and guard rails in <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza.ts</span>, plus their tests in <span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">plaza.spec.ts</span>.</div>
+<div>Seed lever on the Plaza. It is placed by the shared project scene, so the Plaza needs a way to opt out.</div>
+<div>Open streets to the hills: three of four close (1a, 1b) or all four (1c). The hill backdrop only shows above the roofs.</div>
+<div><span style="font-family:ui-monospace,Menlo,monospace;font-size:13px">third-person-clearance.spec.ts</span> should be rerun: with 3–4 m house depth and no streets, the camera boom has less room.</div>
+</div>
+</section>
+
+</div>
+</x-dc>
+</body>
+</html>

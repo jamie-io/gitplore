@@ -1,0 +1,17 @@
+Updated [feed-card.spec.ts](/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.spec.ts) for rewritten draw reference:
+
+- Added required canvas mock methods.
+- Removed caption assertions.
+- Added state-specific text and seam-fade assertions.
+- Asserted texture anisotropy.
+
+Genuine bug fix: removed unused `CAPTION` import from [feed-card.ts](/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.ts).
+
+Checks pass:
+
+- Spec: 8/8
+- TypeScript
+- ESLint
+- Prettier check
+
+No changelog or commit created.

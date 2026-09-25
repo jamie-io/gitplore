@@ -1,0 +1,3 @@
+Updated [CHANGELOG.md](/home/jamie/programming/gitplore-dj-t8b/CHANGELOG.md) in current project.
+
+Parent `/home/jamie/programming/gitplore/CHANGELOG.md` blocked: outside writable workspace. Sandbox rejected write. Existing entry unchanged.

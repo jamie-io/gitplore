@@ -1,0 +1,3360 @@
+OpenAI Codex v0.155.1
+--------
+[1mworkdir:[0m /home/jamie/programming/gitplore-dj-t8a
+[1mmodel:[0m gpt-5.6-luna
+[1mprovider:[0m openai
+[1mapproval:[0m never
+[1msandbox:[0m workspace-write [workdir, /tmp, $TMPDIR]
+[1mreasoning effort:[0m xhigh
+[1mreasoning summaries:[0m none
+[1msession id:[0m 01a0d3e3-14cf-7520-948d-890c9a7060fb
+--------
+[36muser[0m
+Orchestrator review: your drawCard diverged from the design reference (Lookdev cardTexture), so I REWROTE drawCard in feed-card.ts as a port of the reference, added a font-load redraw (document.fonts.load → redraw → texture.needsUpdate), texture.anisotropy, a roundedPath helper (uses save/clip/translate/rotate/rect), and faded the seam so it only glows while uWipe is between 0 and 1. KEEP my implementation unchanged (only fix genuine bugs if you find one, and say so). Now update feed-card.spec.ts so it matches: the 2D context mock needs save/restore/clip/translate/rotate/rect/setTransform/arc/beginPath/fill/roundRect/measureText; drawing assertions should check the strings actually drawn now (both titles, meta, badge text, duration, avatar letter, slopThumb only on the slop state, 'KI-übersetzt' only on slop; no caption strip anymore) and the shader chunk (seam fade present). Run the spec, tsc, eslint, prettier --check. Non-interactive: do not ask questions; do not create CHANGELOG.md; do not commit. Report briefly.
+
+[1mhook:[0m [2mSessionStart[0m
+[1mhook:[0m [2mSessionStart[0m Completed
+[35m[3mcodex[0m[0m
+Using `superpowers:receiving-code-review` to audit review changes, plus TDD/verification to align specs and prove them. Implementation stays unchanged unless concrete bug evidence appears.
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m Completed
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "sed -n '1,280p' '/home/jamie/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.1/skills/test-driven-development/SKILL.md'"[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 0ms:[0m
+---
+name: test-driven-development
+description: Use when implementing any feature or bugfix, before writing implementation code
+---
+
+# Test-Driven Development (TDD)
+
+## Overview
+
+Write the test first. Watch it fail. Write minimal code to pass.
+
+**Core principle:** If you didn't watch the test fail, you don't know if it tests the right thing.
+
+**Violating the letter of the rules is violating the spirit of the rules.**
+
+## When to Use
+
+**Always:**
+- New features
+- Bug fixes
+- Refactoring
+- Behavior changes
+
+**Exceptions (ask your human partner):**
+- Throwaway prototypes
+- Generated code
+- Configuration files
+
+Thinking "skip TDD just this once"? Stop. That's rationalization.
+
+## The Iron Law
+
+```
+NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
+```
+
+Write code before the test? Delete it. Start over.
+
+**No exceptions:**
+- Don't keep it as "reference"
+- Don't "adapt" it while writing tests
+- Don't look at it
+- Delete means delete
+
+Implement fresh from tests. Period.
+
+## Red-Green-Refactor
+
+```dot
+digraph tdd_cycle {
+    rankdir=LR;
+    red [label="RED\nWrite failing test", shape=box, style=filled, fillcolor="#ffcccc"];
+    verify_red [label="Verify fails\ncorrectly", shape=diamond];
+    green [label="GREEN\nMinimal code", shape=box, style=filled, fillcolor="#ccffcc"];
+    verify_green [label="Verify passes\nAll green", shape=diamond];
+    refactor [label="REFACTOR\nClean up", shape=box, style=filled, fillcolor="#ccccff"];
+    next [label="Next", shape=ellipse];
+
+    red -> verify_red;
+    verify_red -> green [label="yes"];
+    verify_red -> red [label="wrong\nfailure"];
+    green -> verify_green;
+    verify_green -> refactor [label="yes"];
+    verify_green -> green [label="no"];
+    refactor -> verify_green [label="stay\ngreen"];
+    verify_green -> next;
+    next -> red;
+}
+```
+
+### RED - Write Failing Test
+
+Write one minimal test showing what should happen.
+
+<Good>
+```typescript
+test('retries failed operations 3 times', async () => {
+  let attempts = 0;
+  const operation = () => {
+    attempts++;
+    if (attempts < 3) throw new Error('fail');
+    return 'success';
+  };
+
+  const result = await retryOperation(operation);
+
+  expect(result).toBe('success');
+  expect(attempts).toBe(3);
+});
+```
+Clear name, tests real behavior, one thing
+</Good>
+
+<Bad>
+```typescript
+test('retry works', async () => {
+  const mock = jest.fn()
+    .mockRejectedValueOnce(new Error())
+    .mockRejectedValueOnce(new Error())
+    .mockResolvedValueOnce('success');
+  await retryOperation(mock);
+  expect(mock).toHaveBeenCalledTimes(3);
+});
+```
+Vague name, tests mock not code
+</Bad>
+
+**Requirements:**
+- One behavior
+- Clear name
+- Real code (no mocks unless unavoidable)
+
+### Verify RED - Watch It Fail
+
+**MANDATORY. Never skip.**
+
+```bash
+npm test path/to/test.test.ts
+```
+
+Confirm:
+- Test fails (not errors)
+- Failure message is expected
+- Fails because feature missing (not typos)
+
+**Test passes?** You're testing existing behavior. Fix test.
+
+**Test errors?** Fix error, re-run until it fails correctly.
+
+### GREEN - Minimal Code
+
+Write simplest code to pass the test.
+
+<Good>
+```typescript
+async function retryOperation<T>(fn: () => Promise<T>): Promise<T> {
+  for (let i = 0; i < 3; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (i === 2) throw e;
+    }
+  }
+  throw new Error('unreachable');
+}
+```
+Just enough to pass
+</Good>
+
+<Bad>
+```typescript
+async function retryOperation<T>(
+  fn: () => Promise<T>,
+  options?: {
+    maxRetries?: number;
+    backoff?: 'linear' | 'exponential';
+    onRetry?: (attempt: number) => void;
+  }
+): Promise<T> {
+  // YAGNI
+}
+```
+Over-engineered
+</Bad>
+
+Don't add features, refactor other code, or "improve" beyond the test.
+
+### Verify GREEN - Watch It Pass
+
+**MANDATORY.**
+
+```bash
+npm test path/to/test.test.ts
+```
+
+Confirm:
+- Test passes
+- Other tests still pass
+- Output pristine (no errors, warnings)
+
+**Test fails?** Fix code, not test.
+
+**Other tests fail?** Fix now.
+
+**"Other tests" means the project's suite, not just your file.** A
+green run of the test you wrote is not a green suite. Before you call
+the change done, run the project's test command (bare `pytest`,
+`npm test`, `cargo test` — whatever the repo uses) even when your task
+named only one test file. A scope statement in your task bounds the
+deliverable, not your verification. Any failure that run shows —
+including one you didn't cause — goes in your report by name; a red
+test you watched scroll past and didn't mention is a report falsified
+by omission.
+
+### REFACTOR - Clean Up
+
+After green only:
+- Remove duplication
+- Improve names
+- Extract helpers
+
+Keep tests green. Don't add behavior.
+
+### Repeat
+
+Next failing test for next feature.
+
+## Good Tests
+
+| Quality | Good | Bad |
+|---------|------|-----|
+| **Minimal** | One thing. "and" in name? Split it. | `test('validates email and domain and whitespace')` |
+| **Clear** | Name describes behavior | `test('test1')` |
+| **Shows intent** | Demonstrates desired API | Obscures what code should do |
+
+When writing or changing any test, read [writing-good-tests.md](writing-good-tests.md) for the rules that keep tests honest:
+- Name the production change that would make the test fail — before writing it
+- Assert on real behavior, never on mock behavior
+- Keep test-only code in test utilities, out of production classes
+- Understand a dependency's side effects before mocking it
+
+## Common Rationalizations
+
+| Excuse | Reality |
+|--------|---------|
+| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
+| "I'll test after" | Tests written after pass immediately — which proves nothing. They may test the wrong thing, test the implementation instead of the behavior, or miss the edge case you forgot. You never watched it fail, so you never proved it can catch the bug. Test-first forces that failure. |
+| "Tests after achieve same goals (spirit not ritual)" | Tests-after answer "what does this do?"; tests-first answer "what should this do?" Tests written after are biased by the code you already wrote — you verify the cases you remembered, not the ones you'd have discovered. Coverage without proof the tests work. |
+| "Already manually tested" | Manual testing is ad-hoc: no record of what you covered, no way to re-run it when the code changes, easy to forget cases under pressure. "Worked when I tried it" ≠ comprehensive. Automated tests run the same way every time. |
+| "Deleting X hours is wasteful" | Sunk cost fallacy — that time is already spent either way. The real choice: rewrite with TDD (high confidence) vs. keep it and bolt tests on after (low confidence, likely bugs). Keeping code you can't trust is the waste. |
+| "Keep as reference, write tests first" | You'll adapt it. That's testing after. Delete means delete. |
+| "Need to explore first" | Fine. Throw away exploration, start with TDD. |
+| "Test hard = design unclear" | Listen to test. Hard to test = hard to use. |
+| "TDD will slow me down" | TDD IS the pragmatic path: catches bugs before commit, prevents regressions, lets you refactor without fear. "Pragmatic" shortcuts mean debugging in production — slower, not faster. |
+| "Manual test faster" | Manual doesn't prove edge cases. You'll re-test every change. |
+| "Existing code has no tests" | You're improving it. Add tests for existing code. |
+
+## Red Flags - STOP and Start Over
+
+- Code before test
+- Test after implementation
+- Test passes immediately
+- Can't explain why test failed
+- Tests added "later"
+- Rationalizing "just this once"
+- "I already manually tested it"
+- "Tests after achieve the same purpose"
+- "It's about spirit not ritual"
+- "Keep as reference" or "adapt existing code"
+- "Already spent X hours, deleting is wasteful"
+- "TDD is dogmatic, I'm being pragmatic"
+- "This is different because..."
+
+**All of these mean: Delete code. Start over with TDD.**
+
+## Example: Bug Fix
+
+**Bug:** Empty email accepted
+
+**RED**
+```typescript
+test('rejects empty email', async () => {
+  const result = await submitForm({ email: '' });
+  expect(result.error).toBe('Email required');
+});
+```
+
+**Verify RED**
+```bash
+$ npm test
+FAIL: expected 'Email required', got undefined
+```
+
+**GREEN**
+```typescript
+function submitForm(data: FormData) {
+  if (!data.email?.trim()) {
+    return { error: 'Email required' };
+  }
+  // ...
+
+[1mhook:[0m [2mPostToolUse[0m
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "sed -n '1,280p' '/home/jamie/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.1/skills/using-superpowers/SKILL.md'"[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 0ms:[0m
+---
+name: using-superpowers
+description: Use when starting any conversation - establishes how to find and use skills, requiring skill invocation before ANY response including clarifying questions
+---
+
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, ignore this skill.
+</SUBAGENT-STOP>
+
+<EXTREMELY-IMPORTANT>
+If you think there is even a 1% chance a skill might apply to what you are doing, you ABSOLUTELY MUST invoke the skill.
+
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+
+This is not negotiable. You cannot rationalize your way out of this.
+</EXTREMELY-IMPORTANT>
+
+## The Rule
+
+**Invoke relevant or requested skills BEFORE any response or action** — including clarifying questions, exploring the codebase, or checking files. If it turns out wrong for the situation, you don't have to use it.
+
+**Before entering plan mode:** if you haven't already brainstormed, invoke the brainstorming skill first.
+
+Then announce "Using [skill] to [purpose]" and follow the skill exactly. If it has a checklist, create a todo per item.
+
+## Skill Priority
+
+When multiple skills apply, process skills come first — they set the approach, then implementation skills (frontend-design, etc.) carry it out. Brainstorming and systematic-debugging are Superpowers' most common process skills, but the rule holds for any of them.
+
+- "Let's build X" → superpowers:brainstorming first, then implementation skills.
+- "Fix this bug" → superpowers:systematic-debugging first, then domain skills.
+
+## Red Flags
+
+These thoughts mean STOP—you're rationalizing:
+
+| Thought | Reality |
+|---------|---------|
+| "This is just a simple question" | Questions are tasks. Check for skills. |
+| "I need more context first" | Skill check comes BEFORE clarifying questions. |
+| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
+| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
+| "Let me gather information first" | Skills tell you HOW to gather information. |
+| "This doesn't need a formal skill" | If a skill exists, use it. |
+| "I remember this skill" | Skills evolve. Read current version. |
+| "This doesn't count as a task" | Action = task. Check for skills. |
+| "The skill is overkill" | Simple things become complex. Use it. |
+| "I'll just do this one thing first" | Check BEFORE doing anything. |
+| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
+| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+
+## Platform Adaptation
+
+If your harness appears here, read its reference file for special instructions:
+
+- Claude Code: `references/claude-code-tools.md`
+- Codex: `references/codex-tools.md`
+- Pi: `references/pi-tools.md`
+- Antigravity: `references/antigravity-tools.md`
+- Hermes Agent: `references/hermes-tools.md`
+- Muse: `references/muse-tools.md`
+
+## User Instructions
+
+User instructions (CLAUDE.md, AGENTS.md, GEMINI.md, etc, direct requests) take precedence over skills, which in turn override default behavior. Only skip skill workflows or instructions when your human partner has explicitly told you to.
+
+[1mhook:[0m [2mPostToolUse[0m
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "sed -n '1,280p' '/home/jamie/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.1/skills/verification-before-completion/SKILL.md'"[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 0ms:[0m
+---
+name: verification-before-completion
+description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+---
+
+# Verification Before Completion
+
+## Overview
+
+**Core principle:** Evidence before claims, always.
+
+**Violating the letter of this rule is violating the spirit of this rule.**
+
+## The Iron Law
+
+```
+NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
+```
+
+If you haven't run the verification command in this message, you cannot claim it passes.
+
+## The Gate Function
+
+```
+BEFORE claiming any status or expressing satisfaction:
+
+1. IDENTIFY: What command proves this claim?
+2. RUN: Execute the FULL command (fresh, complete)
+3. READ: Full output, check exit code, count failures
+4. VERIFY: Does output confirm the claim?
+   - If NO: State actual status with evidence
+   - If YES: State claim WITH evidence
+5. ONLY THEN: Make the claim
+
+Skip any step = lying, not verifying
+```
+
+## Common Failures
+
+| Claim | Requires | Not Sufficient |
+|-------|----------|----------------|
+| Tests pass | Test command output: 0 failures | Previous run, "should pass" |
+| Linter clean | Linter output: 0 errors | Partial check, extrapolation |
+| Build succeeds | Build command: exit 0 | Linter passing, logs look good |
+| Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
+| Regression test works | Red-green cycle verified | Test passes once |
+| Agent completed | VCS diff shows changes | Agent reports "success" |
+| Requirements met | Line-by-line checklist | Tests passing |
+
+## Red Flags - STOP
+
+- Using "should", "probably", "seems to"
+- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
+- About to commit/push/PR without verification
+- Trusting agent success reports
+- Relying on partial verification
+- Thinking "just this once"
+- Tired and wanting work over
+- **ANY wording implying success without having run verification**
+
+## Rationalization Prevention
+
+| Excuse | Reality |
+|--------|---------|
+| "Should work now" | RUN the verification |
+| "I'm confident" | Confidence ≠ evidence |
+| "Just this once" | No exceptions |
+| "Linter passed" | Linter ≠ compiler |
+| "Agent said success" | Verify independently |
+| "I'm tired" | Exhaustion ≠ excuse |
+| "Partial check is enough" | Partial proves nothing |
+| "Different words so rule doesn't apply" | Spirit over letter |
+
+## Key Patterns
+
+**Tests:**
+```
+✅ [Run test command] [See: 34/34 pass] "All tests pass"
+❌ "Should pass now" / "Looks correct"
+```
+
+**Regression tests (TDD Red-Green):**
+```
+✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
+❌ "I've written a regression test" (without red-green verification)
+```
+
+**Build:**
+```
+✅ [Run build] [See: exit 0] "Build passes"
+❌ "Linter passed" (linter doesn't check compilation)
+```
+
+**Requirements:**
+```
+✅ Re-read plan → Create checklist → Verify each → Report gaps or completion
+❌ "Tests pass, phase complete"
+```
+
+**Agent delegation:**
+```
+✅ Agent reports success → Check VCS diff → Verify changes → Report actual state
+❌ Trust agent report
+```
+
+## When To Apply
+
+**ALWAYS before:**
+- ANY variation of success/completion claims
+- ANY expression of satisfaction
+- ANY positive statement about work state
+- Committing, PR creation, task completion
+- Moving to next task
+- Delegating to agents
+
+**Rule applies to:**
+- Exact phrases
+- Paraphrases and synonyms
+- Implications of success
+- ANY communication suggesting completion/correctness
+
+[1mhook:[0m [2mPostToolUse[0m
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "sed -n '1,280p' '/home/jamie/.codex/plugins/cache/openai-curated-remote/superpowers/6.4.1/skills/receiving-code-review/SKILL.md'"[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 0ms:[0m
+---
+name: receiving-code-review
+description: Use when receiving code review feedback, before implementing suggestions, especially if feedback seems unclear or technically questionable - requires technical rigor and verification, not performative agreement or blind implementation
+---
+
+# Code Review Reception
+
+## Overview
+
+Code review requires technical evaluation, not emotional performance.
+
+**Core principle:** Verify before implementing. Ask before assuming. Technical correctness over social comfort.
+
+## The Response Pattern
+
+```
+WHEN receiving code review feedback:
+
+1. READ: Complete feedback without reacting
+2. UNDERSTAND: Restate requirement in own words (or ask)
+3. VERIFY: Check against codebase reality
+4. EVALUATE: Technically sound for THIS codebase?
+5. RESPOND: Technical acknowledgment or reasoned pushback
+6. IMPLEMENT: One item at a time, test each
+```
+
+## Forbidden Responses
+
+**NEVER:**
+- "You're absolutely right!" (explicit instruction-file violation)
+- "Great point!" / "Excellent feedback!" (performative)
+- "Let me implement that now" (before verification)
+
+**INSTEAD:**
+- Restate the technical requirement
+- Ask clarifying questions
+- Push back with technical reasoning if wrong
+- Just start working (actions > words)
+
+## Handling Unclear Feedback
+
+```
+IF any item is unclear:
+  STOP - do not implement anything yet
+  ASK for clarification on unclear items
+
+WHY: Items may be related. Partial understanding = wrong implementation.
+```
+
+**Example:**
+```
+your human partner: "Fix 1-6"
+You understand 1,2,3,6. Unclear on 4,5.
+
+❌ WRONG: Implement 1,2,3,6 now, ask about 4,5 later
+✅ RIGHT: "I understand items 1,2,3,6. Need clarification on 4 and 5 before proceeding."
+```
+
+## Source-Specific Handling
+
+### From your human partner
+- **Trusted** - implement after understanding
+- **Still ask** if scope unclear
+- **No performative agreement**
+- **Skip to action** or technical acknowledgment
+
+### From External Reviewers
+```
+BEFORE implementing:
+  1. Check: Technically correct for THIS codebase?
+  2. Check: Breaks existing functionality?
+  3. Check: Reason for current implementation?
+  4. Check: Works on all platforms/versions?
+  5. Check: Does reviewer understand full context?
+
+IF suggestion seems wrong:
+  Push back with technical reasoning
+
+IF can't easily verify:
+  Say so: "I can't verify this without [X]. Should I [investigate/ask/proceed]?"
+
+IF conflicts with your human partner's prior decisions:
+  Stop and discuss with your human partner first
+```
+
+**your human partner's rule:** "External feedback - be skeptical, but check carefully"
+
+## YAGNI Check for "Professional" Features
+
+```
+IF reviewer suggests "implementing properly":
+  grep codebase for actual usage
+
+  IF unused: "This endpoint isn't called. Remove it (YAGNI)?"
+  IF used: Then implement properly
+```
+
+**your human partner's rule:** "You and reviewer both report to me. If we don't need this feature, don't add it."
+
+## Implementation Order
+
+```
+FOR multi-item feedback:
+  1. Clarify anything unclear FIRST
+  2. Then implement in this order:
+     - Blocking issues (breaks, security)
+     - Simple fixes (typos, imports)
+     - Complex fixes (refactoring, logic)
+  3. Test each fix individually
+  4. Verify no regressions
+```
+
+## When To Push Back
+
+Push back when:
+- Suggestion breaks existing functionality
+- Reviewer lacks full context
+- Violates YAGNI (unused feature)
+- Technically incorrect for this stack
+- Legacy/compatibility reasons exist
+- Conflicts with your human partner's architectural decisions
+
+**How to push back:**
+- Use technical reasoning, not defensiveness
+- Ask specific questions
+- Reference working tests/code
+- Involve your human partner if architectural
+
+**If you're uncomfortable pushing back out loud:** Name that tension, then tell your partner about the issue you've seen. They'll appreciate your honesty.
+
+## Acknowledging Correct Feedback
+
+When feedback IS correct:
+```
+✅ "Fixed. [Brief description of what changed]"
+✅ "Good catch - [specific issue]. Fixed in [location]."
+✅ [Just fix it and show in the code]
+
+❌ "You're absolutely right!"
+❌ "Great point!"
+❌ "Thanks for catching that!"
+❌ "Thanks for [anything]"
+❌ ANY gratitude expression
+```
+
+**Why no thanks:** Actions speak. Just fix it. The code itself shows you heard the feedback.
+
+**If you catch yourself about to write "Thanks":** DELETE IT. State the fix instead.
+
+## Gracefully Correcting Your Pushback
+
+If you pushed back and were wrong:
+```
+✅ "You were right - I checked [X] and it does [Y]. Implementing now."
+✅ "Verified this and you're correct. My initial understanding was wrong because [reason]. Fixing."
+
+❌ Long apology
+❌ Defending why you pushed back
+❌ Over-explaining
+```
+
+State the correction factually and move on.
+
+## Common Mistakes
+
+| Mistake | Fix |
+|---------|-----|
+| Performative agreement | State requirement or just act |
+| Blind implementation | Verify against codebase first |
+| Batch without testing | One at a time, test each |
+| Assuming reviewer is right | Check if breaks things |
+| Avoiding pushback | Technical correctness > comfort |
+| Partial implementation | Clarify all items first |
+| Can't verify, proceed anyway | State limitation, ask for direction |
+
+## Real Examples
+
+**Performative Agreement (Bad):**
+```
+Reviewer: "Remove legacy code"
+❌ "You're absolutely right! Let me remove that..."
+```
+
+**Technical Verification (Good):**
+```
+Reviewer: "Remove legacy code"
+✅ "Checking... build target is 10.15+, this API needs 13+. Need legacy for backward compat. Current impl has wrong bundle ID - fix it or drop pre-13 support?"
+```
+
+**YAGNI (Good):**
+```
+Reviewer: "Implement proper metrics tracking with database, date filters, CSV export"
+✅ "Grepped codebase - nothing calls this endpoint. Remove it (YAGNI)? Or is there usage I'm missing?"
+```
+
+**Unclear Item (Good):**
+```
+your human partner: "Fix items 1-6"
+You understand 1,2,3,6. Unclear on 4,5.
+✅ "Understand 1,2,3,6. Need clarification on 4 and 5 before implementing."
+```
+
+## GitHub Thread Replies
+
+When replying to inline review comments on GitHub, reply in the comment thread (`gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), not as a top-level PR comment.
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[1mhook:[0m [2mPostToolUse[0m Completed
+[1mhook:[0m [2mPostToolUse[0m Completed
+[1mhook:[0m [2mPostToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "git status --short; git diff -- src/app/world/projects/deslopify/feed-card.ts; sed -n '1,300p' src/app/world/projects/deslopify/feed-card.ts; sed -n '1,300p' src/app/world/projects/deslopify/feed-card.spec.ts"[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 0ms:[0m
+?? src/app/world/projects/deslopify/feed-card.spec.ts
+?? src/app/world/projects/deslopify/feed-card.ts
+import {
+  CanvasTexture,
+  CylinderGeometry,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  PlaneGeometry,
+  SRGBColorSpace,
+} from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { disposeObject3D } from '@engine/dispose';
+import type { FeedCardData } from './deslopify.data';
+import { BADGE, CAPTION, FEED_CARDS, PALETTE } from './deslopify.data';
+
+const FRAME_WIDTH = 2.1;
+const FRAME_HEIGHT = 1.98;
+const FRAME_DEPTH = 0.14;
+const FRAME_RADIUS = 0.05;
+const FACE_WIDTH = 1.92;
+const FACE_HEIGHT = 1.8;
+const FACE_Y = 2.05;
+const FACE_Z = 0.075;
+const POST_X = 0.85;
+const POST_Y = 0.55;
+const POST_Z = -0.04;
+const POST_HEIGHT = 1.3;
+const WIPE_SECONDS = 0.36;
+const WIPE_RATE = 1 / WIPE_SECONDS;
+const CARD_SPACING = 2.4;
+
+const CANVAS_WIDTH = 640;
+const CANVAS_HEIGHT = 600;
+const THUMBNAIL = { x: 24, y: 24, width: 592, height: 333, radius: 12 } as const;
+const INNER = '#f4f2ee';
+const FONT_BARLOW = '"Barlow", system-ui, sans-serif';
+const FONT_MONO = '"IBM Plex Mono", ui-monospace, monospace';
+const CARD_FONTS = [
+  '800 140px "Barlow"',
+  '700 38px "Barlow"',
+  '500 26px "Barlow"',
+  '500 24px "IBM Plex Mono"',
+];
+
+export interface FeedCardOptions {
+  readonly reducedMotion?: () => boolean;
+}
+
+export type FeedWallOptions = FeedCardOptions;
+
+interface WipeUniform {
+  value: number;
+}
+
+/** One standing bilingual feed card with a shader wipe between its two canvas faces. */
+export class FeedCard {
+  readonly object = new Group();
+
+  private readonly slopTexture: CanvasTexture;
+  private readonly originalTexture: CanvasTexture;
+  private readonly wipeUniform: WipeUniform = { value: 0 };
+  private readonly reducedMotion: () => boolean;
+  private target = 0;
+  private delay = 0;
+  private disposed = false;
+
+  constructor(data: FeedCardData, options: FeedCardOptions = {}) {
+    this.reducedMotion = options.reducedMotion ?? (() => false);
+    this.object.name = 'feed-card';
+
+    const frame = new Mesh(
+      new RoundedBoxGeometry(FRAME_WIDTH, FRAME_HEIGHT, FRAME_DEPTH, 3, FRAME_RADIUS),
+      new MeshStandardMaterial({ color: PALETTE.wood, roughness: 0.82, metalness: 0.04 }),
+    );
+    frame.name = 'feed-card-frame';
+    frame.position.y = FACE_Y;
+    this.object.add(frame);
+
+    const postGeometry = new CylinderGeometry(0.07, 0.09, POST_HEIGHT, 12);
+    const postMaterial = new MeshStandardMaterial({
+      color: PALETTE.wood,
+      roughness: 0.86,
+      metalness: 0.02,
+    });
+    [-POST_X, POST_X].forEach((x, index) => {
+      const post = new Mesh(postGeometry, postMaterial);
+      post.name = `feed-card-post-${index}`;
+      post.position.set(x, POST_Y, POST_Z);
+      this.object.add(post);
+    });
+
+    this.slopTexture = createCardTexture(data, false);
+    this.originalTexture = createCardTexture(data, true);
+    const faceMaterial = this.createFaceMaterial();
+    faceMaterial.userData['originalMap'] = this.originalTexture;
+    faceMaterial.userData['slopMap'] = this.slopTexture;
+    faceMaterial.userData['uWipe'] = this.wipeUniform;
+
+    const face = new Mesh(new PlaneGeometry(FACE_WIDTH, FACE_HEIGHT), faceMaterial);
+    face.name = 'feed-card-face';
+    face.position.set(0, FACE_Y, FACE_Z);
+    this.object.add(face);
+  }
+
+  get original(): boolean {
+    return this.wipeUniform.value > 0.5;
+  }
+
+  get wipe(): number {
+    return this.wipeUniform.value;
+  }
+
+  setOriginal(on: boolean, delaySeconds = 0): void {
+    this.target = on ? 1 : 0;
+    this.delay = Math.max(0, delaySeconds);
+    if (this.reducedMotion()) {
+      this.delay = 0;
+      this.setWipe(this.target);
+    }
+  }
+
+  update(dt: number): void {
+    if (this.reducedMotion()) {
+      this.delay = 0;
+      this.setWipe(this.target);
+      return;
+    }
+
+    let remaining = Math.max(0, dt);
+    if (this.delay > 0) {
+      if (remaining <= this.delay) {
+        this.delay -= remaining;
+        return;
+      }
+      remaining -= this.delay;
+      this.delay = 0;
+    }
+
+    if (remaining === 0 || this.wipeUniform.value === this.target) {
+      return;
+    }
+    const distance = Math.min(
+      remaining * WIPE_RATE,
+      Math.abs(this.target - this.wipeUniform.value),
+    );
+    this.setWipe(
+      this.wipeUniform.value + Math.sign(this.target - this.wipeUniform.value) * distance,
+    );
+  }
+
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    // `disposeObject3D` sees the original map through MeshBasicMaterial.map. The translated map is
+    // deliberately stored in userData for the shader, so release it explicitly here.
+    this.slopTexture.dispose();
+    disposeObject3D(this.object);
+    this.object.clear();
+  }
+
+  private setWipe(value: number): void {
+    this.wipeUniform.value = Math.min(1, Math.max(0, value));
+  }
+
+  private createFaceMaterial(): MeshBasicMaterial {
+    const material = new MeshBasicMaterial({
+      map: this.originalTexture,
+      fog: true,
+      toneMapped: true,
+    });
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms['uWipe'] = this.wipeUniform;
+      shader.uniforms['uOriginalMap'] = { value: this.originalTexture };
+      shader.uniforms['uSlopMap'] = { value: this.slopTexture };
+
+      const declarations = [
+        'uniform float uWipe;',
+        'uniform sampler2D uOriginalMap;',
+        'uniform sampler2D uSlopMap;',
+      ].join('\n');
+      if (shader.fragmentShader.includes('#include <common>')) {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          '#include <common>',
+          `#include <common>\n${declarations}`,
+        );
+      } else {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          'void main() {',
+          `${declarations}\nvoid main() {`,
+        );
+      }
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <map_fragment>',
+        `
+          float e = uWipe * 1.08 - .04;
+          vec4 originalColor = texture2D(uOriginalMap, vMapUv);
+          vec4 slopColor = texture2D(uSlopMap, vMapUv);
+          float showOriginal = step(vMapUv.x, e);
+          diffuseColor = mix(slopColor, originalColor, showOriginal);
+          // The amber seam exists only while the wipe runs, not as a glowing edge at rest.
+          float seam = exp(-abs(vMapUv.x - e) * 70.0) * smoothstep(0.0, 0.04, uWipe) * smoothstep(1.0, 0.96, uWipe);
+          diffuseColor.rgb += seam * vec3(1.0, 0.6, 0.22) * 4.0;
+        `,
+      );
+    };
+    return material;
+  }
+}
+
+/** Four canonical cards arranged as a centred row. */
+export class FeedWall {
+  readonly object = new Group();
+  readonly cards: readonly FeedCard[];
+
+  constructor(options: FeedWallOptions = {}) {
+    this.object.name = 'feed-wall';
+    this.cards = FEED_CARDS.map((data, index) => {
+      const card = new FeedCard(data, options);
+      card.object.position.x = (index - (FEED_CARDS.length - 1) / 2) * CARD_SPACING;
+      this.object.add(card.object);
+      return card;
+    });
+  }
+
+  setOriginal(on: boolean, stagger = 0.12): void {
+    this.cards.forEach((card, index) => card.setOriginal(on, index * Math.max(0, stagger)));
+  }
+
+  update(dt: number): void {
+    this.cards.forEach((card) => card.update(dt));
+  }
+
+  dispose(): void {
+    this.cards.forEach((card) => card.dispose());
+    this.object.clear();
+  }
+}
+
+function createCardTexture(data: FeedCardData, original: boolean): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+  const context = canvas.getContext('2d');
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 8;
+  if (context) {
+    drawCard(context, data, original);
+    // Drawn at once in the fallback faces, and again once the self-hosted fonts are in.
+    const fonts = document.fonts;
+    if (fonts) {
+      Promise.all(CARD_FONTS.map((font) => fonts.load(font))).then(
+        () => {
+          drawCard(context, data, original);
+          texture.needsUpdate = true;
+        },
+        () => undefined,
+      );
+    }
+  }
+  return texture;
+}
+
+/** Ported from the lookdev's `cardTexture`: the parts people recognise from a video feed. */
+function drawCard(context: CanvasRenderingContext2D, data: FeedCardData, original: boolean): void {
+  const accent = original ? PALETTE.original : PALETTE.slop;
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.textAlign = 'left';
+  context.textBaseline = 'top';
+  context.fillStyle = accent;
+  context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  fillRoundedRect(context, 8, 8, 624, 584, 18, INNER);
+
+  // The thumbnail: the creator's own artwork, with the translated title burned over it when slop.
+  context.save();
+  roundedPath(
+    context,
+    THUMBNAIL.x,
+    THUMBNAIL.y,
+    THUMBNAIL.width,
+    THUMBNAIL.height,
+    THUMBNAIL.radius,
+  );
+  context.clip();
+  context.fillStyle = data.bg;
+  context.fillRect(THUMBNAIL.x, THUMBNAIL.y, THUMBNAIL.width, THUMBNAIL.height);
+  context.fillStyle = data.wordColor;
+  context.font = `800 ${data.word.length > 8 ? 86 : 140}px ${FONT_BARLOW}`;
+  context.fillText(data.word, 48, 40);
+  if (data.sub) {
+    context.fillStyle = PALETTE.ink;
+    context.font = `500 30px ${FONT_MONO}`;
+    context.fillText(data.sub, 54, 196);
+  }
+  if (!original) {
+    context.save();
+    context.translate(40, 110);
+import {
+  CanvasTexture,
+  CylinderGeometry,
+  Mesh,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  WebGLRenderer,
+} from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
+import { FeedCard, FeedWall } from './feed-card';
+
+interface CanvasFixture {
+  readonly contexts: CanvasRenderingContext2D[];
+  readonly fillText: ReturnType<typeof vi.fn>;
+  readonly fonts: string[];
+  restore(): void;
+}
+
+function canvasFixture(): CanvasFixture {
+  const contexts: CanvasRenderingContext2D[] = [];
+  const fonts: string[] = [];
+  const fillText = vi.fn();
+  const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
+    const context = {
+      fillStyle: '',
+      strokeStyle: '',
+      font: '',
+      textAlign: 'left',
+      textBaseline: 'alphabetic',
+      globalAlpha: 1,
+      lineWidth: 1,
+      fillRect: vi.fn(),
+      clearRect: vi.fn(),
+      beginPath: vi.fn(),
+      closePath: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      quadraticCurveTo: vi.fn(),
+      arc: vi.fn(),
+      roundRect: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
+      measureText: (text: string) => ({ width: text.length * 12 }),
+    } as unknown as CanvasRenderingContext2D;
+    Object.defineProperty(context, 'font', {
+      get: () => fonts.at(-1) ?? '',
+      set: (value: string) => fonts.push(value),
+    });
+    contexts.push(context);
+    return context;
+  });
+  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
+}
+
+function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+  const face = card.object.getObjectByName('feed-card-face');
+  expect(face).toBeInstanceOf(Mesh);
+  return face as Mesh<PlaneGeometry, MeshBasicMaterial>;
+}
+
+function mapsOf(card: FeedCard): { original: CanvasTexture; slop: CanvasTexture } {
+  const material = faceOf(card).material;
+  return {
+    original: material.userData['originalMap'] as CanvasTexture,
+    slop: material.userData['slopMap'] as CanvasTexture,
+  };
+}
+
+describe('FeedCard', () => {
+  it('builds the standing frame, face and posts at the design dimensions', () => {
+    const card = new FeedCard(FEED_CARDS[0]);
+    const frame = card.object.getObjectByName('feed-card-frame') as Mesh;
+    const face = faceOf(card);
+    const posts = card.object.children.filter((child) => child.name.startsWith('feed-card-post'));
+
+    expect(frame.geometry.type).toBe('RoundedBoxGeometry');
+    expect((frame.geometry as RoundedBoxGeometry).parameters).toMatchObject({
+      width: 2.1,
+      height: 1.98,
+      depth: 0.14,
+      segments: 3,
+      radius: 0.05,
+    });
+    expect(face.geometry.parameters).toMatchObject({ width: 1.92, height: 1.8 });
+    expect(face.position.toArray()).toEqual([0, 2.05, 0.075]);
+    expect(posts).toHaveLength(2);
+    expect(posts.map((post) => post.position.x)).toEqual([-0.85, 0.85]);
+    posts.forEach((post) => {
+      expect(post).toBeInstanceOf(Mesh);
+      expect((post as Mesh).geometry).toBeInstanceOf(CylinderGeometry);
+      expect(((post as Mesh).geometry as CylinderGeometry).parameters).toMatchObject({
+        radiusTop: 0.07,
+        radiusBottom: 0.09,
+        height: 1.3,
+      });
+    });
+
+    card.dispose();
+  });
+
+  it('draws both 640 by 600 card states with canonical copy and typography', () => {
+    const canvas = canvasFixture();
+    const card = new FeedCard(FEED_CARDS[1]);
+    const maps = mapsOf(card);
+    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
+
+    expect(maps.original.image.width).toBe(640);
+    expect(maps.original.image.height).toBe(600);
+    expect(maps.slop.image.width).toBe(640);
+    expect(maps.slop.image.height).toBe(600);
+    expect(written).toContain(CAPTION.original);
+    expect(written).toContain(CAPTION.translated);
+    expect(written).toContain(FEED_CARDS[1].original);
+    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+    expect(written).toContain(FEED_CARDS[1].slopThumb);
+    expect(written).toContain(FEED_CARDS[1].word);
+    expect(written).toContain(FEED_CARDS[1].sub);
+    expect(written).toContain(FEED_CARDS[1].duration);
+    expect(written).toContain(FEED_CARDS[1].avatar);
+    expect(written).toContain(FEED_CARDS[1].meta);
+    expect(written).toContain(BADGE.original);
+    expect(written).toContain(BADGE.translated);
+    expect(written).toContain('KI-übersetzt');
+    expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+    expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
+
+    card.dispose();
+    canvas.restore();
+  });
+
+  it('mixes original on the left and translated content on the right with a glowing seam', () => {
+    const canvas = canvasFixture();
+    const card = new FeedCard(FEED_CARDS[0]);
+    const material = faceOf(card).material;
+    const shader = {
+      uniforms: {},
+      fragmentShader:
+        '#include <map_fragment>\n#include <fog_fragment>\n#include <tonemapping_fragment>',
+    } as Parameters<MeshBasicMaterial['onBeforeCompile']>[0];
+
+    material.onBeforeCompile(shader, {} as WebGLRenderer);
+
+    expect(shader.uniforms['uWipe'].value).toBe(0);
+    expect(shader.uniforms['uOriginalMap'].value).toBe(mapsOf(card).original);
+    expect(shader.uniforms['uSlopMap'].value).toBe(mapsOf(card).slop);
+    expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+    expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+    expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
+    expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+    expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+    expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+
+    card.dispose();
+    canvas.restore();
+  });
+
+  it('wipes from slop to original in 0.36 seconds', () => {
+    const card = new FeedCard(FEED_CARDS[0]);
+
+    card.setOriginal(true);
+    card.update(0.18);
+    expect(card.wipe).toBeCloseTo(0.5, 8);
+    expect(card.original).toBe(false);
+    card.update(0.18);
+    expect(card.wipe).toBeCloseTo(1, 8);
+    expect(card.original).toBe(true);
+
+    card.dispose();
+  });
+
+  it('waits through requested delay before starting its wipe', () => {
+    const card = new FeedCard(FEED_CARDS[0]);
+
+    card.setOriginal(true, 0.2);
+    card.update(0.19);
+    expect(card.wipe).toBe(0);
+    card.update(0.01);
+    expect(card.wipe).toBe(0);
+    card.update(0.18);
+    expect(card.wipe).toBeCloseTo(0.5, 8);
+
+    card.dispose();
+  });
+
+  it('snaps immediately under reduced motion, including a delayed request', () => {
+    const card = new FeedCard(FEED_CARDS[0], { reducedMotion: () => true });
+
+    card.setOriginal(true, 10);
+    expect(card.wipe).toBe(1);
+    expect(card.original).toBe(true);
+    card.setOriginal(false, 10);
+    expect(card.wipe).toBe(0);
+
+    card.dispose();
+  });
+
+  it('disposes both canvas textures and every card resource', () => {
+    const canvas = canvasFixture();
+    const card = new FeedCard(FEED_CARDS[0]);
+    const maps = mapsOf(card);
+    const originalDispose = vi.spyOn(maps.original, 'dispose');
+    const slopDispose = vi.spyOn(maps.slop, 'dispose');
+
+    card.dispose();
+
+    expect(originalDispose).toHaveBeenCalledOnce();
+    expect(slopDispose).toHaveBeenCalledOnce();
+    expect(card.object.children).toHaveLength(0);
+    canvas.restore();
+  });
+});
+
+describe('FeedWall', () => {
+  it('centres four cards at 2.4 metre spacing and staggers transitions', () => {
+    const wall = new FeedWall();
+    expect(wall.cards).toHaveLength(4);
+    expect(wall.object.children).toHaveLength(4);
+    wall.cards
+      .map((card) => card.object.position.x)
+      .forEach((x, index) => {
+        expect(x).toBeCloseTo([-3.6, -1.2, 1.2, 3.6][index]);
+      });
+
+    wall.setOriginal(true, 0.12);
+    wall.update(0.12);
+    expect(wall.cards.map((card) => card.wipe)).toEqual([1 / 3, 0, 0, 0]);
+    wall.update(0.12);
+    expect(wall.cards.map((card) => card.wipe)).toEqual([2 / 3, 1 / 3, 0, 0]);
+
+    wall.dispose();
+    expect(wall.object.children).toHaveLength(0);
+  });
+});
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "sed -n '240,520p' src/app/world/projects/deslopify/feed-card.ts; git diff --no-index -- /dev/null src/app/world/projects/deslopify/feed-card.ts | sed -n '1,320p' || true"[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 0ms:[0m
+}
+
+function createCardTexture(data: FeedCardData, original: boolean): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+  const context = canvas.getContext('2d');
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.anisotropy = 8;
+  if (context) {
+    drawCard(context, data, original);
+    // Drawn at once in the fallback faces, and again once the self-hosted fonts are in.
+    const fonts = document.fonts;
+    if (fonts) {
+      Promise.all(CARD_FONTS.map((font) => fonts.load(font))).then(
+        () => {
+          drawCard(context, data, original);
+          texture.needsUpdate = true;
+        },
+        () => undefined,
+      );
+    }
+  }
+  return texture;
+}
+
+/** Ported from the lookdev's `cardTexture`: the parts people recognise from a video feed. */
+function drawCard(context: CanvasRenderingContext2D, data: FeedCardData, original: boolean): void {
+  const accent = original ? PALETTE.original : PALETTE.slop;
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.textAlign = 'left';
+  context.textBaseline = 'top';
+  context.fillStyle = accent;
+  context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+  fillRoundedRect(context, 8, 8, 624, 584, 18, INNER);
+
+  // The thumbnail: the creator's own artwork, with the translated title burned over it when slop.
+  context.save();
+  roundedPath(
+    context,
+    THUMBNAIL.x,
+    THUMBNAIL.y,
+    THUMBNAIL.width,
+    THUMBNAIL.height,
+    THUMBNAIL.radius,
+  );
+  context.clip();
+  context.fillStyle = data.bg;
+  context.fillRect(THUMBNAIL.x, THUMBNAIL.y, THUMBNAIL.width, THUMBNAIL.height);
+  context.fillStyle = data.wordColor;
+  context.font = `800 ${data.word.length > 8 ? 86 : 140}px ${FONT_BARLOW}`;
+  context.fillText(data.word, 48, 40);
+  if (data.sub) {
+    context.fillStyle = PALETTE.ink;
+    context.font = `500 30px ${FONT_MONO}`;
+    context.fillText(data.sub, 54, 196);
+  }
+  if (!original) {
+    context.save();
+    context.translate(40, 110);
+    context.rotate(-0.05);
+    context.font = 'bold 50px Arial, sans-serif';
+    const width = context.measureText(data.slopThumb).width + 36;
+    context.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    context.fillRect(0, 6, width, 70);
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, 70);
+    context.fillStyle = '#111111';
+    context.fillText(data.slopThumb, 18, 10);
+    context.restore();
+    fillRoundedRect(context, 38, 38, 170, 40, 6, PALETTE.slop);
+    context.fillStyle = '#ffffff';
+    context.font = '700 24px system-ui, sans-serif';
+    context.fillText('KI-übersetzt', 52, 46);
+  }
+  fillRoundedRect(context, 520, 310, 84, 36, 6, 'rgba(0, 0, 0, 0.82)');
+  context.fillStyle = '#ffffff';
+  context.font = `500 24px ${FONT_MONO}`;
+  context.fillText(data.duration, 532, 316);
+  context.restore();
+
+  context.fillStyle = data.avatarBg;
+  context.beginPath();
+  context.arc(62, 412, 30, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = '#ffffff';
+  context.font = `700 30px ${FONT_BARLOW}`;
+  context.textAlign = 'center';
+  context.fillText(data.avatar, 62, 396);
+  context.textAlign = 'left';
+
+  context.fillStyle = '#16202a';
+  context.font = `700 38px ${FONT_BARLOW}`;
+  drawWrapped(context, original ? data.original : data.slop, 108, 380, 500, 44, 'left');
+  // The metadata stays German in both states: the extension restores the creator's content and
+  // leaves the viewer's own interface language alone.
+  context.fillStyle = '#5b6670';
+  context.font = `500 26px ${FONT_BARLOW}`;
+  context.fillText(data.meta, 108, 478);
+
+  const badge = original ? BADGE.original : BADGE.translated;
+  context.font = '700 22px system-ui, sans-serif';
+  const badgeWidth = context.measureText(badge).width + 30;
+  fillRoundedRect(context, 108, 522, badgeWidth, 40, 20, accent);
+  context.fillStyle = original ? '#1a1408' : '#ffffff';
+  context.fillText(badge, 123, 530);
+}
+
+function drawWrapped(
+  context: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  align: CanvasTextAlign,
+): number {
+  context.textAlign = align;
+  const words = text.split(' ');
+  let line = '';
+  let lineY = y;
+  words.forEach((word) => {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && context.measureText(candidate).width > maxWidth) {
+      context.fillText(line, x, lineY);
+      line = word;
+      lineY += lineHeight;
+    } else {
+      line = candidate;
+    }
+  });
+  if (line) {
+    context.fillText(line, x, lineY);
+    lineY += lineHeight;
+  }
+  return lineY;
+}
+
+function roundedPath(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+): void {
+  context.beginPath();
+  if (typeof context.roundRect === 'function') {
+    context.roundRect(x, y, width, height, radius);
+  } else {
+    context.rect(x, y, width, height);
+  }
+}
+
+function fillRoundedRect(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  colour: string,
+): void {
+  context.fillStyle = colour;
+  roundedPath(context, x, y, width, height, radius);
+  context.fill();
+}
+diff --git 1/src/app/world/projects/deslopify/feed-card.ts 2/src/app/world/projects/deslopify/feed-card.ts
+new file mode 100644
+index 0000000..9b3997c
+--- /dev/null
++++ 2/src/app/world/projects/deslopify/feed-card.ts
+@@ -0,0 +1,407 @@
++import {
++  CanvasTexture,
++  CylinderGeometry,
++  Group,
++  Mesh,
++  MeshBasicMaterial,
++  MeshStandardMaterial,
++  PlaneGeometry,
++  SRGBColorSpace,
++} from 'three';
++import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
++import { disposeObject3D } from '@engine/dispose';
++import type { FeedCardData } from './deslopify.data';
++import { BADGE, CAPTION, FEED_CARDS, PALETTE } from './deslopify.data';
++
++const FRAME_WIDTH = 2.1;
++const FRAME_HEIGHT = 1.98;
++const FRAME_DEPTH = 0.14;
++const FRAME_RADIUS = 0.05;
++const FACE_WIDTH = 1.92;
++const FACE_HEIGHT = 1.8;
++const FACE_Y = 2.05;
++const FACE_Z = 0.075;
++const POST_X = 0.85;
++const POST_Y = 0.55;
++const POST_Z = -0.04;
++const POST_HEIGHT = 1.3;
++const WIPE_SECONDS = 0.36;
++const WIPE_RATE = 1 / WIPE_SECONDS;
++const CARD_SPACING = 2.4;
++
++const CANVAS_WIDTH = 640;
++const CANVAS_HEIGHT = 600;
++const THUMBNAIL = { x: 24, y: 24, width: 592, height: 333, radius: 12 } as const;
++const INNER = '#f4f2ee';
++const FONT_BARLOW = '"Barlow", system-ui, sans-serif';
++const FONT_MONO = '"IBM Plex Mono", ui-monospace, monospace';
++const CARD_FONTS = [
++  '800 140px "Barlow"',
++  '700 38px "Barlow"',
++  '500 26px "Barlow"',
++  '500 24px "IBM Plex Mono"',
++];
++
++export interface FeedCardOptions {
++  readonly reducedMotion?: () => boolean;
++}
++
++export type FeedWallOptions = FeedCardOptions;
++
++interface WipeUniform {
++  value: number;
++}
++
++/** One standing bilingual feed card with a shader wipe between its two canvas faces. */
++export class FeedCard {
++  readonly object = new Group();
++
++  private readonly slopTexture: CanvasTexture;
++  private readonly originalTexture: CanvasTexture;
++  private readonly wipeUniform: WipeUniform = { value: 0 };
++  private readonly reducedMotion: () => boolean;
++  private target = 0;
++  private delay = 0;
++  private disposed = false;
++
++  constructor(data: FeedCardData, options: FeedCardOptions = {}) {
++    this.reducedMotion = options.reducedMotion ?? (() => false);
++    this.object.name = 'feed-card';
++
++    const frame = new Mesh(
++      new RoundedBoxGeometry(FRAME_WIDTH, FRAME_HEIGHT, FRAME_DEPTH, 3, FRAME_RADIUS),
++      new MeshStandardMaterial({ color: PALETTE.wood, roughness: 0.82, metalness: 0.04 }),
++    );
++    frame.name = 'feed-card-frame';
++    frame.position.y = FACE_Y;
++    this.object.add(frame);
++
++    const postGeometry = new CylinderGeometry(0.07, 0.09, POST_HEIGHT, 12);
++    const postMaterial = new MeshStandardMaterial({
++      color: PALETTE.wood,
++      roughness: 0.86,
++      metalness: 0.02,
++    });
++    [-POST_X, POST_X].forEach((x, index) => {
++      const post = new Mesh(postGeometry, postMaterial);
++      post.name = `feed-card-post-${index}`;
++      post.position.set(x, POST_Y, POST_Z);
++      this.object.add(post);
++    });
++
++    this.slopTexture = createCardTexture(data, false);
++    this.originalTexture = createCardTexture(data, true);
++    const faceMaterial = this.createFaceMaterial();
++    faceMaterial.userData['originalMap'] = this.originalTexture;
++    faceMaterial.userData['slopMap'] = this.slopTexture;
++    faceMaterial.userData['uWipe'] = this.wipeUniform;
++
++    const face = new Mesh(new PlaneGeometry(FACE_WIDTH, FACE_HEIGHT), faceMaterial);
++    face.name = 'feed-card-face';
++    face.position.set(0, FACE_Y, FACE_Z);
++    this.object.add(face);
++  }
++
++  get original(): boolean {
++    return this.wipeUniform.value > 0.5;
++  }
++
++  get wipe(): number {
++    return this.wipeUniform.value;
++  }
++
++  setOriginal(on: boolean, delaySeconds = 0): void {
++    this.target = on ? 1 : 0;
++    this.delay = Math.max(0, delaySeconds);
++    if (this.reducedMotion()) {
++      this.delay = 0;
++      this.setWipe(this.target);
++    }
++  }
++
++  update(dt: number): void {
++    if (this.reducedMotion()) {
++      this.delay = 0;
++      this.setWipe(this.target);
++      return;
++    }
++
++    let remaining = Math.max(0, dt);
++    if (this.delay > 0) {
++      if (remaining <= this.delay) {
++        this.delay -= remaining;
++        return;
++      }
++      remaining -= this.delay;
++      this.delay = 0;
++    }
++
++    if (remaining === 0 || this.wipeUniform.value === this.target) {
++      return;
++    }
++    const distance = Math.min(
++      remaining * WIPE_RATE,
++      Math.abs(this.target - this.wipeUniform.value),
++    );
++    this.setWipe(
++      this.wipeUniform.value + Math.sign(this.target - this.wipeUniform.value) * distance,
++    );
++  }
++
++  dispose(): void {
++    if (this.disposed) {
++      return;
++    }
++    this.disposed = true;
++    // `disposeObject3D` sees the original map through MeshBasicMaterial.map. The translated map is
++    // deliberately stored in userData for the shader, so release it explicitly here.
++    this.slopTexture.dispose();
++    disposeObject3D(this.object);
++    this.object.clear();
++  }
++
++  private setWipe(value: number): void {
++    this.wipeUniform.value = Math.min(1, Math.max(0, value));
++  }
++
++  private createFaceMaterial(): MeshBasicMaterial {
++    const material = new MeshBasicMaterial({
++      map: this.originalTexture,
++      fog: true,
++      toneMapped: true,
++    });
++    material.onBeforeCompile = (shader) => {
++      shader.uniforms['uWipe'] = this.wipeUniform;
++      shader.uniforms['uOriginalMap'] = { value: this.originalTexture };
++      shader.uniforms['uSlopMap'] = { value: this.slopTexture };
++
++      const declarations = [
++        'uniform float uWipe;',
++        'uniform sampler2D uOriginalMap;',
++        'uniform sampler2D uSlopMap;',
++      ].join('\n');
++      if (shader.fragmentShader.includes('#include <common>')) {
++        shader.fragmentShader = shader.fragmentShader.replace(
++          '#include <common>',
++          `#include <common>\n${declarations}`,
++        );
++      } else {
++        shader.fragmentShader = shader.fragmentShader.replace(
++          'void main() {',
++          `${declarations}\nvoid main() {`,
++        );
++      }
++
++      shader.fragmentShader = shader.fragmentShader.replace(
++        '#include <map_fragment>',
++        `
++          float e = uWipe * 1.08 - .04;
++          vec4 originalColor = texture2D(uOriginalMap, vMapUv);
++          vec4 slopColor = texture2D(uSlopMap, vMapUv);
++          float showOriginal = step(vMapUv.x, e);
++          diffuseColor = mix(slopColor, originalColor, showOriginal);
++          // The amber seam exists only while the wipe runs, not as a glowing edge at rest.
++          float seam = exp(-abs(vMapUv.x - e) * 70.0) * smoothstep(0.0, 0.04, uWipe) * smoothstep(1.0, 0.96, uWipe);
++          diffuseColor.rgb += seam * vec3(1.0, 0.6, 0.22) * 4.0;
++        `,
++      );
++    };
++    return material;
++  }
++}
++
++/** Four canonical cards arranged as a centred row. */
++export class FeedWall {
++  readonly object = new Group();
++  readonly cards: readonly FeedCard[];
++
++  constructor(options: FeedWallOptions = {}) {
++    this.object.name = 'feed-wall';
++    this.cards = FEED_CARDS.map((data, index) => {
++      const card = new FeedCard(data, options);
++      card.object.position.x = (index - (FEED_CARDS.length - 1) / 2) * CARD_SPACING;
++      this.object.add(card.object);
++      return card;
++    });
++  }
++
++  setOriginal(on: boolean, stagger = 0.12): void {
++    this.cards.forEach((card, index) => card.setOriginal(on, index * Math.max(0, stagger)));
++  }
++
++  update(dt: number): void {
++    this.cards.forEach((card) => card.update(dt));
++  }
++
++  dispose(): void {
++    this.cards.forEach((card) => card.dispose());
++    this.object.clear();
++  }
++}
++
++function createCardTexture(data: FeedCardData, original: boolean): CanvasTexture {
++  const canvas = document.createElement('canvas');
++  canvas.width = CANVAS_WIDTH;
++  canvas.height = CANVAS_HEIGHT;
++  const context = canvas.getContext('2d');
++  const texture = new CanvasTexture(canvas);
++  texture.colorSpace = SRGBColorSpace;
++  texture.anisotropy = 8;
++  if (context) {
++    drawCard(context, data, original);
++    // Drawn at once in the fallback faces, and again once the self-hosted fonts are in.
++    const fonts = document.fonts;
++    if (fonts) {
++      Promise.all(CARD_FONTS.map((font) => fonts.load(font))).then(
++        () => {
++          drawCard(context, data, original);
++          texture.needsUpdate = true;
++        },
++        () => undefined,
++      );
++    }
++  }
++  return texture;
++}
++
++/** Ported from the lookdev's `cardTexture`: the parts people recognise from a video feed. */
++function drawCard(context: CanvasRenderingContext2D, data: FeedCardData, original: boolean): void {
++  const accent = original ? PALETTE.original : PALETTE.slop;
++  context.setTransform(1, 0, 0, 1, 0, 0);
++  context.textAlign = 'left';
++  context.textBaseline = 'top';
++  context.fillStyle = accent;
++  context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
++  fillRoundedRect(context, 8, 8, 624, 584, 18, INNER);
++
++  // The thumbnail: the creator's own artwork, with the translated title burned over it when slop.
++  context.save();
++  roundedPath(
++    context,
++    THUMBNAIL.x,
++    THUMBNAIL.y,
++    THUMBNAIL.width,
++    THUMBNAIL.height,
++    THUMBNAIL.radius,
++  );
++  context.clip();
++  context.fillStyle = data.bg;
++  context.fillRect(THUMBNAIL.x, THUMBNAIL.y, THUMBNAIL.width, THUMBNAIL.height);
++  context.fillStyle = data.wordColor;
++  context.font = `800 ${data.word.length > 8 ? 86 : 140}px ${FONT_BARLOW}`;
++  context.fillText(data.word, 48, 40);
++  if (data.sub) {
++    context.fillStyle = PALETTE.ink;
++    context.font = `500 30px ${FONT_MONO}`;
++    context.fillText(data.sub, 54, 196);
++  }
++  if (!original) {
++    context.save();
++    context.translate(40, 110);
++    context.rotate(-0.05);
++    context.font = 'bold 50px Arial, sans-serif';
++    const width = context.measureText(data.slopThumb).width + 36;
++    context.fillStyle = 'rgba(0, 0, 0, 0.3)';
++    context.fillRect(0, 6, width, 70);
++    context.fillStyle = '#ffffff';
++    context.fillRect(0, 0, width, 70);
++    context.fillStyle = '#111111';
++    context.fillText(data.slopThumb, 18, 10);
++    context.restore();
++    fillRoundedRect(context, 38, 38, 170, 40, 6, PALETTE.slop);
++    context.fillStyle = '#ffffff';
++    context.font = '700 24px system-ui, sans-serif';
++    context.fillText('KI-übersetzt', 52, 46);
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[35m[3mcodex[0m[0m
+Review verified: `feed-card.ts` contains requested reference port, font redraw, anisotropy, rounded clipping, and seam fade. Current spec is stale: it expects removed captions and lacks required canvas methods. I’m updating only test fixtures/assertions.
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "npx ng test --watch=false --include='src/app/world/projects/deslopify/feed-card.spec.ts'"[0m in /home/jamie/programming/gitplore-dj-t8a
+[31m exited 1 in 6594ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Node.js version v25.2.1 detected.
+Prior to version 27, odd numbered Node.js versions will not enter LTS status and should not be used for production. For more information, please see https://nodejs.org/en/about/previous-releases/.
+[1m[31m(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)[39m[22m
+[33m❯[39m Building...
+(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m✔[39m Building...
+Application bundle generation complete. [5.029 seconds] - 2026-09-24T15:00:32.335Z
+
+
+ RUN  v4.1.11 /home/jamie/programming/gitplore-dj-t8a
+
+ ❯ |gitplore| src/app/world/projects/deslopify/feed-card.spec.ts (8 tests | 7 failed) 32ms
+     × draws both 640 by 600 card states with canonical copy and typography 7ms
+     × mixes original on the left and translated content on the right with a glowing seam 2ms
+     × wipes from slop to original in 0.36 seconds 2ms
+     × waits through requested delay before starting its wipe 2ms
+     × snaps immediately under reduced motion, including a delayed request 2ms
+     × disposes both canvas textures and every card resource 2ms
+     × centres four cards at 2.4 metre spacing and staggers transitions 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |gitplore| src/app/world/projects/deslopify/feed-card.spec.ts > FeedCard > draws both 640 by 600 card states with canonical copy and typography
+TypeError: context.setTransform is not a function
+ ❯ drawCard src/app/world/projects/deslopify/feed-card.ts:270:11
+ ❯ createCardTexture src/app/world/projects/deslopify/feed-card.ts:251:5
+ ❯ new FeedCard src/app/world/projects/deslopify/feed-card.ts:92:24
+ ❯ src/app/world/projects/deslopify/feed-card.spec.ts:105:18
+    103|   it('draws both 640 by 600 card states with canonical copy and typogr…
+    104|     const canvas = canvasFixture();
+    105|     const card = new FeedCard(FEED_CARDS[1]);
+       |                  ^
+    106|     const maps = mapsOf(card);
+    107|     const written = canvas.fillText.mock.calls.map(([text]) => String(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  |gitplore| src/app/world/projects/deslopify/feed-card.spec.ts > FeedCard > mixes original on the left and translated content on the right with a glowing seam
+TypeError: context.setTransform is not a function
+ ❯ drawCard src/app/world/projects/deslopify/feed-card.ts:270:11
+ ❯ createCardTexture src/app/world/projects/deslopify/feed-card.ts:251:5
+ ❯ new FeedCard src/app/world/projects/deslopify/feed-card.ts:92:24
+ ❯ src/app/world/projects/deslopify/feed-card.spec.ts:138:18
+    136|   it('mixes original on the left and translated content on the right w…
+    137|     const canvas = canvasFixture();
+    138|     const card = new FeedCard(FEED_CARDS[0]);
+       |                  ^
+    139|     const material = faceOf(card).material;
+    140|     const shader = {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  |gitplore| src/app/world/projects/deslopify/feed-card.spec.ts > FeedCard > wipes from slop to original in 0.36 seconds
+TypeError: context.setTransform is not a function
+ ❯ drawCard src/app/world/projects/deslopify/feed-card.ts:270:11
+ ❯ createCardTexture src/app/world/projects/deslopify/feed-card.ts:251:5
+ ❯ new FeedCard src/app/world/projects/deslopify/feed-card.ts:92:24
+ ❯ src/app/world/projects/deslopify/feed-card.spec.ts:163:18
+    161|
+    162|   it('wipes from slop to original in 0.36 seconds', () => {
+    163|     const card = new FeedCard(FEED_CARDS[0]);
+       |                  ^
+    164|
+    165|     card.setOriginal(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  |gitplore| src/app/world/projects/deslopify/feed-card.spec.ts > FeedCard > waits through requested delay before starting its wipe
+TypeError: context.setTransform is not a function
+ ❯ drawCard src/app/world/projects/deslopify/feed-card.ts:270:11
+ ❯ createCardTexture src/app/world/projects/deslopify/feed-card.ts:251:5
+ ❯ new FeedCard src/app/world/projects/deslopify/feed-card.ts:92:24
+ ❯ src/app/world/projects/deslopify/feed-card.spec.ts:177:18
+    175|
+    176|   it('waits through requested delay before starting its wipe', () => {
+    177|     const card = new FeedCard(FEED_CARDS[0]);
+       |                  ^
+    178|
+    179|     card.setOriginal(true, 0.2);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  |gitplore| src/app/world/projects/deslopify/feed-card.spec.ts > FeedCard > snaps immediately under reduced motion, including a delayed request
+TypeError: context.setTransform is not a function
+ ❯ drawCard src/app/world/projects/deslopify/feed-card.ts:270:11
+ ❯ createCardTexture src/app/world/projects/deslopify/feed-card.ts:251:5
+ ❯ new FeedCard src/app/world/projects/deslopify/feed-card.ts:92:24
+ ❯ src/app/world/projects/deslopify/feed-card.spec.ts:191:18
+    189|
+    190|   it('snaps immediately under reduced motion, including a delayed requ…
+    191|     const card = new FeedCard(FEED_CARDS[0], { reducedMotion: () => tr…
+       |                  ^
+    192|
+    193|     card.setOriginal(true, 10);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  |gitplore| src/app/world/projects/deslopify/feed-card.spec.ts > FeedCard > disposes both canvas textures and every card resource
+TypeError: context.setTransform is not a function
+ ❯ drawCard src/app/world/projects/deslopify/feed-card.ts:270:11
+ ❯ createCardTexture src/app/world/projects/deslopify/feed-card.ts:251:5
+ ❯ new FeedCard src/app/world/projects/deslopify/feed-card.ts:92:24
+ ❯ src/app/world/projects/deslopify/feed-card.spec.ts:204:18
+    202|   it('disposes both canvas textures and every card resource', () => {
+    203|     const canvas = canvasFixture();
+    204|     const card = new FeedCard(FEED_CARDS[0]);
+       |                  ^
+    205|     const maps = mapsOf(card);
+    206|     const originalDispose = vi.spyOn(maps.original, 'dispose');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  |gitplore| src/app/world/projects/deslopify/feed-card.spec.ts > FeedWall > centres four cards at 2.4 metre spacing and staggers transitions
+TypeError: context.setTransform is not a function
+ ❯ drawCard src/app/world/projects/deslopify/feed-card.ts:270:11
+ ❯ createCardTexture src/app/world/projects/deslopify/feed-card.ts:251:5
+ ❯ new FeedCard src/app/world/projects/deslopify/feed-card.ts:92:24
+ ❯ src/app/world/projects/deslopify/feed-card.ts:221:20
+ ❯ new FeedWall src/app/world/projects/deslopify/feed-card.ts:220:29
+ ❯ src/app/world/projects/deslopify/feed-card.spec.ts:220:18
+    218| describe('FeedWall', () => {
+    219|   it('centres four cards at 2.4 metre spacing and staggers transitions…
+    220|     const wall = new FeedWall();
+       |                  ^
+    221|     expect(wall.cards).toHaveLength(4);
+    222|     expect(wall.object.children).toHaveLength(4);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 1 passed (8)
+   Start at  17:00:32
+   Duration  833ms (transform 47ms, setup 214ms, import 55ms, tests 32ms, environment 393ms)
+
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mapply patch[0m
+[1mpatch:[0m completed
+[2m/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.spec.ts[0m
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "npx ng test --watch=false --include='src/app/world/projects/deslopify/feed-card.spec.ts'"[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 6491ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Node.js version v25.2.1 detected.
+Prior to version 27, odd numbered Node.js versions will not enter LTS status and should not be used for production. For more information, please see https://nodejs.org/en/about/previous-releases/.
+[1m[31m(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)[39m[22m
+[33m❯[39m Building...
+(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m✔[39m Building...
+Application bundle generation complete. [4.909 seconds] - 2026-09-24T15:01:42.927Z
+
+
+ RUN  v4.1.11 /home/jamie/programming/gitplore-dj-t8a
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  17:01:43
+   Duration  825ms (transform 46ms, setup 217ms, import 54ms, tests 34ms, environment 396ms)
+
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+
+[35m[3mcodex[0m[0m
+Spec now matches reference behavior: no captions, state-specific slop thumbnail/badge, required canvas APIs, anisotropy, and seam fade assertions. Focused spec passes 8/8. Running requested compiler/lint/format gates.
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m Completed
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc 'npx prettier --check src/app/world/projects/deslopify/feed-card.ts src/app/world/projects/deslopify/feed-card.spec.ts'[0m in /home/jamie/programming/gitplore-dj-t8a
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc 'npx tsc -b --noEmit'[0m in /home/jamie/programming/gitplore-dj-t8a
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc 'npx eslint src/app/world/projects/deslopify/feed-card.ts src/app/world/projects/deslopify/feed-card.spec.ts'[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 400ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Checking formatting...
+All matched files use Prettier code style!
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[31m exited 1 in 1136ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[0m
+[4m/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.ts[24m
+  [2m14:17[22m  [31merror[39m  'CAPTION' is defined but never used  [2m@typescript-eslint/no-unused-vars[22m
+
+[31m[1m✖ 1 problem (1 error, 0 warnings)[22m[39m
+[0m
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[32m succeeded in 4641ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+
+[35m[3mcodex[0m[0m
+Genuine bug found: rewritten `feed-card.ts` still imports unused `CAPTION`; requested ESLint gate fails on line 14. Removing only that stale import.
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mapply patch[0m
+[1mpatch:[0m completed
+[2m/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.ts[0m
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+diff --git a/src/app/world/projects/deslopify/feed-card.ts b/src/app/world/projects/deslopify/feed-card.ts
+index 9b3997c1e136950831e27c28eabcbfd629b97859..04ef320055332854a623250d4a338fc118371333
+--- a/src/app/world/projects/deslopify/feed-card.ts
++++ b/src/app/world/projects/deslopify/feed-card.ts
+@@ -11,7 +11,7 @@
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+ import { disposeObject3D } from '@engine/dispose';
+ import type { FeedCardData } from './deslopify.data';
+-import { BADGE, CAPTION, FEED_CARDS, PALETTE } from './deslopify.data';
++import { BADGE, FEED_CARDS, PALETTE } from './deslopify.data';
+ 
+ const FRAME_WIDTH = 2.1;
+ const FRAME_HEIGHT = 1.98;
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+diff --git a/src/app/world/projects/deslopify/feed-card.ts b/src/app/world/projects/deslopify/feed-card.ts
+index 9b3997c1e136950831e27c28eabcbfd629b97859..04ef320055332854a623250d4a338fc118371333
+--- a/src/app/world/projects/deslopify/feed-card.ts
++++ b/src/app/world/projects/deslopify/feed-card.ts
+@@ -11,7 +11,7 @@
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+ import { disposeObject3D } from '@engine/dispose';
+ import type { FeedCardData } from './deslopify.data';
+-import { BADGE, CAPTION, FEED_CARDS, PALETTE } from './deslopify.data';
++import { BADGE, FEED_CARDS, PALETTE } from './deslopify.data';
+ 
+ const FRAME_WIDTH = 2.1;
+ const FRAME_HEIGHT = 1.98;
+
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m Completed
+[1mhook:[0m [2mPreToolUse[0m Completed
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc 'npx tsc -b --noEmit'[0m in /home/jamie/programming/gitplore-dj-t8a
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc "npx ng test --watch=false --include='src/app/world/projects/deslopify/feed-card.spec.ts'"[0m in /home/jamie/programming/gitplore-dj-t8a
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc 'npx eslint src/app/world/projects/deslopify/feed-card.ts src/app/world/projects/deslopify/feed-card.spec.ts'[0m in /home/jamie/programming/gitplore-dj-t8a
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc 'npx prettier --check src/app/world/projects/deslopify/feed-card.ts src/app/world/projects/deslopify/feed-card.spec.ts'[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 428ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Checking formatting...
+All matched files use Prettier code style!
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[32m succeeded in 1229ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[32m succeeded in 5097ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+[32m succeeded in 7255ms:[0m
+(node:2) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Node.js version v25.2.1 detected.
+Prior to version 27, odd numbered Node.js versions will not enter LTS status and should not be used for production. For more information, please see https://nodejs.org/en/about/previous-releases/.
+[1m[31m(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)[39m[22m
+[33m❯[39m Building...
+(node:13) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m✔[39m Building...
+Application bundle generation complete. [5.532 seconds] - 2026-09-24T15:02:15.229Z
+
+
+ RUN  v4.1.11 /home/jamie/programming/gitplore-dj-t8a
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  17:02:15
+   Duration  887ms (transform 51ms, setup 233ms, import 62ms, tests 37ms, environment 423ms)
+
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+diff --git a/src/app/world/projects/deslopify/feed-card.ts b/src/app/world/projects/deslopify/feed-card.ts
+index 9b3997c1e136950831e27c28eabcbfd629b97859..04ef320055332854a623250d4a338fc118371333
+--- a/src/app/world/projects/deslopify/feed-card.ts
++++ b/src/app/world/projects/deslopify/feed-card.ts
+@@ -11,7 +11,7 @@
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+ import { disposeObject3D } from '@engine/dispose';
+ import type { FeedCardData } from './deslopify.data';
+-import { BADGE, CAPTION, FEED_CARDS, PALETTE } from './deslopify.data';
++import { BADGE, FEED_CARDS, PALETTE } from './deslopify.data';
+ 
+ const FRAME_WIDTH = 2.1;
+ const FRAME_HEIGHT = 1.98;
+
+[1mhook:[0m [2mPreToolUse[0m
+[1mhook:[0m [2mPreToolUse[0m Completed
+[35m[3mexec[0m[0m
+[1m/usr/bin/zsh -lc 'git status --short; git diff --check --no-index /dev/null src/app/world/projects/deslopify/feed-card.ts || true; git diff --check --no-index /dev/null src/app/world/projects/deslopify/feed-card.spec.ts || true'[0m in /home/jamie/programming/gitplore-dj-t8a
+[32m succeeded in 0ms:[0m
+?? src/app/world/projects/deslopify/feed-card.spec.ts
+?? src/app/world/projects/deslopify/feed-card.ts
+
+[1mhook:[0m [2mPostToolUse[0m
+[1mhook:[0m [2mPostToolUse[0m Completed
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+diff --git a/src/app/world/projects/deslopify/feed-card.ts b/src/app/world/projects/deslopify/feed-card.ts
+index 9b3997c1e136950831e27c28eabcbfd629b97859..04ef320055332854a623250d4a338fc118371333
+--- a/src/app/world/projects/deslopify/feed-card.ts
++++ b/src/app/world/projects/deslopify/feed-card.ts
+@@ -11,7 +11,7 @@
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+ import { disposeObject3D } from '@engine/dispose';
+ import type { FeedCardData } from './deslopify.data';
+-import { BADGE, CAPTION, FEED_CARDS, PALETTE } from './deslopify.data';
++import { BADGE, FEED_CARDS, PALETTE } from './deslopify.data';
+ 
+ const FRAME_WIDTH = 2.1;
+ const FRAME_HEIGHT = 1.98;
+
+[35m[3mcodex[0m[0m
+Updated [feed-card.spec.ts](/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.spec.ts) for rewritten draw reference:
+
+- Added required canvas mock methods.
+- Removed caption assertions.
+- Added state-specific text and seam-fade assertions.
+- Asserted texture anisotropy.
+
+Genuine bug fix: removed unused `CAPTION` import from [feed-card.ts](/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.ts).
+
+Checks pass:
+
+- Spec: 8/8
+- TypeScript
+- ESLint
+- Prettier check
+
+No changelog or commit created.
+diff --git a/src/app/world/projects/deslopify/feed-card.spec.ts b/src/app/world/projects/deslopify/feed-card.spec.ts
+index 4b39b13effc5c7d1a9ade497750a1908e5ce165f..605b5b1390c4937fb992df50d47e8a57e63a2f71
+--- a/src/app/world/projects/deslopify/feed-card.spec.ts
++++ b/src/app/world/projects/deslopify/feed-card.spec.ts
+@@ -7,21 +7,24 @@
+   WebGLRenderer,
+ } from 'three';
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+-import { BADGE, CAPTION, FEED_CARDS } from './deslopify.data';
++import { BADGE, FEED_CARDS } from './deslopify.data';
+ import { FeedCard, FeedWall } from './feed-card';
+ 
+ interface CanvasFixture {
+   readonly contexts: CanvasRenderingContext2D[];
+   readonly fillText: ReturnType<typeof vi.fn>;
+   readonly fonts: string[];
++  readonly written: string[][];
+   restore(): void;
+ }
+ 
+ function canvasFixture(): CanvasFixture {
+   const contexts: CanvasRenderingContext2D[] = [];
+   const fonts: string[] = [];
++  const written: string[][] = [];
+   const fillText = vi.fn();
+   const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => {
++    const stateWritten: string[] = [];
+     const context = {
+       fillStyle: '',
+       strokeStyle: '',
+@@ -38,10 +41,20 @@
+       lineTo: vi.fn(),
+       quadraticCurveTo: vi.fn(),
+       arc: vi.fn(),
++      save: vi.fn(),
++      restore: vi.fn(),
++      clip: vi.fn(),
++      translate: vi.fn(),
++      rotate: vi.fn(),
++      rect: vi.fn(),
++      setTransform: vi.fn(),
+       roundRect: vi.fn(),
+       fill: vi.fn(),
+       stroke: vi.fn(),
+-      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => fillText(...args),
++      fillText: (...args: Parameters<CanvasRenderingContext2D['fillText']>) => {
++        stateWritten.push(String(args[0]));
++        fillText(...args);
++      },
+       measureText: (text: string) => ({ width: text.length * 12 }),
+     } as unknown as CanvasRenderingContext2D;
+     Object.defineProperty(context, 'font', {
+@@ -49,9 +62,10 @@
+       set: (value: string) => fonts.push(value),
+     });
+     contexts.push(context);
++    written.push(stateWritten);
+     return context;
+   });
+-  return { contexts, fillText, fonts, restore: () => spy.mockRestore() };
++  return { contexts, fillText, fonts, written, restore: () => spy.mockRestore() };
+ }
+ 
+ function faceOf(card: FeedCard): Mesh<PlaneGeometry, MeshBasicMaterial> {
+@@ -102,32 +116,38 @@
+ 
+   it('draws both 640 by 600 card states with canonical copy and typography', () => {
+     const canvas = canvasFixture();
+-    const card = new FeedCard(FEED_CARDS[1]);
++    const card = new FeedCard(FEED_CARDS[0]);
+     const maps = mapsOf(card);
+-    const written = canvas.fillText.mock.calls.map(([text]) => String(text));
++    const [slopWritten, originalWritten] = canvas.written;
++    const data = FEED_CARDS[0];
+ 
+     expect(maps.original.image.width).toBe(640);
+     expect(maps.original.image.height).toBe(600);
+     expect(maps.slop.image.width).toBe(640);
+     expect(maps.slop.image.height).toBe(600);
+-    expect(written).toContain(CAPTION.original);
+-    expect(written).toContain(CAPTION.translated);
+-    expect(written).toContain(FEED_CARDS[1].original);
+-    expect(written.join(' ')).toContain(FEED_CARDS[1].slop);
+-    expect(written).toContain(FEED_CARDS[1].slopThumb);
+-    expect(written).toContain(FEED_CARDS[1].word);
+-    expect(written).toContain(FEED_CARDS[1].sub);
+-    expect(written).toContain(FEED_CARDS[1].duration);
+-    expect(written).toContain(FEED_CARDS[1].avatar);
+-    expect(written).toContain(FEED_CARDS[1].meta);
+-    expect(written).toContain(BADGE.original);
+-    expect(written).toContain(BADGE.translated);
+-    expect(written).toContain('KI-übersetzt');
++    expect(maps.original.anisotropy).toBe(8);
++    expect(maps.slop.anisotropy).toBe(8);
++    expect(slopWritten).toContain(data.slop);
++    expect(originalWritten).toContain(data.original);
++    expect(slopWritten).toContain(data.meta);
++    expect(originalWritten).toContain(data.meta);
++    expect(slopWritten).toContain(BADGE.translated);
++    expect(originalWritten).toContain(BADGE.original);
++    expect(slopWritten).toContain(data.duration);
++    expect(originalWritten).toContain(data.duration);
++    expect(slopWritten).toContain(data.avatar);
++    expect(originalWritten).toContain(data.avatar);
++    expect(slopWritten).toContain(data.slopThumb);
++    expect(originalWritten).not.toContain(data.slopThumb);
++    expect(slopWritten).toContain('KI-übersetzt');
++    expect(originalWritten).not.toContain('KI-übersetzt');
++    expect(slopWritten).not.toContain('ÜBERSETZT · translated');
++    expect(originalWritten).not.toContain('ORIGINAL');
+     expect(canvas.fonts).toContain('800 140px "Barlow", system-ui, sans-serif');
+     expect(canvas.fonts).toContain('500 30px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('800 38px "Barlow", system-ui, sans-serif');
+-    expect(canvas.fonts).toContain('500 26px "IBM Plex Mono", ui-monospace, monospace');
+-    expect(canvas.fonts).toContain('500 22px "IBM Plex Mono", ui-monospace, monospace');
++    expect(canvas.fonts).toContain('700 38px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('500 26px "Barlow", system-ui, sans-serif');
++    expect(canvas.fonts).toContain('700 22px system-ui, sans-serif');
+ 
+     card.dispose();
+     canvas.restore();
+@@ -151,6 +171,8 @@
+     expect(shader.fragmentShader).toContain('uWipe * 1.08 - .04');
+     expect(shader.fragmentShader).toContain('step(vMapUv.x, e)');
+     expect(shader.fragmentShader).toContain('exp(-abs(vMapUv.x - e) * 70.0)');
++    expect(shader.fragmentShader).toContain('smoothstep(0.0, 0.04, uWipe)');
++    expect(shader.fragmentShader).toContain('smoothstep(1.0, 0.96, uWipe)');
+     expect(shader.fragmentShader).toContain('vec3(1.0, 0.6, 0.22) * 4.0');
+     expect(shader.fragmentShader).toContain('#include <fog_fragment>');
+     expect(shader.fragmentShader).toContain('#include <tonemapping_fragment>');
+diff --git a/src/app/world/projects/deslopify/feed-card.ts b/src/app/world/projects/deslopify/feed-card.ts
+index 9b3997c1e136950831e27c28eabcbfd629b97859..04ef320055332854a623250d4a338fc118371333
+--- a/src/app/world/projects/deslopify/feed-card.ts
++++ b/src/app/world/projects/deslopify/feed-card.ts
+@@ -11,7 +11,7 @@
+ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+ import { disposeObject3D } from '@engine/dispose';
+ import type { FeedCardData } from './deslopify.data';
+-import { BADGE, CAPTION, FEED_CARDS, PALETTE } from './deslopify.data';
++import { BADGE, FEED_CARDS, PALETTE } from './deslopify.data';
+ 
+ const FRAME_WIDTH = 2.1;
+ const FRAME_HEIGHT = 1.98;
+
+[1mhook:[0m [2mStop[0m
+[1mhook:[0m [2mStop[0m Completed
+[2mtokens used[0m
+201,293
+Updated [feed-card.spec.ts](/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.spec.ts) for rewritten draw reference:
+
+- Added required canvas mock methods.
+- Removed caption assertions.
+- Added state-specific text and seam-fade assertions.
+- Asserted texture anisotropy.
+
+Genuine bug fix: removed unused `CAPTION` import from [feed-card.ts](/home/jamie/programming/gitplore-dj-t8a/src/app/world/projects/deslopify/feed-card.ts).
+
+Checks pass:
+
+- Spec: 8/8
+- TypeScript
+- ESLint
+- Prettier check
+
+No changelog or commit created.

@@ -1,0 +1,1 @@
+Added [CHANGELOG.md](/home/jamie/programming/gitplore-dj-t8c/CHANGELOG.md) with dated `Added` entries. `git diff --check` passes.

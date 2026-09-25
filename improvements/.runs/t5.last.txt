@@ -1,0 +1,1 @@
+Added [CHANGELOG.md](/home/jamie/programming/gitplore-dj-t5/CHANGELOG.md) with dated `Fixed` entries and required `**CODEX:**` prefixes. `git diff --check`: pass.

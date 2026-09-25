@@ -30,6 +30,8 @@ const forbid = (message, layers, extra = []) => ({
 const THREE = ['three', 'three/*', 'three/**'];
 
 module.exports = defineConfig([
+  // Design handoffs and agent run logs are reference material, not code.
+  { ignores: ['improvements/**'] },
   {
     files: ['**/*.ts'],
     extends: [

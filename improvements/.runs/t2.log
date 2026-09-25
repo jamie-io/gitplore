@@ -1,0 +1,522 @@
+[0m
+> build · mimo-v2.6-flash-free
+[0m
+[0m→ [0mRead docs/superpowers/plans/2026-09-24-deslopify-jungle.md
+[0m→ [0mRead docs/superpowers/specs/2026-09-24-deslopify-jungle-design.md
+[0m→ [0mRead src/app/world/landmarks/base/label.ts
+[0m✗ [0mRead src/app/world/landmarks/base/label.spec.ts failed
+[91m[1mError: [0mFile not found: /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.spec.ts
+[0m✱ [0mGrep "createLabel|landmarks/base/label"[90m 20 matches[0m
+[0m✱ [0mGlob "src/app/world/landmarks/base/*.spec.ts"[90m 3 matches[0m
+[0m
+[0m$ [0mgit status && git log --oneline -5 && git branch --show-current
+On branch lane/dj-t2
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	.graphene/
+
+nothing added to commit but untracked files present (use "git add" to track)
+d2abe4c Add the Deslopify jungle design spec and implementation plan
+83c3cce Remove obsolete repository metadata
+c4aa085 Merge branch 'lane/adv-t10' into main
+f4d45f3 Open a contact dialog from the obelisk and head /projects with it
+db08926 Build Jamie's camp at the Lichtung spawn
+lane/dj-t2
+[0m
+[0m→ [0mRead src/app/world/landmarks/base/landmark.spec.ts
+[0m→ [0mRead src/app/world/landmarks/base/portal.landmark.spec.ts
+[0m
+[0m$ [0mrg -l "spec.ts" --files-with-matches -g '*.spec.ts' -e "label" src/app/world | sort; echo ---; npx ng version 2>/dev/null | head -20
+rg: spec.ts: No such file or directory (os error 2)
+src/app/world/environments/data/release-markers.spec.ts
+src/app/world/environments/signpost.spec.ts
+src/app/world/projects/webkatalog/catalogue-bays.spec.ts
+src/app/world/projects/webkatalog/webkatalog.scene.spec.ts
+---
+[31m[39m
+[31m     _                      _                 ____ _     ___[39m
+[31m    / \   _ __   __ _ _   _| | __ _ _ __     / ___| |   |_ _|[39m
+[31m   / △ \ | '_ \ / _` | | | | |/ _` | '__|   | |   | |    | |[39m
+[31m  / ___ \| | | | (_| | |_| | | (_| | |      | |___| |___ | |[39m
+[31m /_/   \_\_| |_|\__, |\__,_|_|\__,_|_|       \____|_____|___|[39m
+[31m                |___/[39m
+[31m    [39m
+
+[1mAngular CLI       [22m: [36m22.1.7[39m
+[1mAngular           [22m: [36m22.1.5[39m
+[1mNode.js           [22m: [36m25.2.1[33m (Unsupported)[39m[39m
+[1mPackage Manager   [22m: [36mnpm 11.19.0[39m
+[1mOperating System  [22m: [36mlinux x64[39m
+
+┌───────────────────────────┬───────────────────┬───────────────────┐
+│ Package                   │ Installed Version │ Requested Version │
+├───────────────────────────┼───────────────────┼───────────────────┤
+│ @angular/build            │ [36m22.1.7[39m            │ ^22.1.7           │
+│ @angular/cli              │ [36m22.1.7[39m            │ ^22.1.7           │
+[0m
+[0m✱ [0mGrep "getContext|measureText"[90m 22 matches[0m
+[0m
+[0m$ [0mrg -n "jsdom|happy-dom|vitest|test" angular.json | head -40; echo ---; ls src; ls
+71:        "test": {
+72:          "builder": "@angular/build:unit-test"
+---
+app
+index.html
+main.ts
+styles.scss
+angular.json
+assets-src
+Dockerfile
+docs
+eslint.config.js
+IMPLEMENTATION_PLAN.md
+nginx.conf
+node_modules
+package.json
+package-lock.json
+PLAN.md
+playwright.config.ts
+public
+README.md
+scripts
+src
+tests
+tsconfig.app.json
+tsconfig.json
+tsconfig.spec.json
+[0m
+[0m→ [0mRead src/app/world/environments/signpost.spec.ts
+[0m→ [0mRead src/app/world/environments/props/terminal.spec.ts[90m [offset=225, limit=110][0m
+[0m
+[0m$ [0msed -n '60,110p' angular.json; echo ---; ls *.config.* 2>/dev/null; rg -n "environment|jsdom|happy-dom" angular.json package.json tsconfig.spec.json 2>/dev/null
+"builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "gitplore:build:production"
+            },
+            "development": {
+              "buildTarget": "gitplore:build:development"
+            }
+          },
+          "defaultConfiguration": "development"
+        },
+        "test": {
+          "builder": "@angular/build:unit-test"
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["src/**/*.ts", "src/**/*.html"]
+          }
+        }
+      }
+    }
+  }
+}
+---
+eslint.config.js
+playwright.config.ts
+package.json:53:    "jsdom": "^28.0.0",
+[0m
+[0m→ [0mRead src/app/world/hub/home-base.spec.ts[90m [limit=70][0m
+[0m→ [0mRead eslint.config.js
+[0m
+[0m$ [0mrg -l "createLabel|from './label'|base/label" src --glob '*.spec.ts'; echo ---; node -e "const {JSDOM}=require('jsdom'); const d=new JSDOM(); console.log('fonts' in d.window.document, typeof d.window.document.fonts)"
+---
+[33mfalse[39m undefined
+[0m
+[0m$ [0mrg -n "get image|set image|this.image" node_modules/three/src/textures/Texture.js | head; echo ---; sed -n '1,40p' node_modules/three/src/textures/CanvasTexture.js; echo ---; rg -n "ceilPowerOfTwo" node_modules/three/src/math/MathUtils.js
+414:	get image() {
+420:	set image( value ) {
+---
+import { Texture } from './Texture.js';
+
+/**
+ * Creates a texture from a canvas element.
+ *
+ * This is almost the same as the base texture class, except that it sets {@link Texture#needsUpdate}
+ * to `true` immediately since a canvas can directly be used for rendering.
+ *
+ * @augments Texture
+ */
+class CanvasTexture extends Texture {
+
+	/**
+	 * Constructs a new texture.
+	 *
+	 * @param {HTMLCanvasElement} [canvas] - The HTML canvas element.
+	 * @param {number} [mapping=Texture.DEFAULT_MAPPING] - The texture mapping.
+	 * @param {number} [wrapS=ClampToEdgeWrapping] - The wrapS value.
+	 * @param {number} [wrapT=ClampToEdgeWrapping] - The wrapT value.
+	 * @param {number} [magFilter=LinearFilter] - The mag filter value.
+	 * @param {number} [minFilter=LinearMipmapLinearFilter] - The min filter value.
+	 * @param {number} [format=RGBAFormat] - The texture format.
+	 * @param {number} [type=UnsignedByteType] - The texture type.
+	 * @param {number} [anisotropy=Texture.DEFAULT_ANISOTROPY] - The anisotropy value.
+	 */
+	constructor( canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy ) {
+
+		super( canvas, mapping, wrapS, wrapT, magFilter, minFilter, format, type, anisotropy );
+
+		/**
+		 * This flag can be used for type testing.
+		 *
+		 * @type {boolean}
+		 * @readonly
+		 * @default true
+		 */
+		this.isCanvasTexture = true;
+
+		this.needsUpdate = true;
+
+---
+300:function ceilPowerOfTwo( value ) {
+679:	ceilPowerOfTwo: ceilPowerOfTwo,
+747:	ceilPowerOfTwo,
+[0m
+[0m✱ [0mGlob "src/app/world/**/{signpost,home-base,commit-ridge,star-lanterns,release-markers,screen.landmark,portal.landmark,jungle-signs}.spec.ts"[90m 8 matches[0m
+[0m⚙ [0mgraphene_read Unknown
+[0m
+[0m$ [0msed -n '295,310p' node_modules/three/src/math/MathUtils.js; echo ---; cat tsconfig.spec.json; echo ---; rg -n '"paths"' -A6 tsconfig.json
+* Returns the smallest power of two that is greater than or equal to the given number.
+ *
+ * @param {number} value - The value to find a POT for. Must be greater than `0`.
+ * @return {number} The smallest power of two that is greater than or equal to the given number.
+ */
+function ceilPowerOfTwo( value ) {
+
+	return Math.pow( 2, Math.ceil( Math.log( value ) / Math.LN2 ) );
+
+}
+
+/**
+ * Returns the largest power of two that is less than or equal to the given number.
+ *
+ * @param {number} value - The value to find a POT for. Must be greater than `0`.
+ * @return {number} The largest power of two that is less than or equal to the given number.
+---
+/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
+/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.spec.ts"]
+}
+---
+15:    "paths": {
+16-      "@engine/*": ["./src/app/engine/*"],
+17-      "@world/*": ["./src/app/world/*"],
+18-      "@content/*": ["./src/app/content/*"],
+19-      "@ui/*": ["./src/app/ui/*"]
+20-    },
+21-    "module": "preserve"
+[0m
+[0m⚙ [0mgraphene_batch {"nodes":[{"name":"landmarks-base-label","type":"module","summary":"createLabel: canvas-texture text label for world signs; measured width, power-of-two canvas, plane aspect = HEIGHT*w/CANVAS_H","covers":["src/app/world/landmarks/base/label.ts","src/app/world/landmarks/base/label.spec.ts"],"entry_points":["src/app/world/landmarks/base/label.ts"]}]}
+[0m
+[0m← [0mWrite src/app/world/landmarks/base/label.spec.ts
+Wrote file successfully.
+[0m
+Graph seeded. TDD: spec first.
+[0m$ [0mnpx ng test --watch=false --include='src/app/world/landmarks/base/label.spec.ts' 2>&1 | tail -30
+[37m      2 │ import { [32mCANVAS_HEIGHT[37m, createLabel, LABEL_HEIGHT, PAD } from './la...
+        ╵          [32m~~~~~~~~~~~~~[0m
+
+  'CANVAS_HEIGHT' is declared here.
+
+    src/app/world/landmarks/base/label.ts:4:6:
+[37m      4 │ const [32mCANVAS_HEIGHT[37m = 256;
+        ╵       [32m~~~~~~~~~~~~~[0m
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mTS2459: Module '"./label"' declares 'LABEL_HEIGHT' locally, but it is not exported.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/world/landmarks/base/label.spec.ts:2:37:
+[37m      2 │ ...t { CANVAS_HEIGHT, createLabel, [32mLABEL_HEIGHT[37m, PAD } from './label';
+        ╵                                    [32m~~~~~~~~~~~~[0m
+
+  'LABEL_HEIGHT' is declared here.
+
+    src/app/world/landmarks/base/label.ts:7:6:
+[37m      7 │ const [32mLABEL_HEIGHT[37m = 0.6;
+        ╵       [32m~~~~~~~~~~~~[0m
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mTS2305: Module '"./label"' has no exported member 'PAD'.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/world/landmarks/base/label.spec.ts:2:51:
+[37m      2 │ ...t { CANVAS_HEIGHT, createLabel, LABEL_HEIGHT, [32mPAD[37m } from './label';
+        ╵                                                  [32m~~~[0m
+
+[39m[22m
+[0m
+[0m← [0mWrite src/app/world/landmarks/base/label.ts
+Wrote file successfully.
+[0m
+Red confirmed. Implementing:
+[0m$ [0mnpx ng test --watch=false --include='src/app/world/landmarks/base/label.spec.ts' 2>&1 | tail -25
+Node.js version v25.2.1 detected.
+Prior to version 27, odd numbered Node.js versions will not enter LTS status and should not be used for production. For more information, please see https://nodejs.org/en/about/previous-releases/.
+[33m❯[39m Building...
+[32m✔[39m Building...
+Application bundle generation complete. [7.542 seconds] - 2026-09-24T14:26:19.759Z
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/home/jamie/programming/gitplore-dj-t2[39m
+
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+[2m   Start at [22m 16:26:19
+[2m   Duration [22m 1.74s[2m (transform 109ms, setup 514ms, import 87ms, tests 27ms, environment 818ms)[22m
+[0m
+9/9 green. Now every spec that imports `label.ts`:
+[0m$ [0mnpx ng test --watch=false --include='src/app/world/landmarks/base/label.spec.ts' --include='src/app/world/landmarks/base/screen.landmark.spec.ts' --include='src/app/world/landmarks/base/portal.landmark.spec.ts' --include='src/app/world/hub/home-base.spec.ts' --include='src/app/world/environments/signpost.spec.ts' --include='src/app/world/environments/data/star-lanterns.spec.ts' --include='src/app/world/environments/data/release-markers.spec.ts' --include='src/app/world/environments/data/commit-ridge.spec.ts' --include='src/app/world/projects/deslopify/jungle-signs.spec.ts' 2>&1 | tail -30
+[90m 36|[39m       [33m.[39m[34mmockReturnValue[39m([34mcanvasContext[39m())[33m;[39m
+    [90m 37|[39m     [35mconst[39m label [33m=[39m [34mcreateSignpostLabel[39m()[33m;[39m
+    [90m   |[39m                   [31m^[39m
+    [90m 38|[39m     [34mexpect[39m(label)[33m.[39mnot[33m.[39m[34mtoBeNull[39m()[33m;[39m
+    [90m 39|[39m     [35mif[39m ([33m![39mlabel) {
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m [30m[42m gitplore [49m[39m src/app/world/environments/signpost.spec.ts[2m > [22mLichtungSignpost[2m > [22madds its sign and releases every owned resource
+[31m[1mTypeError[22m: context.measureText is not a function[39m
+[90m [2m❯[22m draw src/app/world/landmarks/base/label.ts:[2m28:62[22m[39m
+[90m [2m❯[22m createLabel src/app/world/landmarks/base/label.ts:[2m45:15[22m[39m
+[90m [2m❯[22m createSignpostLabel src/app/world/environments/signpost.ts:[2m17:17[22m[39m
+[90m [2m❯[22m LichtungSignpost.init src/app/world/environments/signpost.ts:[2m71:19[22m[39m
+[36m [2m❯[22m src/app/world/environments/signpost.spec.ts:[2m57:14[22m[39m
+    [90m 55|[39m     [35mconst[39m ctx [33m=[39m [34mstubContext[39m()[33m;[39m
+    [90m 56|[39m     const signpost = new LichtungSignpost({ heightAt: terrainHeightAt …
+    [90m 57|[39m     signpost[33m.[39m[34minit[39m(ctx)[33m;[39m
+    [90m   |[39m              [31m^[39m
+    [90m 58|[39m
+    [90m 59|[39m     [35mconst[39m resources[33m:[39m { dispose[33m:[39m [33mReturnType[39m[33m<[39m[35mtypeof[39m vi[33m.[39mfn[33m>[39m }[] [33m=[39m [][33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m8 passed[39m[22m[90m (9)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m58 passed[39m[22m[90m (61)[39m
+[2m   Start at [22m 16:26:32
+[2m   Duration [22m 1.54s[2m (transform 733ms, setup 3.61s, import 1.47s, tests 301ms, environment 6.02s)[22m
+[0m
+[0m← [0mEdit src/app/world/landmarks/base/label.ts
+Index: /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.ts
+===================================================================
+--- /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.ts
++++ /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.ts
+@@ -10,8 +10,11 @@
+ export const PAD = 40;
+ 
+ const LABEL_FONT = '700 120px "Barlow Semi Condensed"';
+ 
++/** Pre-measurement fixed width, kept for contexts that cannot measure text (bare test doubles). */
++const UNMEASURED_WIDTH = 1024;
++
+ /**
+  * A floating text label drawn onto a canvas texture. The canvas and the plane are measured to fit
+  * the text, and the texture is redrawn once the web font has loaded. Returns `null` where no 2D
+  * context exists (headless unit tests), so callers simply skip the sign.
+
+[0m
+[0m← [0mEdit src/app/world/landmarks/base/label.ts
+Index: /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.ts
+===================================================================
+--- /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.ts
++++ /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.ts
+@@ -27,9 +27,13 @@
+ }
+ 
+ const draw = (): number => {
+   context.font = LABEL_FONT;
+-  const width = MathUtils.ceilPowerOfTwo(Math.ceil(context.measureText(text).width) + 2 * PAD);
++  const measured =
++    typeof context.measureText === 'function'
++      ? Math.ceil(context.measureText(text).width)
++      : UNMEASURED_WIDTH - 2 * PAD;
++  const width = MathUtils.ceilPowerOfTwo(measured + 2 * PAD);
+   // Resizing the canvas resets every context state, so the font goes back on before drawing.
+   canvas.width = width;
+   canvas.height = CANVAS_HEIGHT;
+   context.font = LABEL_FONT;
+
+[0m
+[0m← [0mEdit src/app/world/landmarks/base/label.spec.ts
+Index: /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.spec.ts
+===================================================================
+--- /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.spec.ts
++++ /home/jamie/programming/gitplore-dj-t2/src/app/world/landmarks/base/label.spec.ts
+@@ -156,5 +156,23 @@
+     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+ 
+     expect(createLabel('Kontakt', '#2c3a40')).toBeNull();
+   });
++
++  it('falls back to the old fixed width where the context cannot measure', () => {
++    const fillText = vi.fn();
++    const context = {
++      fillStyle: '',
++      font: '',
++      textAlign: '',
++      textBaseline: '',
++      fillRect: vi.fn(),
++      fillText,
++    } as unknown as CanvasRenderingContext2D;
++    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context);
++
++    const label = createLabel(LONG, '#2c3a40');
++
++    expect(canvasOf(label!).width).toBe(1024);
++    expect(fillText).toHaveBeenCalledOnce();
++  });
+ });
+
+[0m
+Failure: `signpost.spec.ts` test double lacks `measureText`. Can't touch that file (not mine) — `label.ts` must tolerate contexts that cannot measure (same posture as its existing null-context guard):
+[0m$ [0mnpx ng test --watch=false --include='src/app/world/landmarks/base/label.spec.ts' --include='src/app/world/landmarks/base/screen.landmark.spec.ts' --include='src/app/world/landmarks/base/portal.landmark.spec.ts' --include='src/app/world/hub/home-base.spec.ts' --include='src/app/world/environments/signpost.spec.ts' --include='src/app/world/environments/data/star-lanterns.spec.ts' --include='src/app/world/environments/data/release-markers.spec.ts' --include='src/app/world/environments/data/commit-ridge.spec.ts' --include='src/app/world/projects/deslopify/jungle-signs.spec.ts' 2>&1 | tail -12
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+
+[2m Test Files [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+[2m      Tests [22m [1m[32m62 passed[39m[22m[90m (62)[39m
+[2m   Start at [22m 16:27:53
+[2m   Duration [22m 1.44s[2m (transform 619ms, setup 3.24s, import 1.10s, tests 248ms, environment 6.03s)[22m
+[0m
+62/62 green. Typecheck + lint:
+[0m$ [0mnpx tsc -b --noEmit && echo TSC_OK; npx eslint src/app/world/landmarks/base/label.ts src/app/world/landmarks/base/label.spec.ts && echo LINT_OK
+TSC_OK
+LINT_OK
+[0m
+[0m→ [0mRead src/app/world/landmarks/base/label.ts
+[0m
+[0m$ [0mcat package.json | sed -n '1,60p'; echo ---; git diff --stat
+{
+  "name": "gitplore",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "lint": "ng lint",
+    "format": "prettier --write .",
+    "typecheck": "tsc -b --noEmit",
+    "e2e": "playwright test",
+    "content:sync": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-repos.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-readmes.mjs",
+    "content:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-embeddable.mjs",
+    "content:screens": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/capture-screens.mjs",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run test:scripts && npm run build && npm run budget:check",
+    "prepare": "husky",
+    "test:scripts": "node --test 'scripts/**/*.test.mjs'",
+    "assets:author": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/author-models.mjs",
+    "assets:optimize": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/optimize-assets.mjs",
+    "budget:check": "node scripts/check-budget.mjs",
+    "a11y:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-a11y.mjs"
+  },
+  "private": true,
+  "packageManager": "npm@11.19.0",
+  "dependencies": {
+    "@angular/common": "^22.1.0",
+    "@angular/compiler": "^22.1.0",
+    "@angular/core": "^22.1.0",
+    "@angular/forms": "^22.1.0",
+    "@angular/platform-browser": "^22.1.0",
+    "@angular/router": "^22.1.0",
+    "dompurify": "^3.4.15",
+    "marked": "^18.0.12",
+    "rxjs": "~7.8.0",
+    "three": "^0.186.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.1.7",
+    "@angular/cli": "^22.1.7",
+    "@angular/compiler-cli": "^22.1.0",
+    "@axe-core/playwright": "^4.13.0",
+    "@eslint/js": "^10.0.1",
+    "@gltf-transform/cli": "^4.5.0",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.5.0",
+    "@types/three": "^0.185.4",
+    "angular-eslint": "22.5.0",
+    "eslint": "^10.9.1",
+    "husky": "^9.1.7",
+    "jsdom": "^28.0.0",
+    "lighthouse": "12.8.2",
+    "lint-staged": "^17.5.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "8.69.0",
+    "vitest": "^4.0.8"
+  },
+---
+ src/app/world/landmarks/base/label.ts | 74 +++++++++++++++++++++++++----------
+ 1 file changed, 53 insertions(+), 21 deletions(-)
+[0m
+Repo uses Prettier. Check formatting of my two files:
+[0m$ [0mnpx prettier --check src/app/world/landmarks/base/label.ts src/app/world/landmarks/base/label.spec.ts; cat .prettierrc* 2>/dev/null; rg -n "printWidth" .prettierrc* prettier.config* 2>/dev/null
+Checking formatting...
+[[33mwarn[39m] src/app/world/landmarks/base/label.ts
+[[33mwarn[39m] Code style issues found in the above file. Run Prettier with --write to fix.
+{
+  "printWidth": 100,
+  "singleQuote": true,
+  "overrides": [
+    {
+      "files": "*.html",
+      "options": {
+        "parser": "angular"
+      }
+    }
+  ]
+}
+zsh:1: no matches found: prettier.config*
+[0m
+[0m$ [0mnpx prettier --write src/app/world/landmarks/base/label.ts && npx prettier --check src/app/world/landmarks/base/label.ts src/app/world/landmarks/base/label.spec.ts && npx tsc -b --noEmit && npx eslint src/app/world/landmarks/base/label.ts src/app/world/landmarks/base/label.spec.ts && echo ALL_OK
+src/app/world/landmarks/base/label.ts 151ms
+Checking formatting...
+All matched files use Prettier code style!
+ALL_OK
+[0m
+[0m⚙ [0mgraphene_learn {"node_name":"landmarks-base-label","content":"createLabel now measures text (font '700 120px \"Barlow Semi Condensed\"', PAD=40 per side), sizes canvas to next power of two of ceil(width)+2*PAD at CANVAS_HEIGHT=256, plane width = LABEL_HEIGHT*w/CANVAS_HEIGHT (LABEL_HEIGHT=0.6, exports CANVAS_HEIGHT/LABEL_HEIGHT/PAD for specs), fillText gets no maxWidth. Redraws via document.fonts?.load (optional-chain guards jsdom); rejection keeps fallback texture. Guard: contexts without measureText (signpost.spec bare double, file not owned by task 2) fall back to UNMEASURED_WIDTH=1024. label.spec.ts has 10 tests pinning these contracts.","source":"Task 2 measured labels implementation"}
+[0m
+[0m$ [0mnpx ng test --watch=false --include='src/app/world/landmarks/base/label.spec.ts' --include='src/app/world/landmarks/base/screen.landmark.spec.ts' --include='src/app/world/landmarks/base/portal.landmark.spec.ts' --include='src/app/world/hub/home-base.spec.ts' --include='src/app/world/environments/signpost.spec.ts' --include='src/app/world/environments/data/star-lanterns.spec.ts' --include='src/app/world/environments/data/release-markers.spec.ts' --include='src/app/world/environments/data/commit-ridge.spec.ts' --include='src/app/world/projects/deslopify/jungle-signs.spec.ts' 2>&1 | tail -6; git status --short
+[2m Test Files [22m [1m[32m9 passed[39m[22m[90m (9)[39m
+[2m      Tests [22m [1m[32m62 passed[39m[22m[90m (62)[39m
+[2m   Start at [22m 16:28:46
+[2m   Duration [22m 1.69s[2m (transform 800ms, setup 3.73s, import 1.49s, tests 320ms, environment 6.68s)[22m
+
+ M src/app/world/landmarks/base/label.ts
+?? .graphene/
+?? src/app/world/landmarks/base/label.spec.ts
+[0m
+**Report — Task 2: Measured labels**
+
+**Files changed**
+- `src/app/world/landmarks/base/label.ts` — modified
+- `src/app/world/landmarks/base/label.spec.ts` — created (TDD: written first, red run confirmed, then implemented)
+
+**Implemented (plan Task 2)**
+- Font `700 120px "Barlow Semi Condensed"`; `measureText` runs before draw.
+- Canvas width = next power of two of `ceil(width) + 2*PAD` (PAD=40/side), height 256; background rect covers measured canvas.
+- `fillText(text, w/2, h/2)` — exactly 3 args, no `maxWidth`.
+- Plane width = `LABEL_HEIGHT * w / CANVAS_HEIGHT` (exports `CANVAS_HEIGHT`, `LABEL_HEIGHT`, `PAD` for the spec).
+- Redraw once `document.fonts.load(font)` resolves; optional-chain guard when `document.fonts` missing (jsdom); rejection handler keeps the already-drawn texture. Plane geometry swapped + `texture.needsUpdate` if re-measured width changes.
+- Export signature `createLabel(text, color): Mesh | null` unchanged; null-context behaviour kept.
+
+**Test results**
+- `npx ng test --watch=false --include=<label + all 8 specs importing label.ts>` → **9 files, 62/62 passed** (label.spec: 10 tests).
+- `npx tsc -b --noEmit` → pass. `npx eslint <both files>` → pass. Prettier check → pass.
+
+**Unsure / judgement calls**
+- PAD value not given (plan says only `2*PAD`); chose 40 to match old 80 px total inset.
+- `signpost.spec.ts` (not owned by this task) uses a test double without `measureText` → caused 3 failures; fixed inside `label.ts` with a documented fallback to the old fixed 1024 px width rather than editing an unowned file. If orchestrator prefers, alternative is adding `measureText` to that mock.
+- Plan says "then commit"; skipped — your instructions say no commits.

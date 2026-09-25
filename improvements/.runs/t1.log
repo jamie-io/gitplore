@@ -1,0 +1,174 @@
+[0m
+> build · mimo-v2.6-flash-free
+[0m
+[0m→ [0mRead docs/superpowers/plans/2026-09-24-deslopify-jungle.md
+[0m→ [0mRead docs/superpowers/specs/2026-09-24-deslopify-jungle-design.md
+[0m→ [0mRead src/app/content/repo-overrides.ts
+[0m→ [0mRead src/app/content/repo-overrides.spec.ts
+[0m✱ [0mGlob "src/app/world/projects/deslopify/*"[90m 6 matches[0m
+[0m✱ [0mGlob "src/**/*.data.ts"[90m 0 matches[0m
+[0m→ [0mRead src/app/world/projects/deslopify/video-wall.ts
+[0m→ [0mRead src/app/world/projects/deslopify/jungle-signs.spec.ts
+[0m✱ [0mGrep "8f2f2f|f6eaea"[90m 7 matches[0m
+[0m✱ [0mGrep "deslopify.*theme|theme.*deslopify"[90m 0 matches[0m
+[0m
+[0m$ [0mcat package.json | grep -A20 '"scripts"'
+"scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test",
+    "lint": "ng lint",
+    "format": "prettier --write .",
+    "typecheck": "tsc -b --noEmit",
+    "e2e": "playwright test",
+    "content:sync": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-repos.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/sync-readmes.mjs",
+    "content:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-embeddable.mjs",
+    "content:screens": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/capture-screens.mjs",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run test:scripts && npm run build && npm run budget:check",
+    "prepare": "husky",
+    "test:scripts": "node --test 'scripts/**/*.test.mjs'",
+    "assets:author": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/author-models.mjs",
+    "assets:optimize": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/optimize-assets.mjs",
+    "budget:check": "node scripts/check-budget.mjs",
+    "a11y:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-a11y.mjs"
+  },
+[0m
+[0m→ [0mRead src/app/content/testing/project-fixtures.ts
+[0m✱ [0mGrep "project-fixtures"[90m 26 matches[0m
+[0m✱ [0mGrep "theme"[90m in src/app/content · 18 matches[0m
+[0m✱ [0mGlob "src/app/content/*.spec.ts"[90m 9 matches[0m
+[0m
+[0m← [0mWrite src/app/world/projects/deslopify/deslopify.data.spec.ts
+Wrote file successfully.
+[0m
+[0m← [0mEdit src/app/content/repo-overrides.spec.ts
+Index: /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.spec.ts
+===================================================================
+--- /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.spec.ts
++++ /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.spec.ts
+@@ -61,8 +61,12 @@
+   expect(curatedRepoNames().sort()).toEqual(Object.keys(REPO_OVERRIDES).sort());
+   expect(curatedRepoNames()).toContain('deslopify');
+ });
+ 
++it('gives Deslopify the ridge and engraving theme, because the red one turned brown against amber', () => {
++  expect(REPO_OVERRIDES.deslopify.theme).toEqual({ primary: '#6b4712', accent: '#f4e6c8' });
++});
++
+ it('writes German copy for every repository the world shows', () => {
+   // gitplore and webkatalog_demoshop used to fall through to the raw repository name and, for
+   // gitplore, its English GitHub description — an underscored machine name and an English
+   // paragraph among four German ones.
+
+[0m
+Write specs first (TDD).
+[0m$ [0mnpx ng test --watch=false --include='src/app/world/projects/deslopify/deslopify.data.spec.ts' --include='src/app/content/repo-overrides.spec.ts' 2>&1 | tail -30
+Node.js version v25.2.1 detected.
+Prior to version 27, odd numbered Node.js versions will not enter LTS status and should not be used for production. For more information, please see https://nodejs.org/en/about/previous-releases/.
+[33m❯[39m Building...
+[32m✔[39m Building...
+Application bundle generation failed. [4.646 seconds] - 2026-09-24T14:21:01.508Z
+
+[1m[31m[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mTS4111: Property 'deslopify' comes from an index signature, so it must be accessed with ['deslopify'].[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/content/repo-overrides.spec.ts:66:26:
+[37m      66 │     expect(REPO_OVERRIDES.[32mdeslopify[37m.theme).toEqual({ primary: '#6b...
+         ╵                           [32m~~~~~~~~~[0m
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mCould not resolve "./deslopify.data"[0m
+
+    src/app/world/projects/deslopify/deslopify.data.spec.ts:1:72:
+[37m      1 │ ... FEED_CARDS, PALETTE, PROMPTS, SLOP_TAGS } from [32m'./deslopify.data'[37m;
+        ╵                                                    [32m~~~~~~~~~~~~~~~~~~[0m
+
+
+[31m✘ [41;31m[[41;97mERROR[41;31m][0m [1mTS2307: Cannot find module './deslopify.data' or its corresponding type declarations.[0m [1m[35m[plugin angular-compiler][0m
+
+    src/app/world/projects/deslopify/deslopify.data.spec.ts:1:72:
+[37m      1 │ ... FEED_CARDS, PALETTE, PROMPTS, SLOP_TAGS } from [32m'./deslopify.data'[37m;
+        ╵                                                    [32m~~~~~~~~~~~~~~~~~~[0m
+
+[39m[22m
+[0m
+[0m← [0mEdit src/app/content/repo-overrides.spec.ts
+Index: /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.spec.ts
+===================================================================
+--- /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.spec.ts
++++ /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.spec.ts
+@@ -62,9 +62,9 @@
+   expect(curatedRepoNames()).toContain('deslopify');
+ });
+ 
+ it('gives Deslopify the ridge and engraving theme, because the red one turned brown against amber', () => {
+-  expect(REPO_OVERRIDES.deslopify.theme).toEqual({ primary: '#6b4712', accent: '#f4e6c8' });
++  expect(REPO_OVERRIDES['deslopify'].theme).toEqual({ primary: '#6b4712', accent: '#f4e6c8' });
+ });
+ 
+ it('writes German copy for every repository the world shows', () => {
+   // gitplore and webkatalog_demoshop used to fall through to the raw repository name and, for
+
+[0m
+[0m← [0mWrite src/app/world/projects/deslopify/deslopify.data.ts
+Wrote file successfully.
+[0m
+[0m← [0mEdit src/app/content/repo-overrides.ts
+Index: /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.ts
+===================================================================
+--- /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.ts
++++ /home/jamie/programming/gitplore-dj-t1/src/app/content/repo-overrides.ts
+@@ -81,9 +81,9 @@
+     year: 2026,
+     demo: { kind: 'custom', mode: 'in-world' },
+     landmark: { position: [0, 0, -20], rotationY: 0, model: 'assets/models/arch.glb' },
+     environment: 'jungle',
+-    theme: { primary: '#8f2f2f', accent: '#f6eaea' },
++    theme: { primary: '#6b4712', accent: '#f4e6c8' },
+   },
+ };
+ 
+ /**
+
+[0m
+[0m$ [0mnpx ng test --watch=false --include='src/app/world/projects/deslopify/deslopify.data.spec.ts' --include='src/app/content/repo-overrides.spec.ts' 2>&1 | tail -20
+Node.js version v25.2.1 detected.
+Prior to version 27, odd numbered Node.js versions will not enter LTS status and should not be used for production. For more information, please see https://nodejs.org/en/about/previous-releases/.
+[33m❯[39m Building...
+[32m✔[39m Building...
+Application bundle generation complete. [3.054 seconds] - 2026-09-24T14:21:38.030Z
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/home/jamie/programming/gitplore-dj-t1[39m
+
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m14 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 16:21:38
+[2m   Duration [22m 756ms[2m (transform 54ms, setup 431ms, import 28ms, tests 13ms, environment 801ms)[22m
+[0m
+[0m$ [0mnpx eslint src/app/world/projects/deslopify/deslopify.data.ts src/app/world/projects/deslopify/deslopify.data.spec.ts src/app/content/repo-overrides.ts src/app/content/repo-overrides.spec.ts
+(no output)
+[0m
+[0m$ [0mnpx tsc -b --noEmit
+(no output)
+[0m
+[0m$ [0mnpx prettier --check src/app/world/projects/deslopify/deslopify.data.ts src/app/world/projects/deslopify/deslopify.data.spec.ts src/app/content/repo-overrides.ts src/app/content/repo-overrides.spec.ts
+Checking formatting...
+All matched files use Prettier code style!
+[0m
+**Report — Task 1 done**
+
+**Files changed:**
+- `src/app/world/projects/deslopify/deslopify.data.ts` (new) — typed `readonly` data module: `FeedCardData`/`FEED_CARDS` (4, verbatim), `SlopTagData`/`SLOP_TAGS` (4, verbatim), `BADGE`, `CAPTION`, `PROMPTS` (all 9), `PALETTE` (incl. `slopLine: 'oklch(0.68 0.19 335)'`). No logic.
+- `src/app/world/projects/deslopify/deslopify.data.spec.ts` (new) — asserts 4 cards, 4 tags, badges, captions, prompts, palette exact strings.
+- `src/app/content/repo-overrides.ts` — Deslopify theme now `primary: '#6b4712'`, `accent: '#f4e6c8'`.
+- `src/app/content/repo-overrides.spec.ts` — added theme assertion (bracket access, index signature).
+
+**Test results:**
+- `npx ng test --watch=false --include='src/app/world/projects/deslopify/deslopify.data.spec.ts' --include='src/app/content/repo-overrides.spec.ts'` → 2 files, 14/14 passed.
+- `npx tsc -b --noEmit` → clean.
+- `npx eslint <4 changed files>` → clean. Prettier check clean.
+
+**Notes:** TDD followed (spec first, failed on missing module + TS4111 index access, then implemented). Did not touch frozen `project-fixtures.ts` (still old red theme — documented as deliberately out of step). Spec D1 mentions extra exports (`CARD_POS`, `VINE_DATA`, `TRAIL`, …) but plan Task 1 "Produces" list omits them; followed plan as instructed. No commits made.
